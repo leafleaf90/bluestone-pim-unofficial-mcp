@@ -239,6 +239,21 @@ Claude Desktop must be restarted to pick up changes — it only reads the config
 
 ---
 
+## Adding or updating screenshots
+
+Screenshots for the connect page live in `public/connect/images/`. They are served as WebP for performance.
+
+**Workflow:**
+
+1. Drop your new screenshot (PNG or JPG) into `public/connect/images/`
+2. Run the optimizer — it converts to WebP, resizes to max 1400px wide, and deletes the original:
+   ```bash
+   npm run optimize-images
+   ```
+3. Reference the resulting `.webp` file in `public/connect/index.html` using the `[screenshot: filename.webp]` syntax
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |

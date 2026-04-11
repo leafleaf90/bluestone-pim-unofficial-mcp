@@ -5,9 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run build        # compile TypeScript → build/
-npm run dev          # watch mode (tsc --watch)
-npm run vercel-build # used by Vercel CI: compiles + copies HTML + logo into build/
+npm run build           # compile TypeScript → build/
+npm run dev             # watch mode (tsc --watch)
+npm run vercel-build    # used by Vercel CI: compiles + copies HTML + logo into build/
+npm run optimize-images # convert screenshots in public/connect/images/ to WebP (deletes originals)
 ```
 
 There are no tests. No linter is configured.
