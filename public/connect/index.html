@@ -389,6 +389,9 @@ Try a different browser. Some browsers block the redirect that completes the flo
 **Connected but no tools appear**
 Disconnect and reconnect the server. In Claude Desktop, restart the app after reconnecting.
 
+**Creating a product fails with "Access Denied"**
+Your MAPI credentials need write permissions. Read-only credentials work for browsing but not for create or update operations. Check with your Bluestone PIM administrator that the MAPI client has the correct scopes.
+
 **Tool returns an error about the API**
 Your credentials may point to the production Bluestone environment. This server currently connects to the **test environment** (`api.test.bluestonepim.com`) only.
 

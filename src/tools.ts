@@ -427,7 +427,9 @@ export function createMcpServer(creds: Credentials): McpServer {
       description:
         "Create a new product in Bluestone PIM. " +
         "The product name is required — always confirm the name with the user before calling this tool. " +
-        "Returns the name and ID of the newly created product.",
+        "Returns the name and ID of the newly created product. " +
+        "After creating, do NOT offer to add attributes or assign the product to a category — these tools do not exist yet. " +
+        "Instead, tell the user the product was created and suggest they open Bluestone PIM to continue enriching it.",
       inputSchema: {
         name: z.string().min(1).describe("The product name — must be confirmed by the user before calling"),
       },
