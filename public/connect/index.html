@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bluestone PIM · AI Connect</title>
+  <!-- Prevent flash of wrong theme before page renders -->
+  <script>
+    (function () {
+      const stored = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (stored === 'dark' || (!stored && prefersDark)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@11/marked.min.js"></script>
+  <style>
+    html { scroll-behavior: smooth; }
+    .nav-link.active { color: #2563eb; font-weight: 600; }
+    @media (prefers-color-scheme: dark) {
+      .nav-link.active { color: #60a5fa; }
+    }
+    h2[id], h3[id] { scroll-margin-top: 8rem; }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700/60">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center gap-3">
+      <img src="/bluestone_pim_logo.png" alt="Bluestone PIM" class="h-8 w-auto object-contain shrink-0">
+      <div class="flex-1 min-w-0">
+        <span class="font-semibold text-slate-900 dark:text-slate-100 text-sm">Bluestone PIM</span>
+        <span class="hidden sm:inline text-slate-400 dark:text-slate-600 text-sm mx-2">·</span>
+        <span class="hidden sm:inline text-slate-500 dark:text-slate-400 text-sm">AI Connect</span>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2.5 py-1 rounded-full font-medium">Beta</span>
+        <span class="text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2.5 py-1 rounded-full font-medium">Unofficial</span>
+        <button id="theme-toggle" aria-label="Toggle dark mode"
+          class="ml-1 p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <!-- Sun (shown in dark mode) -->
+          <svg id="icon-sun" xmlns="http://www.w3.org/2000/svg" class="hidden dark:block w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/>
+          </svg>
+          <!-- Moon (shown in light mode) -->
+          <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" class="block dark:hidden w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Disclaimer banner -->
+  <div class="bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 dark:border-amber-800/40">
+    <div class="max-w-5xl mx-auto px-6 py-3 flex items-start gap-3">
+      <span class="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0">⚠️</span>
+      <p class="text-sm text-amber-800 dark:text-amber-300">
+        <strong class="font-semibold">Personal project, not an official Bluestone PIM product.</strong>
+        Built independently in a personal capacity. Not endorsed or supported by Bluestone PIM. Use at your own discretion.
+      </p>
+    </div>
+  </div>
+
+  <!-- Mobile nav -->
+  <nav class="md:hidden sticky top-[109px] z-10 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700/60 px-6 overflow-x-auto">
+    <div class="flex gap-5 py-3 text-sm whitespace-nowrap">
+      <a href="#what-can-it-do" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">What can it do?</a>
+      <a href="#before-you-start" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Before you start</a>
+      <a href="#claude-desktop" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Claude Desktop</a>
+      <a href="#cursor" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Cursor</a>
+      <a href="#chatgpt" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">ChatGPT</a>
+      <a href="#troubleshooting" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Troubleshooting</a>
+    </div>
+  </nav>
+
+  <!-- Layout -->
+  <div class="max-w-5xl mx-auto px-6 py-10 flex gap-12">
+
+    <!-- Sidebar -->
+    <aside class="hidden md:block w-48 shrink-0">
+      <nav class="sticky top-24">
+        <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Contents</p>
+        <div class="space-y-0.5">
+          <a href="#before-you-start" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Before you start</a>
+          <a href="#claude-desktop" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Claude Desktop</a>
+          <a href="#cursor" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Cursor</a>
+          <a href="#chatgpt" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">ChatGPT</a>
+          <a href="#troubleshooting" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="min-w-0 flex-1">
+      <div id="content" class="prose prose-slate dark:prose-invert max-w-none
+        prose-headings:font-semibold
+        prose-h1:text-2xl prose-h1:mb-2
+        prose-h2:text-lg prose-h2:mt-12 prose-h2:mb-4 prose-h2:pb-2 prose-h2:border-b prose-h2:border-slate-200 dark:prose-h2:border-slate-700
+        prose-h3:text-base prose-h3:mt-6 prose-h3:mb-3
+        prose-p:text-slate-600 dark:prose-p:text-slate-300 prose-p:leading-relaxed
+        prose-li:text-slate-600 dark:prose-li:text-slate-300
+        prose-code:text-blue-700 dark:prose-code:text-blue-300 prose-code:bg-blue-50 dark:prose-code:bg-blue-950/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono prose-code:text-sm prose-code:before:content-none prose-code:after:content-none
+        prose-pre:bg-slate-900 dark:prose-pre:bg-slate-800 prose-pre:text-slate-100
+        prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+        prose-blockquote:border-amber-400 dark:prose-blockquote:border-amber-600 prose-blockquote:bg-amber-50 dark:prose-blockquote:bg-amber-950/20 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-blockquote:text-amber-800 dark:prose-blockquote:text-amber-300
+        prose-strong:text-slate-800 dark:prose-strong:text-slate-200
+        prose-table:text-sm prose-th:text-slate-700 dark:prose-th:text-slate-300 prose-td:text-slate-600 dark:prose-td:text-slate-400
+        prose-hr:border-slate-200 dark:prose-hr:border-slate-700">
+      </div>
+    </main>
+  </div>
+
+  <!-- Markdown source -->
+  <script type="text/plain" id="md">
+# Connect to Bluestone PIM
+
+Connect your AI assistant directly to your Bluestone PIM organisation. Once connected, you can ask questions like *"show me all products in the DPP category"* and get live answers.
+
+---
+
+## What can it do?
+
+This is an early-stage integration with a limited but useful set of capabilities.
+
+**What works today:**
+
+- **Browse your catalogs**: ask the AI to list all categories in your organisation
+- **Explore products**: list all products in a category, including subcategories, with full attribute values and media info
+- **Create a product**: create a new product by name (the AI will confirm the name with you before doing anything)
+
+**What isn't supported yet:**
+
+- Assigning products to categories
+- Setting or updating product attributes and media
+- Updating or deleting existing products
+- Anything beyond the three operations above
+
+As this is a beta, capabilities will expand over time.
+
+This project is not intended to compete with or replace an official Bluestone PIM MCP integration. It is an independent experiment, a proof of concept exploring what becomes possible when Bluestone PIM is made accessible to AI assistants. We hope it demonstrates the value of that connection and serves as a useful reference point for anyone building towards an official solution.
+
+---
+
+## Before you start
+
+You need three credentials from your Bluestone PIM account:
+
+| Credential | What it looks like |
+|---|---|
+| **MAPI Client ID** | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (UUID format) |
+| **MAPI Client Secret** | A long alphanumeric string |
+| **PAPI Key** | A shorter alphanumeric string |
+
+If you don't have these, contact your Bluestone PIM administrator.
+
+---
+
+## Claude Desktop
+
+### Step 1: Open Settings
+
+In Claude Desktop, click the **Settings** icon in the bottom-left corner of the window.
+
+[screenshot: Claude Desktop — main window with Settings icon highlighted]
+
+### Step 2: Add a custom connector
+
+Navigate to **Customize → Connectors**, then click **Add custom connector**.
+
+[screenshot: Claude Desktop — Connectors panel showing Add custom connector button]
+
+### Step 3: Fill in the server URL
+
+- **Name**: `Bluestone PIM` (or anything you prefer)
+- **URL**: `https://bluestone-mcp-inofficial.vercel.app/mcp`
+
+Then click **Advanced settings** to expand the credentials fields.
+
+### Step 4: Enter your credentials
+
+In Advanced settings, fill in:
+
+- **Client ID**: your MAPI Client ID and PAPI Key joined with a colon, **no spaces**:
+```
+your-mapi-client-id:your-papi-key
+```
+- **Client Secret**: your MAPI Client Secret
+
+[screenshot: Claude Desktop — Advanced settings panel with Client ID and Client Secret fields filled in]
+
+### Step 5: Authorise
+
+Click **Add**. A browser window opens briefly and closes on its own. That is the OAuth authorisation completing and is normal behaviour.
+
+Bluestone PIM will now appear in your Connectors list. Enable it with the toggle.
+
+[screenshot: Claude Desktop — Connectors list with Bluestone PIM enabled]
+
+### Try it
+
+Start a new chat and type:
+
+> Show me the catalogs in Bluestone PIM
+
+---
+
+## Cursor
+
+### Step 1: Add the server to your config
+
+Open (or create) the file `.cursor/mcp.json` in your home directory and add the following:
+
+```json
+{
+  "mcpServers": {
+    "bluestone-pim": {
+      "type": "http",
+      "url": "https://bluestone-mcp-inofficial.vercel.app/mcp"
+    }
+  }
+}
+```
+
+Save the file.
+
+[screenshot: Cursor — .cursor/mcp.json file open in the editor]
+
+### Step 2: Trigger the connection
+
+Cursor will detect the new server. You may see a prompt to connect, or you can trigger it via **Settings → MCP**. Click **Connect**.
+
+A browser window opens showing the **Connect to Bluestone PIM** form.
+
+[screenshot: Cursor — MCP settings panel showing Bluestone PIM with Connect button]
+
+### Step 3: Enter your credentials
+
+Fill in all three fields in the browser form:
+
+- **MAPI Client ID**
+- **MAPI Client Secret**
+- **PAPI Key**
+
+Click **Authorise**. The browser closes and Cursor finishes connecting automatically.
+
+[screenshot: Connect to Bluestone PIM — browser form with all three fields]
+
+### Try it
+
+Open a chat in Cursor and ask:
+
+> Show me the catalogs in Bluestone PIM
+
+---
+
+## ChatGPT
+
+### Step 1: Open the Apps panel
+
+In ChatGPT, click the grid icon (**Apps**) in the left sidebar, or go to **Settings → Connected apps**. Click **Add app** or search for how to add a custom MCP server.
+
+[screenshot: ChatGPT — Apps panel or Settings showing Add app option]
+
+### Step 2: Fill in the server details
+
+- **Name**: `Bluestone PIM`
+- **Description**: `Connects to your Bluestone PIM organisation` (optional)
+- **MCP Server URL**: `https://bluestone-mcp-inofficial.vercel.app/mcp`
+- **Authentication**: `OAuth`
+
+[screenshot: ChatGPT — Add MCP server form with fields filled in]
+
+### Step 3: Check Advanced settings
+
+Expand **Advanced settings**. ChatGPT will auto-discover the server configuration. Leave everything as-is:
+
+- **Registration method**: Dynamic Client Registration (DCR), already selected
+- **Scopes**: leave blank
+- **OIDC**: leave disabled
+
+[screenshot: ChatGPT — Advanced settings showing auto-discovered OAuth endpoints]
+
+### Step 4: Save and authorise
+
+Click **Save**. A browser window opens showing the **Connect to Bluestone PIM** form. Fill in all three credentials and click **Authorise**.
+
+[screenshot: Connect to Bluestone PIM — browser form with all three fields]
+
+### Try it
+
+Start a new chat and type:
+
+> Show me the catalogs in Bluestone PIM
+
+---
+
+## Troubleshooting
+
+**Connection fails immediately**
+Make sure the URL ends in `/mcp`: `https://bluestone-mcp-inofficial.vercel.app/mcp`
+
+**Claude Desktop shows "Authorization failed"**
+Check the Client ID format. It must be `mapiClientId:papiKey`: a colon between the two values, no spaces, no extra characters.
+
+**The browser form appears but Authorise does nothing**
+Try a different browser. Some browsers block the redirect that completes the flow.
+
+**Connected but no tools appear**
+Disconnect and reconnect the server. In Claude Desktop, restart the app after reconnecting.
+
+**Tool returns an error about the API**
+Your credentials may point to the production Bluestone environment. This server currently connects to the **test environment** (`api.test.bluestonepim.com`) only.
+  </script>
+
+  <script>
+    // Theme toggle
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    });
+
+    const raw = document.getElementById('md').textContent;
+
+    // Replace [screenshot: label] with styled placeholder boxes (dark mode aware)
+    const withPlaceholders = raw.replace(
+      /\[screenshot: ([^\]]+)\]/g,
+      (_, label) => `
+<figure class="not-prose my-8 flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-8 py-12 text-center">
+  <span class="text-4xl">📷</span>
+  <span class="text-sm font-medium text-slate-500 dark:text-slate-400">${label}</span>
+  <span class="text-xs text-slate-400 dark:text-slate-500">Replace with screenshot</span>
+</figure>`
+    );
+
+    marked.use({ breaks: false, gfm: true });
+    document.getElementById('content').innerHTML = marked.parse(withPlaceholders);
+
+    // Sidebar active link tracking
+    const headings = document.querySelectorAll('#content h2');
+    const navLinks = document.querySelectorAll('.nav-link');
+
+    function setActive(id) {
+      navLinks.forEach(link => {
+        const isActive = link.getAttribute('href') === `#${id}`;
+        link.classList.toggle('active', isActive);
+        link.classList.toggle('text-blue-600', isActive);
+        link.classList.toggle('dark:text-blue-400', isActive);
+        link.classList.toggle('text-slate-500', !isActive);
+        link.classList.toggle('dark:text-slate-400', !isActive);
+      });
+    }
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) setActive(entry.target.id);
+      });
+    }, { rootMargin: '-10% 0px -80% 0px', threshold: 0 });
+
+    headings.forEach(h => observer.observe(h));
+  </script>
+
+  <!-- Footer -->
+  <footer class="mt-16 border-t border-slate-200 dark:border-slate-700/60">
+    <div class="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-slate-400 dark:text-slate-500">
+      <span>Personal project. Not an official Bluestone PIM product.</span>
+      <span>Built by <a href="https://www.linkedin.com/in/viktorlovgren/" target="_blank" rel="noopener noreferrer" class="hover:text-slate-600 dark:hover:text-slate-300 transition-colors underline underline-offset-2">Viktor Lövgren</a></span>
+    </div>
+  </footer>
+
+</body>
+</html>
