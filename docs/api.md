@@ -94,7 +94,19 @@ Response shape:
           "definingAttribute": false
         }
       ],
-      "media": [...],
+      "media": [
+        {
+          "id": "23b32451-b403-435a-9918-8f7f0ec557d5",
+          "downloadUri": "https://media.test.bluestonepim.com/.../photo.jpg",
+          "previewUri": "https://media.test.bluestonepim.com/.../photo.jpg?f=jpg&w=400",
+          "name": "Product hero shot",
+          "fileName": "323300004.jpg",
+          "contentType": "image/jpeg",
+          "labels": ["PPE-accessible", "pb"],
+          "createdAt": 1631884720598,
+          "updatedAt": 1724059213810
+        }
+      ],
       "variants": ["id1", "id2"],
       "categories": ["cat-id-1", "cat-id-2"]
     }
@@ -111,6 +123,9 @@ Key fields on each product:
 - `attributes[].definingAttribute` — true if this attribute differentiates variants within a GROUP
 - `variants` — IDs of child VARIANT products (only on GROUP type)
 - `variantParentId` — ID of parent GROUP (only on VARIANT type)
+- `media[].previewUri` — publicly accessible thumbnail URL (`?f=jpg&w=400`). Passed through in MCP tool responses so Claude can render images inline.
+- `media[].downloadUri` — full-resolution URL. Not included in MCP tool responses (no use case in chat).
+- `media[].name` — descriptive name of the asset (e.g. "Product hero shot"). Falls back to `labels[0]` then `fileName` if absent.
 
 ---
 

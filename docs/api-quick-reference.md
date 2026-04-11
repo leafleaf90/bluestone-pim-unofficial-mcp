@@ -14,7 +14,7 @@ A scannable reference for adding new tools. For detailed request/response shapes
 | **Labels** | https://docs.api.test.bluestonepim.com/openapi/labels.json | Medium — add/remove labels; useful for workflow/approval flows |
 | **Tasks** | https://docs.api.test.bluestonepim.com/openapi/tasks.json | Medium — if workflow tasks, AI could list or create them |
 | **Query builder** | https://docs.api.test.bluestonepim.com/openapi/query-builder.json | Medium — structured attribute-based filtering; complex but powerful |
-| **Media bank** | https://docs.api.test.bluestonepim.com/openapi/media-bank.json | Low-medium — asset management; useful once product writes are solid |
+| **Media bank** | https://docs.api.test.bluestonepim.com/openapi/media-bank.json | Low-medium — asset management; useful once product writes are solid. Note: `previewUri` from product responses is already public (`?f=jpg&w=400`) and passed through in tool responses so Claude can render thumbnails inline. |
 | **Metadata** | https://docs.api.test.bluestonepim.com/openapi/metadata.json | Low — internal metadata, unlikely to be user-facing |
 | **Global settings** | https://docs.api.test.bluestonepim.com/openapi/global-settings.json | Low — admin config, not a conversational use case |
 | **Sync / Public API sync** | https://docs.api.test.bluestonepim.com/openapi/public-api-sync.json | Low — publish pipeline internals |
