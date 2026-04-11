@@ -27,8 +27,8 @@ This is a **Model Context Protocol (MCP) server** for Bluestone PIM, with two de
 All MCP tools are registered inside a single `createMcpServer(creds: Credentials)` factory function. This function is imported by both entry points. Current tools:
 
 - `list_contexts` — calls MAPI Global Settings `/global-settings/context` via `mapiGet()`
-- `list_catalogs` — calls MAPI `/pim/catalogs` + `/pim/catalogs/{id}/nodes` (parallel) via `mapiGet()`
-- `list_products_in_category` — calls MAPI `/pim/catalogs/nodes/{id}/products` via `mapiGet()`
+- `list_catalogs` — calls MAPI `/pim/catalogs` via `mapiGet()`. Returns catalog IDs used directly as nodeId in the next tool.
+- `list_products_in_category` — calls MAPI `/pim/catalogs/nodes/{id}/products` via `mapiGet()`. The `nodeId` param is the catalog ID from `list_catalogs` — the catalog itself is the root node.
 - `list_published_catalogs` — calls PAPI `/categories` via `papiGet()` (published/live data only)
 - `list_published_products_in_category` — calls PAPI `/categories/{id}/products` via `papiGet()` (published/live data only)
 - `create_product` — calls MAPI `/pim/products` via `mapiPost()`

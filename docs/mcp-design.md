@@ -24,7 +24,13 @@ All default read tools (`list_catalogs`, `list_products_in_category`) use MAPI, 
 
 MAPI's `/pim/catalogs/nodes/{id}/products` returns a flat list of `{ productId, productName }` with no type field and no variant structure.
 
-**Why this is fine:** The GROUP/VARIANT nesting logic existed in the PAPI version because PAPI returned type and `variantParentId` and the tool tried to reconstruct the hierarchy. MAPI's node-product list is a flat listing of what is in that node — the hierarchy is already encoded in the node tree returned by `list_catalogs`. Products that need full detail (including type and attributes) are fetched individually via `get_product` (planned). The flat list is simpler, faster, and avoids the cross-page orphan problem that the PAPI nesting logic had to handle.
+**Why this is fine:** The GROUP/VARIANT nesting logic existed in the PAPI version because PAPI returned type and `variantParentId` and the tool tried to reconstruct the hierarchy. MAPI's node-product list is a flat listing — simpler, faster, and avoids the cross-page orphan problem the PAPI nesting logic had to handle. Products that need full detail (including type and attributes) will be fetched individually via `get_product` (planned).
+
+## Catalog IDs as node IDs
+
+`list_products_in_category` takes a `nodeId` parameter. For top-level catalog browsing, the catalog ID from `list_catalogs` is passed directly — the catalog itself is the root node in MAPI's hierarchy. There is no need to fetch a separate node tree first.
+
+If sub-category browsing is needed in future (e.g. listing products only in "Face Care" under "Skincare"), the `/pim/catalogs/{id}/nodes` endpoint returns the full tree with child node IDs. That would be a separate tool or an extension of `list_catalogs`. For now, catalog-level browsing covers the primary use case.
 
 ---
 

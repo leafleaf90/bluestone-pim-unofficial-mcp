@@ -50,18 +50,6 @@ interface MapiCatalogsResponse {
   data: MapiCatalog[];
 }
 
-interface MapiCatalogNode {
-  id: string;
-  name: string;
-  number: string;
-  description?: string;
-  parentId?: string;
-  children: MapiCatalogNode[];
-}
-
-interface MapiCatalogNodesResponse {
-  data: MapiCatalogNode;
-}
 
 interface MapiNodeProduct {
   productId: string;
@@ -254,7 +242,7 @@ export function createMcpServer(creds: Credentials): McpServer {
   const server = new McpServer(
     {
       name: "bluestone-pim",
-      version: "1.1.0",
+      version: "1.2.0",
     },
     {
       instructions:
@@ -327,11 +315,9 @@ export function createMcpServer(creds: Credentials): McpServer {
     "list_catalogs",
     {
       description:
-        "List all catalogs in the Bluestone PIM organisation, including their full category node tree. " +
+        "List all catalogs in the Bluestone PIM organisation. " +
         "Returns working state data, including unpublished changes. " +
-        "Each catalog includes its nested category tree. " +
-        "To list products in a category, use the id field from a node inside the nodes tree — " +
-        "NOT the top-level catalog id. The catalog id is the root container; the browsable categories are its children nodes. " +
+        "Use the catalog id directly as the nodeId when calling list_products_in_category. " +
         "Call this first before browsing products.",
       inputSchema: {
         context: z
@@ -350,25 +336,12 @@ export function createMcpServer(creds: Credentials): McpServer {
         { context }
       );
 
-      // Fetch node tree for each catalog in parallel
-      const trees = await Promise.all(
-        catalogsData.data.map((cat) =>
-          mapiGet<MapiCatalogNodesResponse>(
-            `${MAPI_PIM_BASE}/catalogs/${cat.id}/nodes`,
-            creds,
-            { context }
-          ).then((r) => [cat.id, r.data] as const)
-        )
-      );
-      const treeMap = new Map(trees);
-
       const catalogs = catalogsData.data.map((cat) => ({
         id: cat.id,
         name: cat.name,
         number: cat.number,
         ...(cat.description && { description: cat.description }),
         ...(cat.readOnly && { readOnly: true }),
-        nodes: treeMap.get(cat.id) ?? null,
       }));
 
       const count = catalogs.length;
@@ -390,23 +363,23 @@ export function createMcpServer(creds: Credentials): McpServer {
     "list_products_in_category",
     {
       description:
-        "List products in a Bluestone PIM category node. " +
+        "List products in a Bluestone PIM catalog. " +
         "Returns working state data, including unpublished changes. " +
-        "Call list_catalogs first to get node IDs from the category tree.\n\n" +
+        "Call list_catalogs first, then pass the catalog id directly as nodeId. " +
         "Returns a flat list of products with their IDs and names. " +
         "Full attribute detail is not included here. " +
-        "Pass categoryName (the human-readable name from the list_catalogs tree) so it appears in the response summary.",
+        "Pass categoryName (the catalog name from list_catalogs) so it appears in the response summary.",
       inputSchema: {
         nodeId: z
           .string()
           .describe(
-            "The category node ID to fetch products from. Get this from the nodes tree returned by list_catalogs."
+            "The catalog ID from list_catalogs. Pass it directly here to list products in that catalog."
           ),
         categoryName: z
           .string()
           .optional()
           .describe(
-            "Human-readable category name from list_catalogs — included in the response summary for context."
+            "Human-readable catalog name from list_catalogs — included in the response summary for context."
           ),
         limit: z
           .number()
