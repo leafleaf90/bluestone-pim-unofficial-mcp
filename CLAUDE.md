@@ -24,16 +24,19 @@ This is a **Model Context Protocol (MCP) server** for Bluestone PIM, with two de
 
 ### Shared core: `src/tools.ts`
 
-All MCP tools are registered inside a single `createMcpServer(creds: Credentials)` factory function. This function is imported by both entry points. The tools are:
+All MCP tools are registered inside a single `createMcpServer(creds: Credentials)` factory function. This function is imported by both entry points. Current tools:
 
-- `session_init` — must be called first; shows a beta notice to the user
 - `list_catalogs` — calls Bluestone PAPI `/categories`
 - `list_products_in_category` — calls PAPI `/categories/:id/products?subCategories=true`
 - `create_product` — calls Bluestone MAPI `/pim/products` via `mapiPost()`
 
+The beta notice is delivered via the `instructions` field on `McpServer` (server-level context, not a tool call). Do not add a `session_init` tool — this was an earlier approach that was replaced.
+
 Two API layers exist:
-- **PAPI** (`papiGet`): public read API, authenticated with a static `x-api-key` header
-- **MAPI** (`mapiPost`): management write API, authenticated with OAuth 2.0 client credentials (`getBearerToken()`). Tokens are cached in memory per `mapiClientId` and refreshed 60s before expiry.
+- **PAPI** (`papiGet`): public read API, authenticated with a static `x-api-key` header. Pagination: `itemsOnPage` + `pageNo` (0-indexed doubles).
+- **MAPI** (`mapiPost`): management write API, authenticated with OAuth 2.0 client credentials (`getBearerToken()`). Tokens are cached in memory per `mapiClientId` and refreshed 60s before expiry. Pagination: `page` + `pageSize`.
+
+The pagination param names differ between the two APIs. Expose 1-indexed `page` to the model in both cases and convert internally.
 
 ### Entry point 1: `src/index.ts` — local STDIO mode
 
@@ -51,8 +54,26 @@ Key design decisions:
 
 Vercel routing is in `vercel.json` — all OAuth and MCP paths rewrite to `/api/mcp`.
 
+**Static assets:** Vercel only serves files that exist in `build/`. Any file added to `public/` must also be explicitly copied in the `vercel-build` script in `package.json`, or it will 404 in production. Check the script before adding new public assets.
+
 ### Adding new tools
 
 Register inside `createMcpServer()` in `src/tools.ts` using `papiGet<T>()` for reads or `mapiPost<T>()` for writes. For other HTTP methods (PATCH, PUT, DELETE), add a helper following the `mapiPost` pattern.
 
 Before adding a tool, read **`docs/mcp-patterns.md`** — it defines the required checklist for descriptions, response format, pagination, and error handling. See `docs/extending.md` for code skeletons.
+
+**`docs/mcp-patterns.md` applies to any change in `src/tools.ts`**, not just new tools. When modifying an existing tool's description, response, error handling, or follow-up behaviour, check the relevant pattern sections before and after making the change.
+
+### Connect page: `public/connect/index.html`
+
+The connect page is a single HTML file. Content is written as Markdown in a `<script type="text/plain" id="md">` block and rendered by marked.js at runtime. Three custom tokens are replaced before parsing:
+
+- `[server-url]` — replaced with a styled, copyable URL span (uses a `XXSERVERURLXX` placeholder to survive `marked.parse()`)
+- `[prompt: text]` — renders a chat bubble
+- `[screenshot: filename.webp]` — renders an `<img>` if the label ends in an image extension, otherwise a placeholder box
+
+Image paths must be **absolute** (`/connect/images/filename.webp`), not relative (`./images/`). Relative paths break on Vercel when the page is served without a trailing slash.
+
+### Copy style
+
+No em dashes anywhere — in the connect page, tool descriptions, error messages, or docs. Use a colon or comma instead. Em dashes read as AI-generated.

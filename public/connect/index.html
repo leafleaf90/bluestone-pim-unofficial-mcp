@@ -463,7 +463,7 @@ Still stuck? [Open an issue on GitHub](https://github.com/leafleaf90/bluestone-p
 
     function screenshotHtml(label) {
       if (/\.(png|jpe?g|webp|gif)$/i.test(label.trim())) {
-        return '<figure class="not-prose my-8"><img src="./images/' + label.trim() + '" alt="Screenshot" class="rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-full" /></figure>';
+        return '<figure class="not-prose my-8"><img src="/connect/images/' + label.trim() + '" alt="Screenshot" class="rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-full" /></figure>';
       }
       return '<figure class="not-prose my-8 flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-8 py-12 text-center"><span class="text-4xl">📷</span><span class="text-sm font-medium text-slate-500 dark:text-slate-400">' + label + '</span><span class="text-xs text-slate-400 dark:text-slate-500">Replace with screenshot</span></figure>';
     }

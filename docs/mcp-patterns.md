@@ -171,6 +171,22 @@ When adding a new API helper (e.g. `mapiPatch`, `mapiDelete`), call the appropri
 
 ---
 
+## Guardrails: don't offer what doesn't exist
+
+After a mutation, models naturally suggest logical next steps — "would you like to add attributes or assign it to a category?" This is a problem when those tools don't exist: the user says yes, and the model either fails or backtracks, eroding trust.
+
+For any write tool, explicitly state in the description what the model must NOT offer as a follow-up:
+
+```
+"After creating, do NOT offer to add attributes or assign the product to a category — 
+these tools do not exist yet. Instead, tell the user the product was created and 
+suggest they open Bluestone PIM to continue enriching it."
+```
+
+The same applies when a tool's scope is intentionally narrow. If `create_product` only sets the name, tell the model that setting other fields is not available — do not leave it to guess what comes next.
+
+---
+
 ## Checklist: registering a new tool
 
 - [ ] Description says **when** to call it, not just what it does
@@ -178,6 +194,7 @@ When adding a new API helper (e.g. `mapiPatch`, `mapiDelete`), call the appropri
 - [ ] Hierarchical data has **display instructions** in the description
 - [ ] No **session_init reminder** in the description
 - [ ] Write tools include **"confirm with user before calling"**
+- [ ] Write tools specify **what NOT to offer as follow-up** if next steps aren't supported
 - [ ] Response starts with a **plain-text summary line**
 - [ ] Mutations return **plain text only** (no JSON)
 - [ ] List tools have **limit + offset** input params
