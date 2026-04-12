@@ -8,12 +8,12 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="Bluestone PIM · AI Connect">
   <meta property="og:description" content="Connect Claude, Cursor, or ChatGPT to your Bluestone PIM organisation via MCP. Unofficial and open source.">
-  <meta property="og:image" content="https://bluestone-mcp-inofficial.vercel.app/og-image.jpg">
-  <meta property="og:url" content="https://bluestone-mcp-inofficial.vercel.app/connect">
+  <meta property="og:image" content="https://bluestone-mcp-unofficial.vercel.app/og-image.jpg">
+  <meta property="og:url" content="https://bluestone-mcp-unofficial.vercel.app/connect">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Bluestone PIM · AI Connect">
   <meta name="twitter:description" content="Connect Claude, Cursor, or ChatGPT to your Bluestone PIM organisation via MCP. Unofficial and open source.">
-  <meta name="twitter:image" content="https://bluestone-mcp-inofficial.vercel.app/og-image.jpg">
+  <meta name="twitter:image" content="https://bluestone-mcp-unofficial.vercel.app/og-image.jpg">
   <link rel="icon" type="image/png" href="/bluestone_pim_logo.png">
   <!-- Prevent flash of wrong theme before page renders -->
   <script>
@@ -273,7 +273,7 @@ This opens `~/.cursor/mcp.json`. Add the following entry:
   "mcpServers": {
     "bluestone-pim": {
       "type": "http",
-      "url": "https://bluestone-mcp-inofficial.vercel.app/mcp"
+      "url": "https://bluestone-mcp-unofficial.vercel.app/mcp"
     }
   }
 }
@@ -380,7 +380,7 @@ If you run into issues, please open a [GitHub issue](https://github.com/leafleaf
 ## Troubleshooting
 
 **Connection fails immediately**
-Make sure the URL ends in `/mcp`: `https://bluestone-mcp-inofficial.vercel.app/mcp`
+Make sure the URL ends in `/mcp`: `https://bluestone-mcp-unofficial.vercel.app/mcp`
 
 **Claude Desktop shows "Authorization failed"**
 Check the Client ID format. It must be `mapiClientId:papiKey`: a colon between the two values, no spaces, no extra characters.
@@ -401,6 +401,11 @@ Your credentials may point to the production Bluestone environment. This server 
 This happens when Claude has code execution or artifact creation available alongside the MCP, and reasons it can fetch the data directly. It cannot: the Bluestone credentials only exist inside the tool execution context, so direct HTTP calls will always fail with no API key.
 
 Two ways to prevent it. First, be explicit in your opening message: "Using Bluestone PIM, show me my catalogs" is more reliable than "show me my catalogs." Second, if it happens mid-conversation, redirect: "Don't write code. Use the Bluestone PIM tools directly." The server description now includes an explicit instruction to the model not to attempt direct API calls, which reduces how often this occurs, but it is not a complete fix. When Claude has strong code execution priors (for example, if you opened the conversation in Code mode), it may still choose code over the MCP tool.
+
+**"Authorization with the MCP server failed" (reference code starting with `ofid_`)**
+First, check the URL you entered ends in `/mcp` and uses the exact address shown above — no redirects. OAuth token exchange breaks silently if the URL redirects to a different domain, even if the page loads fine in a browser.
+
+If the URL is correct: this is a [known bug in Claude Desktop's OAuth implementation](https://github.com/anthropics/claude-ai-mcp/issues/136), unrelated to your credentials. The flow appears to complete but Claude Desktop never finishes the token exchange. To work around it: disconnect, quit Claude Desktop fully (Cmd+Q on Mac), reopen, and reconnect. A cold start sometimes resolves it. If it keeps failing, try connecting via **Cursor** instead.
 
 Still stuck? [Open an issue on GitHub](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/issues). I can't promise a fix, but I will read it.
 
@@ -480,8 +485,8 @@ If you are thinking through the same problems (how to write tool descriptions th
   </script>
 
   <script>
-    const MCP_URL = 'https://bluestone-mcp-inofficial.vercel.app/mcp';
-    const HEALTH_URL = 'https://bluestone-mcp-inofficial.vercel.app/';
+    const MCP_URL = 'https://bluestone-mcp-unofficial.vercel.app/mcp';
+    const HEALTH_URL = 'https://bluestone-mcp-unofficial.vercel.app/';
 
     // ─── Claude Desktop mockup ─────────────────────────────────────────────────
 

@@ -216,7 +216,7 @@ If you don't want to install anything locally, you can connect directly to the s
 2. Go to **Settings** → **Customize** → **Connectors** → **Add custom connector**
 3. Fill in the fields:
    - **Name**: `Bluestone PIM`
-   - **URL**: `https://bluestone-unofficial-mcp-inofficial.vercel.app/mcp`
+   - **URL**: `https://bluestone-mcp-unofficial.vercel.app/mcp`
 4. Open **Advanced settings** and fill in:
    - **Client ID**: your MAPI Client ID and PAPI key joined with a colon, no spaces:
      ```
@@ -241,7 +241,7 @@ You should now see **Bluestone PIM** listed under Connectors with a blue toggle.
      "mcpServers": {
        "bluestone-pim": {
          "type": "http",
-         "url": "https://bluestone-unofficial-mcp-inofficial.vercel.app/mcp"
+         "url": "https://bluestone-mcp-unofficial.vercel.app/mcp"
        }
      }
    }

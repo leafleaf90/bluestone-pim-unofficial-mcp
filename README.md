@@ -14,11 +14,11 @@ npm run build
 # Restart Claude Desktop
 ```
 
-For full setup instructions, see the [connect page](https://bluestone-mcp-inofficial.vercel.app/connect) or [docs/setup-developer.md](docs/setup-developer.md).
+For full setup instructions, see the [connect page](https://bluestone-mcp-unofficial.vercel.app/connect) or [docs/setup-developer.md](docs/setup-developer.md).
 
 ## What you can ask
 
-- "Show me the catalogs in Bluestone PIM"
+- "Using Bluestone PIM, show me my catalogs"
 - "List all products in the first catalog you found"
 - "Create a new product called Summer Jacket"
 
