@@ -192,8 +192,9 @@ PAPI pagination uses 0-indexed `pageNo`; the tool subtracts 1 from the 1-indexed
 - Calls this only when the user explicitly asks to see a product image, not automatically for every product in a list
 - Fetches the preview URL (already sized to 400px wide, JPEG format via the `?f=jpg&w=400` query params Bluestone appends)
 - Returns the image as base64 so it renders inline in the client
+- In Claude Desktop, the image appears inside the tool result panel under the "Get product image" step, not inline in the reply. The tool result text instructs Claude to tell the user where to find it and provides the direct CDN URL as a fallback so the user can open it in a browser.
 
-**Design note:** See `docs/mcp-design.md` (Response shaping) for why image URLs are included in list responses but images are not fetched there — and why this is a separate on-demand tool rather than part of the list call.
+**Design note:** See `docs/mcp-design.md` (Response shaping) for why image URLs are included in list responses but images are not fetched there, and why this is a separate on-demand tool rather than part of the list call. See the Behavior quirks section for the tool result panel rendering detail.
 
 **Example prompts:**
 - "Show me what T-shirt - Green looks like from Bluestone PIM"

@@ -740,7 +740,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Call this when the user asks to see a product image or wants a visual preview. " +
         "Do not call this automatically for every product in a list — only when the user explicitly asks to see an image. " +
         "Do not search the web for product images. Do not use the imageUrl as a markdown image link. Always call this tool. " +
-        "After calling this tool, tell the user the image is in the tool result above and they can expand the 'Get product image' step to see it.",
+        "The tool result will tell you exactly what to say to the user about where to find the image.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -773,13 +773,17 @@ export function createMcpServer(creds: Credentials): McpServer {
       const buffer = await res.arrayBuffer();
       const base64 = Buffer.from(buffer).toString("base64");
       const mimeType = res.headers.get("content-type")?.split(";")[0] ?? "image/jpeg";
-      const label = productName ? `Image: ${productName}` : "Product image";
+      const name = productName ?? "Product image";
 
       return {
         content: [
           {
             type: "text" as const,
-            text: label,
+            text:
+              `Image fetched: ${name}.\n` +
+              `In Claude Desktop the image appears inside the tool result panel, not inline in the chat. ` +
+              `Tell the user: "The image is in the tool result above. Click 'Get product image' to expand it. ` +
+              `Or open it directly: ${imageUrl}"`,
           },
           {
             type: "image" as const,

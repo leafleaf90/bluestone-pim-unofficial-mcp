@@ -106,11 +106,22 @@ The cause is ambiguity: "show the image" is a strong web search prior. The model
 
 ### Image renders in tool result panel, not inline
 
-In Claude Desktop, `image` content blocks returned by a tool appear inside the tool result panel, not injected into Claude's reply text. The tool result panel is collapsed by default under the "Get product image" step. Users have to expand it to see the image.
+In Claude Desktop, `image` content blocks returned by a tool appear inside the tool result panel, not injected into Claude's reply text. The tool result panel is collapsed by default under the "Get product image" step. Users have to click twice and scroll inside the panel to see it.
 
 This is a Claude Desktop rendering decision, not something the server controls. The image content block is correct per the MCP spec; it is just not surfaced in the main chat thread.
 
-**Mitigation applied:** The `get_product_image` description instructs Claude to tell the user to expand the "Get product image" step after calling the tool. This is the only lever available server-side.
+**What was tried first:** Adding an instruction to the `get_product_image` tool description telling Claude to direct the user to expand the step. This did not work reliably. Description-level instructions are read at startup; by the time Claude is composing its reply after the tool call, the description is no longer in active focus and gets ignored.
+
+**Mitigation that works:** The `text` content block returned by the tool now carries the instruction directly, along with the original image URL:
+
+```
+Image fetched: T-shirt - Green.
+In Claude Desktop the image appears inside the tool result panel, not inline in the chat.
+Tell the user: "The image is in the tool result above. Click 'Get product image' to expand it.
+Or open it directly: https://media.test.bluestonepim.com/..."
+```
+
+The tool result is in active context at the exact moment Claude is composing its reply, so this instruction is reliably followed. Claude tells the user where to find the image and provides a direct URL as a fallback.
 
 ---
 
