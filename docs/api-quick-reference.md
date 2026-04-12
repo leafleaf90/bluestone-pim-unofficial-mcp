@@ -91,7 +91,7 @@ Variants should always be displayed nested under their parent GROUP, never as to
 |---|---|---|
 | `PLAYGROUND_ONLY` | Draft | Created and edited in working state, not yet synced/published |
 
-Other state values are not yet confirmed. Pass the raw `state` value in tool responses so the model can surface it.
+Other state values are not yet confirmed. The `mapProductState()` function in `src/tools.ts` maps known API values to their UI labels before returning them to the model. Add new mappings there as they are discovered. Unknown values are passed through as-is.
 
 ## General Information fields (native product fields)
 

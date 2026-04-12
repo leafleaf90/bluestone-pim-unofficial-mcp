@@ -290,6 +290,16 @@ async function mapiGet<T>(
   return res.json() as Promise<T>;
 }
 
+// ─── Mappers ──────────────────────────────────────────────────────────────────
+
+// Map raw API state values to the labels shown in the Bluestone PIM UI.
+function mapProductState(state: string): string {
+  const states: Record<string, string> = {
+    PLAYGROUND_ONLY: "Draft",
+  };
+  return states[state] ?? state;
+}
+
 // ─── Server factory ───────────────────────────────────────────────────────────
 
 export function createMcpServer(creds: Credentials): McpServer {
@@ -537,7 +547,7 @@ export function createMcpServer(creds: Credentials): McpServer {
           name,
           ...(p.metadata?.number && { number: p.metadata.number }),
           ...(p.metadata?.type && { type: p.metadata.type }),
-          ...(p.metadata?.state && { state: p.metadata.state }),
+          ...(p.metadata?.state && { state: mapProductState(p.metadata.state) }),
         };
       });
 
