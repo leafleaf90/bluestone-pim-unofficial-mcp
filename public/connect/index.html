@@ -96,8 +96,6 @@
       <a href="#troubleshooting" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Troubleshooting</a>
       <a href="#for-customers" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">For customers</a>
       <a href="#for-si-partners" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">For SI partners</a>
-      <span class="text-slate-300 dark:text-slate-600">·</span>
-      <a href="#for-the-curious" class="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors italic">For the curious</a>
     </div>
   </nav>
 
@@ -675,43 +673,35 @@ If you are thinking through the same problems (how to write tool descriptions th
           { type: 'tool', name: 'search_tools', display: 'Loading tools' },
           { type: 'tool', name: 'list_published_catalogs', display: 'List published catalogs' },
           { type: 'tool', name: 'list_published_products_in_category', display: 'List published products in category' },
-          { type: 'reply', text: 'There\'s just <strong>1 published product</strong> in the Clothes catalog:<br><br>' +
+          { type: 'reply', text: 'Only <strong>1 published product</strong> in the Clothes catalog:<br><br>' +
             '<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0;">' +
-            '<tr style="border-bottom:1px solid rgba(255,255,255,0.15);"><th style="padding:5px 12px 5px 0;text-align:left;color:#aaa;font-weight:600;">Name</th><th style="padding:5px 0;text-align:left;color:#aaa;font-weight:600;">Type</th></tr>' +
-            '<tr><td style="padding:6px 12px 6px 0;">T-shirt - Green</td><td style="padding:6px 0;color:#888;">Single product</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.15);"><th style="padding:5px 12px 5px 0;text-align:left;color:#aaa;font-weight:600;">Name</th><th style="padding:5px 10px;text-align:left;color:#aaa;font-weight:600;">Type</th><th style="padding:5px 0;text-align:left;color:#aaa;font-weight:600;">ID</th></tr>' +
+            '<tr><td style="padding:6px 12px 6px 0;">T-shirt - Green</td><td style="padding:6px 10px;color:#888;">Single</td><td style="padding:6px 0;color:#555;font-size:11px;">69da487cd41d9dd3b63c0ed1</td></tr>' +
             '</table>' +
-            'Everything else in Clothes is either a draft or not yet published. Want me to compare against the draft state to see what\'s pending?' },
-          { type: 'user', text: 'Compare against draft state' },
+            'Everything else in Clothes is either in draft or hasn\'t been published yet. Would you like to see the image for this product, or check what\'s in draft state too?' },
+          { type: 'user', text: 'Compare to draft' },
+          { type: 'tool', name: 'search_tools', display: 'Loading tools' },
+          { type: 'tool', name: 'list_catalogs', display: 'List catalogs' },
           { type: 'tool', name: 'list_products_in_category', display: 'List products in category' },
           { type: 'reply', text: 'Here\'s the comparison:<br><br>' +
             '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;">' +
-            '<tr style="border-bottom:1px solid rgba(255,255,255,0.15);"><th style="padding:5px 10px 5px 0;text-align:left;color:#aaa;font-weight:600;">Product</th><th style="padding:5px 10px;text-align:left;color:#aaa;font-weight:600;">Published</th><th style="padding:5px 0;text-align:left;color:#aaa;font-weight:600;">Draft</th></tr>' +
-            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">T-shirt - Green</td><td style="padding:6px 10px;">&#9989; Published</td><td style="padding:6px 0;">&#9888;&#65039; Name changed to <strong>"T-shirt - Green and Great!"</strong></td></tr>' +
-            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">T-shirt - Blue</td><td style="padding:6px 10px;">&#10060; Not published</td><td style="padding:6px 0;color:#888;">Draft only</td></tr>' +
-            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">T-shirt - Red</td><td style="padding:6px 10px;">&#10060; Not published</td><td style="padding:6px 0;color:#888;">Draft only</td></tr>' +
-            '<tr><td style="padding:6px 10px 6px 0;">T-shirt - Yellow</td><td style="padding:6px 10px;">&#10060; Not published</td><td style="padding:6px 0;color:#888;">Draft only</td></tr>' +
-            '</table>' +
-            'A couple of things to note:<br><ul style="margin:8px 0;padding-left:18px;">' +
-            '<li style="margin-bottom:4px;"><strong>3 products are unpublished drafts.</strong> Blue, Red, and Yellow haven\'t been pushed live yet.</li>' +
-            '<li><strong>The Green T-shirt has a pending name change.</strong> It\'s live as "T-shirt - Green" but the draft has it renamed to "T-shirt - Green and Great!".</li>' +
-            '</ul>' },
-          { type: 'user', text: 'Show the image for green t-shirt' },
-          { type: 'tool', name: 'get_product_image', display: 'Get product image' },
-          { type: 'reply', text: 'The published product already returned an image URL, so I have everything I need!<br><br>' +
-            '<div style="background:#2a2a2a;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:14px 16px;font-size:12.5px;max-width:280px;">' +
-            '<div style="color:#888;font-size:11px;margin-bottom:6px;">Clothes</div>' +
-            '<div style="font-weight:600;margin-bottom:8px;">T-shirt - Green</div>' +
-            '<div style="display:flex;gap:6px;margin-bottom:10px;"><span style="background:#166534;color:#86efac;font-size:11px;padding:2px 7px;border-radius:4px;">Published</span><span style="color:#888;font-size:11px;padding:2px 0;">SINGLE</span></div>' +
-            '<div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;"><div style="color:#888;font-size:11px;margin-bottom:3px;">Draft name</div><div style="font-size:12.5px;">T-shirt - Green and Great!</div></div>' +
-            '</div><br>There it is. Also showing the pending draft name change underneath for context.' },
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.15);"><th style="padding:5px 10px 5px 0;text-align:left;color:#aaa;font-weight:600;">Product</th><th style="padding:5px 10px;text-align:left;color:#aaa;font-weight:600;">Draft (working)</th><th style="padding:5px 0;text-align:left;color:#aaa;font-weight:600;">Published (live)</th></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">T-shirt - Green <em style="color:#888;font-size:11px;">(published as)</em><br><strong>T-shirt - Green and Great!</strong> <em style="color:#888;font-size:11px;">(draft name)</em></td><td style="padding:6px 10px;">&#9989; Draft</td><td style="padding:6px 0;">&#9989; Published</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">T-shirt - Blue</td><td style="padding:6px 10px;">&#9989; Draft</td><td style="padding:6px 0;">&#10060; Not published</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">T-shirt - Red</td><td style="padding:6px 10px;">&#9989; Draft</td><td style="padding:6px 0;">&#10060; Not published</td></tr>' +
+            '<tr><td style="padding:6px 10px 6px 0;">T-shirt - Yellow</td><td style="padding:6px 10px;">&#9989; Draft</td><td style="padding:6px 0;">&#10060; Not published</td></tr>' +
+            '</table>' },
+          { type: 'user', text: 'Show me the image' },
+          { type: 'tool-with-image', name: 'get_product_image', display: 'Get product image', imageSrc: '/connect/images/green_t-shirt.jpeg', imageAlt: 'T-shirt - Green' },
+          { type: 'reply', text: 'The image is available, you can open it directly here: <span style="text-decoration:underline;color:#93c5fd;">T-shirt - Green</span><br><br>It\'s a plain forest green crew-neck tee, shown flat on a light background. Anything else you\'d like to do with the Clothes catalog?' },
         ],
         missing: [
           '<strong>Publishing from chat:</strong> Claude can tell you what is and isn\'t published, and even offer to publish, but there is no tool yet to actually trigger a publish. The user has to go into Bluestone PIM to do it.',
         ],
         notes: [
           '<strong>The image URL was already in the product list.</strong> When the user asked for the image, Claude didn\'t need to fetch the product again. The <code>imageUrl</code> came back in the original <code>list_published_products_in_category</code> response, so <code>get_product_image</code> could fetch and display it directly.',
-          '<strong>The draft name change surfaced without being asked.</strong> Claude cross-referenced the published name against the working state data from the comparison turn and included it in the image response for context.',
-          '<strong>Where the image appears in Claude Desktop.</strong> The image renders inside the tool result panel, not inline in Claude\'s reply. Claude Desktop collapses tool results by default. Claude will tell you to expand the "Get product image" step to see it. This is a Claude Desktop rendering behavior, not something the server controls.',
+          '<strong>The pending name change surfaced without being asked.</strong> The comparison showed "T-shirt - Green and Great!" as the draft name against "T-shirt - Green" as the live name. Claude flagged the discrepancy from the data alone.',
+          '<strong>Why the image is in the tool panel, not inline.</strong> The MCP spec supports returning images as base64 content blocks, and this tool does exactly that. But Claude Desktop renders them inside the collapsed tool result panel rather than inline in the chat. Attempts to fix this server-side failed. Adding an instruction to the tool description had no effect. Embedding the instruction directly in the tool result text also failed: the model can see the image in its context window and assumes the user can too, so it says "there it is" without directing the user anywhere. The current tool result text now explicitly addresses this gap:<br><br><code style="font-size:11px;background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:6px;display:block;line-height:1.6;">IMPORTANT: You can see this image in your context window, but the user cannot see it inline in the chat. The image is hidden inside a collapsed tool result panel that the user has to manually expand. Do not say "there it is" or imply the image is visible to them. Instead, tell the user they can open the image directly at this URL: [url]</code><br>The result: Claude now gives the direct URL. This appears to be a Claude Desktop rendering limitation rather than something fixable server-side, as far as I can tell. If you know of a way to render MCP image content blocks inline in the chat, I would genuinely like to hear it. Open an issue or discussion on <a href="https://github.com/leafleaf90/bluestone-pim-unofficial-mcp" style="text-decoration:underline;color:#93c5fd;">GitHub</a>.',
         ]
       },
       {
@@ -719,10 +709,17 @@ If you are thinking through the same problems (how to write tool descriptions th
         label: 'A creative one, because why not',
         turns: [
           { type: 'user', text: 'Using Bluestone PIM, write a haiku about spring. One line per product, actually create them.' },
+          { type: 'reply', text: 'Let me first pick a catalog to place them in.' },
+          { type: 'tool', name: 'list_catalogs', display: 'List catalogs' },
+          { type: 'reply', text: '"Skincare" feels like a fitting home for a spring haiku. Creating all three lines now:' },
           { type: 'tool', name: 'create_product', display: 'Create product' },
           { type: 'tool', name: 'create_product', display: 'Create product' },
           { type: 'tool', name: 'create_product', display: 'Create product' },
-          { type: 'reply', text: 'Created 3 products in Bluestone PIM:<br><br><em>&ldquo;Cherry blossoms fall&rdquo;</em><br><em>&ldquo;New inventory waits&rdquo;</em><br><em>&ldquo;Season of fresh stock&rdquo;</em><br><br>Your haiku is now in the database. Delete them when you&rsquo;re done.' },
+          { type: 'reply', text: 'Done! Three products, one haiku, live in the Skincare catalog:<br><br><em>Cherry blossoms fall<br>Soft rain on new leaves at dawn<br>The world wakes in green</em><br><br>Head into Bluestone PIM to enrich them, perhaps with some spring-themed attributes.' },
+        ],
+        screenshot: { src: 'chat_examples/bluestone_pim_ui_haiku.png', caption: 'The three haiku lines as products in the Skincare catalog in Bluestone PIM' },
+        notes: [
+          '<strong>Claude chose the catalog without asking.</strong> The prompt said "create them" but didn\'t specify where. Claude fetched the catalog list, did a vibe check on the options, picked "Skincare" because it felt like a thematic fit for spring, and created three real products there. No confirmation, no prompt. The model put things in your actual database based on its own read of the situation, carried along by a confident creative flow. It wasn\'t harmful here. But the same behavior applies to any tool that writes data: if the description doesn\'t require confirmation, the model will fill in the blanks on its own. The <code>create_product</code> description requires confirming the product name, but says nothing about the category. That\'s the gap Claude walked through. You could add an instruction to always confirm the catalog first, but that\'s a probabilistic nudge, not a guarantee. Nothing stopped it here, so it didn\'t stop.<br><br>It was doing something reasonable. It had a task, gathered what it needed, made a call, and executed. That\'s mostly what you want. The more useful question isn\'t how to stop it from deciding things, but which decisions need a human in the loop. Picking a catalog for haiku lines is low stakes. Picking a catalog for 500 product imports isn\'t. The right guardrail is probably context-sensitive, not a blanket policy.',
         ]
       },
     ];
@@ -751,6 +748,26 @@ If you are thinking through the same problems (how to write tool descriptions th
           return '<div style="color:#666;font-size:12px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;display:flex;align-items:center;gap:5px;padding:3px 0;margin:2px 0;">' +
             '<span>' + label + '</span>' +
             '<span style="opacity:0.6;font-size:10px;">&#8250;</span>' +
+            '</div>';
+        }
+        if (turn.type === 'tool-with-image') {
+          var label = turn.display || toolDisplayName(turn.name);
+          var GLOBE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.5;flex-shrink:0;" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
+          return '<div style="font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;margin:4px 0 6px 0;">' +
+            '<div style="color:#666;font-size:12px;display:flex;align-items:center;gap:5px;margin-bottom:6px;">' +
+            '<span>' + label + '</span><span style="opacity:0.6;font-size:10px;">&#8964;</span></div>' +
+            '<div style="display:flex;align-items:flex-start;gap:8px;">' +
+            '<div style="display:flex;flex-direction:column;align-items:center;gap:0;padding-top:2px;">' +
+            GLOBE_SVG +
+            '<div style="width:1px;background:rgba(255,255,255,0.08);flex:1;margin-top:4px;min-height:40px;"></div></div>' +
+            '<div style="flex:1;">' +
+            '<div style="color:#666;font-size:12px;margin-bottom:6px;">' + label + '</div>' +
+            '<div style="background:#1e1e1e;border:1px solid rgba(255,255,255,0.08);border-radius:8px;overflow:hidden;">' +
+            '<img src="' + turn.imageSrc + '" alt="' + (turn.imageAlt || '') + '" style="width:100%;display:block;max-height:220px;object-fit:cover;">' +
+            '</div></div></div>' +
+            '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;color:#666;font-size:12px;">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' +
+            '<span>Done</span></div>' +
             '</div>';
         }
         if (turn.type === 'reply') {
@@ -1014,7 +1031,7 @@ If you are thinking through the same problems (how to write tool descriptions th
   <!-- Footer -->
   <footer class="mt-16 border-t border-slate-200 dark:border-slate-700/60">
     <div class="max-w-5xl mx-auto px-6 py-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-400 dark:text-slate-500">
-      <span>Personal project. Not an official Bluestone PIM product. Last updated <time id="last-updated"></time>.</span>
+      <span>Personal project. Not an official Bluestone PIM product. Last updated <time id="last-updated">April 2026</time>.</span>
       <span class="flex items-center gap-3">
         <span>Built by</span>
         <a href="https://www.linkedin.com/in/viktorlovgren/" target="_blank" rel="noopener noreferrer"
