@@ -35,6 +35,8 @@
       .nav-link.active { color: #60a5fa; }
     }
     h2[id], h3[id] { scroll-margin-top: 8rem; }
+    .mock-sidebar { display: flex; }
+    @media (max-width: 560px) { .mock-sidebar { display: none; } }
     h2 .anchor-link, h3 .anchor-link { opacity: 0; transition: opacity 0.15s; }
     h2:hover .anchor-link, h3:hover .anchor-link { opacity: 1; }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
@@ -83,6 +85,7 @@
   <nav id="mobile-nav" class="md:hidden bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700/60 px-6 overflow-x-auto">
     <div class="flex gap-5 py-3 text-sm whitespace-nowrap">
       <a href="#what-can-it-do" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">What can it do?</a>
+      <a href="#examples" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Examples</a>
       <a href="#before-you-start" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Before you start</a>
       <a href="#claude-desktop" class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><img src="/brand_assets/claude_logo.png" alt="" class="w-4 h-4 object-contain rounded shrink-0">Claude Desktop</a>
       <a href="#cursor" class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><img src="/brand_assets/cursor_logo.png" alt="" class="w-4 h-4 object-contain rounded shrink-0">Cursor</a>
@@ -114,6 +117,7 @@
         <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Contents</p>
         <div class="space-y-0.5">
           <a href="#what-can-it-do" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">What can it do?</a>
+          <a href="#examples" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Examples</a>
           <a href="#before-you-start" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Before you start</a>
           <a href="#claude-desktop" class="nav-link flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors"><img src="/brand_assets/claude_logo.png" alt="" class="w-4 h-4 object-contain rounded shrink-0">Claude Desktop</a>
           <a href="#cursor" class="nav-link flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors"><img src="/brand_assets/cursor_logo.png" alt="" class="w-4 h-4 object-contain rounded shrink-0">Cursor</a>
@@ -173,6 +177,18 @@ This project is not intended to compete with or replace an official Bluestone PI
 
 ---
 
+## Examples
+
+**Best practice: always name the source in your first message.**
+
+Start with "Using Bluestone PIM, ..." rather than just "Show me my catalogs." This sounds minor, but it matters: when Claude has code execution or other tools available alongside the MCP, it can try to fetch data via HTTP or write an artifact instead of calling the right tool. Naming the source removes the ambiguity. All the examples below follow this pattern.
+
+If it does go wrong mid-conversation, redirect with: "Don't write code. Use the Bluestone PIM tools directly."
+
+A few conversations showing what is possible. Each window is a mockup of how the exchange looks in Claude Desktop.
+
+---
+
 ## Before you start
 
 You need three credentials from your Bluestone PIM account:
@@ -228,7 +244,7 @@ You are now connected. Bluestone PIM moves to the top of your Connectors list an
 
 Open a chat and ask:
 
-[prompt: Show me the catalogs in Bluestone PIM]
+[prompt: Using Bluestone PIM, show me my catalogs]
 
 [prompt: List all products in the first catalog you found]
 
@@ -285,7 +301,7 @@ You are now connected. The server shows a green dot and lists its available tool
 
 Open a chat and ask:
 
-[prompt: Show me the catalogs in Bluestone PIM]
+[prompt: Using Bluestone PIM, show me my catalogs]
 
 [prompt: List all products in the first catalog you found]
 
@@ -340,7 +356,7 @@ You are now connected. ChatGPT shows a "Bluestone PIM is now connected" confirma
 
 Open a chat and ask:
 
-[prompt: Show me the catalogs in Bluestone PIM]
+[prompt: Using Bluestone PIM, show me my catalogs]
 
 [prompt: List all products in the first catalog you found]
 
@@ -380,6 +396,11 @@ Your MAPI credentials need write permissions. Read-only credentials work for bro
 
 **Tool returns an error about the API**
 Your credentials may point to the production Bluestone environment. This server currently connects to the **test environment** (`api.test.bluestonepim.com`) only.
+
+**Claude writes code or runs commands instead of using the tools**
+This happens when Claude has code execution or artifact creation available alongside the MCP, and reasons it can fetch the data directly. It cannot: the Bluestone credentials only exist inside the tool execution context, so direct HTTP calls will always fail with no API key.
+
+Two ways to prevent it. First, be explicit in your opening message: "Using Bluestone PIM, show me my catalogs" is more reliable than "show me my catalogs." Second, if it happens mid-conversation, redirect: "Don't write code. Use the Bluestone PIM tools directly." The server description now includes an explicit instruction to the model not to attempt direct API calls, which reduces how often this occurs, but it is not a complete fix. When Claude has strong code execution priors (for example, if you opened the conversation in Code mode), it may still choose code over the MCP tool.
 
 Still stuck? [Open an issue on GitHub](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/issues). I can't promise a fix, but I will read it.
 
@@ -462,6 +483,162 @@ If you are thinking through the same problems (how to write tool descriptions th
     const MCP_URL = 'https://bluestone-mcp-inofficial.vercel.app/mcp';
     const HEALTH_URL = 'https://bluestone-mcp-inofficial.vercel.app/';
 
+    // ─── Claude Desktop mockup ─────────────────────────────────────────────────
+
+    var EXAMPLES = [
+      {
+        chatTitle: 'Bluestone PIM catalogs',
+        label: 'Browse a catalog and create a product',
+        turns: [
+          { type: 'user', text: 'Using Bluestone PIM, what catalogs do I have?' },
+          { type: 'tool', name: 'list_catalogs' },
+          { type: 'reply', text: 'Found 3 catalogs: <strong>Electronics</strong>, <strong>Apparel</strong>, and <strong>Home &amp; Living</strong>. Which would you like to explore?' },
+          { type: 'user', text: 'Show me products in Electronics' },
+          { type: 'tool', name: 'list_products_in_category' },
+          { type: 'reply', text: 'Found 24 products in <strong>Electronics</strong> (working state, includes sub-categories).<br><br>Wireless Headphones Pro &nbsp;·&nbsp; SINGLE<br>Smart Speaker Mini &nbsp;·&nbsp; SINGLE &nbsp;·&nbsp; Draft<br>USB-C Hub 7-in-1 &nbsp;·&nbsp; GROUP<br>&hellip; and 21 more.<br><br>Would you like to create a new product in this catalog?' },
+          { type: 'user', text: 'Yes, call it Wireless Keyboard Pro' },
+          { type: 'tool', name: 'create_product' },
+          { type: 'reply', text: 'Product <strong>Wireless Keyboard Pro</strong> created and assigned to Electronics. Open Bluestone PIM to continue enriching it.' },
+        ]
+      },
+      {
+        chatTitle: 'New product',
+        label: 'Create a product directly',
+        turns: [
+          { type: 'user', text: 'Create a product in Bluestone PIM' },
+          { type: 'reply', text: 'What should the product be named?' },
+          { type: 'user', text: 'Test Widget' },
+          { type: 'reply', text: 'Confirming: the product name will be <strong>Test Widget</strong>. Shall I create it?' },
+          { type: 'user', text: 'Yes' },
+          { type: 'tool', name: 'create_product' },
+          { type: 'reply', text: 'Product <strong>Test Widget</strong> created successfully. Open Bluestone PIM to continue enriching it.' },
+        ]
+      },
+      {
+        chatTitle: 'Apparel &mdash; Dutch',
+        label: 'Switch language context',
+        turns: [
+          { type: 'user', text: 'Using Bluestone PIM, show me the Apparel catalog in Dutch' },
+          { type: 'tool', name: 'list_contexts' },
+          { type: 'tool', name: 'list_products_in_category' },
+          { type: 'reply', text: 'Found context <strong>nl</strong> for Dutch. Found 31 products in <strong>Apparel</strong> (working state, context: nl). Names are shown in Dutch where translations exist, falling back to English when not available.' },
+        ]
+      },
+      {
+        chatTitle: 'Published: Electronics',
+        label: 'Check what is actually live in your store',
+        turns: [
+          { type: 'user', text: "Using Bluestone PIM, show me only what's published in Electronics, not drafts" },
+          { type: 'tool', name: 'list_published_catalogs' },
+          { type: 'tool', name: 'list_published_products_in_category' },
+          { type: 'reply', text: 'Using published data only (live store, no unpublished changes). Found <strong>18 published products</strong> in Electronics. To see working state including drafts, ask without the &ldquo;published&rdquo; qualifier.' },
+        ]
+      },
+      {
+        chatTitle: 'Spring haiku',
+        label: 'A creative one, because why not',
+        turns: [
+          { type: 'user', text: 'Using Bluestone PIM, write a haiku about spring. One line per product, actually create them.' },
+          { type: 'tool', name: 'create_product' },
+          { type: 'tool', name: 'create_product' },
+          { type: 'tool', name: 'create_product' },
+          { type: 'reply', text: 'Created 3 products in Bluestone PIM:<br><br><em>&ldquo;Cherry blossoms fall&rdquo;</em><br><em>&ldquo;New inventory waits&rdquo;</em><br><em>&ldquo;Season of fresh stock&rdquo;</em><br><br>Your haiku is now in the database. Delete them when you&rsquo;re done.' },
+        ]
+      },
+    ];
+
+    var ASTERISK_SVG = '<svg width="20" height="20" viewBox="0 0 100 100" style="display:block;flex-shrink:0;" aria-hidden="true"><ellipse cx="50" cy="50" rx="11" ry="34" fill="#d97757" transform="rotate(0 50 50)"/><ellipse cx="50" cy="50" rx="11" ry="34" fill="#d97757" transform="rotate(60 50 50)"/><ellipse cx="50" cy="50" rx="11" ry="34" fill="#d97757" transform="rotate(120 50 50)"/></svg>';
+
+    var ICON_COPY = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    var ICON_THUMB_UP = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>';
+    var ICON_THUMB_DOWN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>';
+    var ICON_RETRY = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.93"/></svg>';
+
+    function toolDisplayName(name) {
+      var s = name.replace(/_/g, ' ');
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    function renderTurns(turns) {
+      return turns.map(function(turn) {
+        if (turn.type === 'user') {
+          return '<div style="display:flex;justify-content:flex-end;margin:6px 0;">' +
+            '<div style="background:#3a3a3a;color:#efefef;font-size:13.5px;line-height:1.55;padding:9px 15px;border-radius:18px;border-bottom-right-radius:3px;max-width:75%;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' +
+            turn.text + '</div></div>';
+        }
+        if (turn.type === 'tool') {
+          return '<div style="color:#666;font-size:12px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;display:flex;align-items:center;gap:5px;padding:3px 0;margin:2px 0;">' +
+            '<span>' + toolDisplayName(turn.name) + '</span>' +
+            '<span style="opacity:0.6;font-size:10px;">&#8250;</span>' +
+            '</div>';
+        }
+        if (turn.type === 'reply') {
+          return '<div style="margin:6px 0 14px 0;">' +
+            '<div style="color:#e8e8e8;font-size:13.5px;line-height:1.65;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' + turn.text + '</div>' +
+            '<div style="display:flex;gap:12px;margin-top:10px;color:#666;">' +
+            ICON_COPY + ICON_THUMB_UP + ICON_THUMB_DOWN + ICON_RETRY +
+            '</div></div>';
+        }
+        return '';
+      }).join('');
+    }
+
+    function renderClaudeWindow(example) {
+      return '<div class="not-prose my-10">' +
+        '<p style="font-size:12.5px;color:#94a3b8;margin:0 0 10px 4px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;letter-spacing:0.01em;">' + example.label + '</p>' +
+        '<div style="border-radius:12px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.55),0 0 0 1px rgba(255,255,255,0.06);">' +
+
+        // Window chrome
+        '<div style="background:#272727;padding:11px 16px;display:flex;align-items:center;gap:0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+        '<div style="display:flex;gap:7px;margin-right:20px;flex-shrink:0;">' +
+        '<span style="width:12px;height:12px;border-radius:50%;background:#ff5f57;display:block;"></span>' +
+        '<span style="width:12px;height:12px;border-radius:50%;background:#febc2e;display:block;"></span>' +
+        '<span style="width:12px;height:12px;border-radius:50%;background:#28c840;display:block;"></span>' +
+        '</div>' +
+        '<div style="display:flex;gap:1px;flex:1;justify-content:center;">' +
+        '<span style="color:#e0e0e0;font-size:12px;font-weight:500;background:#3e3e3e;padding:3px 15px;border-radius:6px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Chat</span>' +
+        '<span style="color:#666;font-size:12px;padding:3px 15px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Cowork</span>' +
+        '<span style="color:#666;font-size:12px;padding:3px 15px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Code</span>' +
+        '</div>' +
+        '<div style="width:80px;flex-shrink:0;"></div>' +
+        '</div>' +
+
+        // Body
+        '<div style="background:#1a1a1a;display:flex;">' +
+
+        // Sidebar
+        '<div class="mock-sidebar" style="width:44px;flex-shrink:0;flex-direction:column;align-items:center;gap:20px;padding:20px 0;border-right:1px solid rgba(255,255,255,0.05);opacity:0.35;">' +
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' +
+        '</div>' +
+
+        // Conversation
+        '<div style="flex:1;min-width:0;padding:22px 24px 16px 24px;">' +
+        '<div style="color:#555;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;margin-bottom:20px;display:flex;align-items:center;gap:4px;">' +
+        example.chatTitle + ' <span style="font-size:10px;opacity:0.7;">&#8250;</span></div>' +
+        renderTurns(example.turns) +
+        '<div style="margin-top:6px;opacity:0.65;">' + ASTERISK_SVG + '</div>' +
+        '</div>' +
+        '</div>' +
+
+        // Input bar
+        '<div style="background:#1e1e1e;padding:10px 14px;border-top:1px solid rgba(255,255,255,0.05);">' +
+        '<div style="background:#2a2a2a;border-radius:10px;padding:9px 14px;display:flex;align-items:center;gap:8px;">' +
+        '<span style="color:#444;font-size:13px;flex:1;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Reply&hellip;</span>' +
+        '<span style="color:#444;font-size:11px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Sonnet&nbsp;4.6</span>' +
+        '</div>' +
+        '<p style="text-align:center;color:#3a3a3a;font-size:11px;margin:8px 0 2px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Claude is AI and can make mistakes. Please double-check responses.</p>' +
+        '</div>' +
+
+        '</div>' + // end window
+        '</div>'; // end not-prose
+    }
+
+    function renderAllExamples() {
+      return EXAMPLES.map(renderClaudeWindow).join('');
+    }
+
     // Theme toggle
     document.getElementById('theme-toggle').addEventListener('click', () => {
       const isDark = document.documentElement.classList.toggle('dark');
@@ -518,7 +695,11 @@ If you are thinking through the same problems (how to write tool descriptions th
     const serverUrlHtml = '<span class="not-prose inline-flex items-center gap-1.5 font-mono text-sm bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900">' + MCP_URL + '<button onclick="copyUrl(this)" aria-label="Copy URL" class="ml-1 text-blue-400 dark:text-blue-500 hover:text-blue-600 dark:hover:text-blue-300 transition-colors shrink-0">' + copyIcon + '</button></span>';
 
     function promptBubble(text) {
-      return '<div class="not-prose my-5 flex items-end gap-2"><div class="bg-blue-600 text-white text-sm px-4 py-2.5 rounded-2xl rounded-bl-sm shadow-sm max-w-sm leading-relaxed">' + text + '</div><span class="text-xs text-slate-400 dark:text-slate-500 pb-1 shrink-0">You</span></div>';
+      return '<div class="not-prose my-3 flex justify-end items-end gap-2"><span class="text-xs text-slate-400 dark:text-slate-500 pb-1 shrink-0">You</span><div class="bg-blue-600 text-white text-sm px-4 py-2.5 rounded-2xl rounded-br-sm shadow-sm max-w-sm leading-relaxed">' + text + '</div></div>';
+    }
+
+    function replyBubble(text) {
+      return '<div class="not-prose my-3 flex items-end gap-2"><div class="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-sm px-4 py-2.5 rounded-2xl rounded-bl-sm shadow-sm max-w-md leading-relaxed">' + text + '</div><span class="text-xs text-slate-400 dark:text-slate-500 pb-1 shrink-0">Claude</span></div>';
     }
 
     function screenshotHtml(label) {
@@ -534,6 +715,7 @@ If you are thinking through the same problems (how to write tool descriptions th
     const processed = raw
       .replace(/\[server-url\]/g, PLACEHOLDER)
       .replace(/\[prompt: ([^\]]+)\]/g, function(_, text) { return promptBubble(text); })
+      .replace(/\[reply: ([^\]]+)\]/g, function(_, text) { return replyBubble(text); })
       .replace(/\[screenshot: ([^\]]+)\]/g, function(_, label) { return screenshotHtml(label); });
 
     marked.use({ breaks: false, gfm: true });
@@ -546,6 +728,15 @@ If you are thinking through the same problems (how to write tool descriptions th
         .replace(/[^\w\s]/g, '').trim().replace(/\s+/g, '-');
       if (slug) h.id = slug;
     });
+
+    // Inject Claude Desktop mockup examples after the #examples heading
+    var examplesH2 = document.getElementById('examples');
+    if (examplesH2) {
+      var introP = examplesH2.nextElementSibling;
+      var examplesContainer = document.createElement('div');
+      examplesContainer.innerHTML = renderAllExamples();
+      (introP || examplesH2).insertAdjacentElement('afterend', examplesContainer);
+    }
 
     // Client icons on h2 headings
     var clientImages = {

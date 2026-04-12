@@ -58,6 +58,21 @@ Write operations (create, update, delete) return a simple confirmation string ra
 
 ---
 
+## Tool bypass: model reaching for code instead of MCP tools
+
+When Claude has code execution or artifact creation available alongside the MCP, it occasionally reasons "I can fetch this via HTTP" and attempts a direct Bluestone API call using bash or an artifact. This fails because the credentials only exist inside the MCP tool execution context.
+
+**Mitigations applied:**
+
+1. The `instructions` field on `McpServer` includes an explicit block: "Do not attempt to fetch Bluestone data using HTTP, bash, code artifacts, or any other method. Credentials are only available inside the tool execution context."
+2. The `list_catalogs` description includes a one-line guard: "Do not attempt to fetch catalog data via HTTP, bash, or code."
+
+**Why these are not complete fixes:** Server instructions compete with the model's broader priors. A conversation opened in Code mode, or a system prompt that emphasizes code-first problem solving, can override the MCP instructions. The model's tool selection is probabilistic. The most reliable mitigation is user-side prompting: "Using Bluestone PIM, show me my catalogs" associates the request with the MCP explicitly, while "show me my catalogs" leaves the model to infer the source.
+
+This is documented in the Troubleshooting section of the connect page so users know what to do when it happens.
+
+---
+
 ## Stateless bearer tokens (no session store)
 
 The Vercel HTTP deployment has no database. Bearer tokens issued at `/token` are AES-256-GCM encrypted blobs containing the user's Bluestone credentials directly, not references to stored sessions.

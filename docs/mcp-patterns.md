@@ -204,6 +204,39 @@ When adding a new API helper (e.g. `mapiPatch`, `mapiDelete`), call the appropri
 
 ---
 
+## Tool bypass: when the model reaches for code instead
+
+When Claude has code execution or artifact creation available alongside the MCP, it sometimes reasons "I can fetch this via HTTP" and tries to call the Bluestone API directly using bash or an artifact. This always fails because the credentials only exist inside the MCP tool execution context — but it erodes trust and wastes the user's time.
+
+Two defenses, applied in combination:
+
+**1. Server-level instruction (highest priority)**
+
+The `instructions` field on `McpServer` is sent during the MCP handshake and read before any tool call. It should explicitly block the detour:
+
+```
+"IMPORTANT: All Bluestone PIM data must come from the tools in this server. " +
+"Do not attempt to fetch Bluestone data using HTTP requests, bash commands, code artifacts, or any other method. " +
+"The tools handle authentication and API access internally. " +
+"Direct API calls will fail because credentials are only available inside the tool execution context."
+```
+
+**2. Per-tool description guard on high-traffic entry points**
+
+Add a one-sentence guard to the description of any tool that is the natural entry point for data access. `list_catalogs` and `list_products_in_category` are the common targets:
+
+```
+"Do not attempt to fetch catalog data via HTTP, bash, or code — use this tool directly."
+```
+
+**What this does not fix**
+
+These instructions reduce the frequency but are not a complete solution. When the model has strong code execution priors (e.g. the conversation was opened in Code mode, or the system prompt emphasizes code) it may still choose code over the MCP tool. The only reliable mitigation is user-side: phrasing requests as "Using Bluestone PIM, show me..." names the source explicitly and makes the MCP tools the obvious match. If the behavior occurs mid-conversation, redirecting with "Don't write code. Use the Bluestone PIM tools directly." usually corrects it.
+
+Document this limitation where users will encounter it — in the Troubleshooting section of the connect page.
+
+---
+
 ## Guardrails: don't offer what doesn't exist
 
 After a mutation, models naturally suggest logical next steps — "would you like to add attributes or assign it to a category?" This is a problem when those tools don't exist: the user says yes, and the model either fails or backtracks, eroding trust.

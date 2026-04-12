@@ -4,6 +4,30 @@ Claude uses tool descriptions to decide when and how to call each tool. The desc
 
 ---
 
+## Prompting best practice
+
+Always name the source in the first message of a new conversation:
+
+```
+Using Bluestone PIM, show me my catalogs
+```
+
+Not just:
+
+```
+Show me my catalogs
+```
+
+When Claude has code execution or artifact creation available alongside the MCP, it can try to fetch Bluestone data via HTTP or write a bash script instead of calling the MCP tool. It always fails — credentials are only available inside the tool execution context — but it wastes time and erodes trust. Naming the source in the first message removes the ambiguity and makes the MCP tools the obvious match.
+
+If it goes wrong mid-conversation, redirect with: "Don't write code. Use the Bluestone PIM tools directly."
+
+See `docs/mcp-patterns.md` for the server-side mitigations (IMPORTANT instruction in McpServer and per-tool description guards), and `docs/mcp-design.md` for the full explanation of why this is a partial fix.
+
+---
+
+---
+
 ## `list_contexts`
 
 **Purpose:** List all available language and market contexts in the organisation.

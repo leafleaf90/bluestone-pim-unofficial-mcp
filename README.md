@@ -6,6 +6,8 @@ An unofficial, open-source MCP server that connects AI assistants (Claude Deskto
 
 ## Quick start
 
+You need a Bluestone PIM MAPI Client ID, MAPI Client Secret, and PAPI Key before you begin. Contact your Bluestone PIM administrator if you don't have these.
+
 ```bash
 npm install
 npm run build
@@ -28,6 +30,7 @@ For full setup instructions, see the [connect page](https://bluestone-mcp-inoffi
 | [docs/how-it-works.md](docs/how-it-works.md) | Developers | MCP, transports, auth, and security model |
 | [docs/setup-developer.md](docs/setup-developer.md) | Developers | Local (STDIO), Vercel deployment, connecting clients |
 | [docs/tools.md](docs/tools.md) | Developers | Available tools and how the model uses them |
+| [docs/compatibility.md](docs/compatibility.md) | Developers | Confirmed and expected client compatibility |
 | [docs/extending.md](docs/extending.md) | Developers | Adding new tools |
 | [docs/mcp-patterns.md](docs/mcp-patterns.md) | Developers | Required patterns and checklist for tool authors |
 | [docs/api-quick-reference.md](docs/api-quick-reference.md) | Developers | Bluestone API endpoints and shapes |

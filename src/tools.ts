@@ -329,7 +329,11 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Context (language/market): read tools accept an optional context parameter. " +
         "If the user asks to see data in a specific language, call list_contexts first to find the right context ID, " +
         "then pass it to subsequent tool calls. The default context is 'en' (English).\n\n" +
-        "Always confirm the product name with the user before calling create_product.",
+        "Always confirm the product name with the user before calling create_product.\n\n" +
+        "IMPORTANT: All Bluestone PIM data must come from the tools in this server. " +
+        "Do not attempt to fetch Bluestone data using HTTP requests, bash commands, code artifacts, or any other method. " +
+        "The tools handle authentication and API access internally. " +
+        "Direct API calls will fail because credentials are only available inside the tool execution context.",
     }
   );
 
@@ -381,7 +385,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "List all catalogs in the Bluestone PIM organisation. " +
         "Returns working state data, including unpublished changes. " +
         "Use the catalog id directly as the nodeId when calling list_products_in_category. " +
-        "Call this first before browsing products.",
+        "Call this first before browsing products. " +
+        "Do not attempt to fetch catalog data via HTTP, bash, or code — use this tool directly.",
       inputSchema: {
         context: z
           .string()
