@@ -510,11 +510,11 @@ The drawback: if Bluestone changes their internal API shape, this breaks without
 
 A common question: can this handle bulk operations? Importing a spreadsheet of thousands of products, enriching an entire catalog at once, mass-publishing drafts?
 
-The short answer is: not through a chat interface, and that is not really a solvable problem — it is a design boundary.
+The short answer is: not through a chat interface. That is not really a solvable problem; it is a design boundary.
 
 Chat-based MCP is the right tool for individual product work, spot checks, small batch operations (tens, not thousands), and QA over existing data. The limitations that make large-scale bulk actions impractical here are structural:
 
-**Context window.** A 10,000-row spreadsheet does not fit in a conversation. Even in chunks, the model degrades on very long inputs — attention drops and you get errors or skipped rows toward the end.
+**Context window.** A 10,000-row spreadsheet does not fit in a conversation. Even in chunks, the model degrades on very long inputs. Attention drops and you get errors or skipped rows toward the end.
 
 **Sequential tool calls.** MCP tool calls run one at a time within a conversation. Creating 10,000 products at one to two seconds per call would take hours and time out long before finishing.
 
@@ -522,9 +522,21 @@ Chat-based MCP is the right tool for individual product work, spot checks, small
 
 **No file ingestion.** Data has to pass through the model's context window. There is no way to stream a file directly to the MCP server.
 
-Where bulk operations do make sense with AI in the loop: use the model to *prepare and validate* the operation — check a dataset for issues, flag inconsistencies, confirm intent — then hand execution off to a proper batch process that calls the Bluestone API directly. The AI layer handles reasoning; a background job handles scale.
+Where bulk operations do make sense with AI in the loop: use the model to *prepare and validate* the operation (check a dataset for issues, flag inconsistencies, confirm intent), then hand execution off to a proper batch process that calls the Bluestone API directly. The AI layer handles reasoning; a background job handles scale.
 
 The more interesting near-term case is bulk *analysis* rather than bulk *writes*: run a consistency check across a full catalog, catch missing translations, flag products in unexpected states. That fits the chat model well. It is read-heavy, the output is a summary rather than thousands of mutations, and the AI layer adds genuine value over a raw API call.
+
+### Agents connecting to this MCP
+
+It is worth saying explicitly: MCP servers are not only for humans in a chat interface. An agent (a program using an LLM to orchestrate tool calls) can connect to this server the same way Claude Desktop does, and bulk operations become much more practical in that context.
+
+An agent is not constrained by a chat session. It can run loops, manage state between calls, handle retries, chunk a large catalog into pages, and run unattended overnight. The sequential tool call constraint still applies (each call takes time), but there is no human waiting, no session timeout, and the agent can page through a 10,000-product catalog systematically in a way a chat session cannot.
+
+The pattern: an orchestration agent receives a task ("enrich all products in the Clothes catalog with a short description in English and Dutch"), calls `list_products_in_category` to get the full list, chunks it, then iterates: calling `get_product` for each, generating the content, writing it back via `update_product`. Each tool call is still individual, but the loop is automated.
+
+The tools that unlock this (`get_product` and `update_product`) are not implemented yet. But the server is already built on standard MCP over HTTP with OAuth, which means any agent framework that supports MCP can connect to it today for the read and create operations that do exist.
+
+If you are building an agent workflow on top of this, the [GitHub repo](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp) is the starting point. The same codebase, the same tools.
 
 ### What is not implemented yet, and why
 

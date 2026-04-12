@@ -188,6 +188,14 @@ The useful pattern is AI for reasoning, a separate process for execution:
 
 ### Bulk analysis is a better fit than bulk writes
 
-Read-heavy bulk operations fit the chat model reasonably well. Running a consistency check across a full catalog, catching missing translations, flagging products in unexpected states — these produce a summary rather than thousands of mutations, and the AI layer adds genuine value over a raw API call. The Dutch catalog example already demonstrates this at small scale: Claude noticed a missing translation unprompted. The same reasoning applied across a full catalog is a legitimate QA tool.
+Read-heavy bulk operations fit the chat model reasonably well. Running a consistency check across a full catalog, catching missing translations, flagging products in unexpected states: these produce a summary rather than thousands of mutations, and the AI layer adds genuine value over a raw API call. The Dutch catalog example already demonstrates this at small scale: Claude noticed a missing translation unprompted. The same reasoning applied across a full catalog is a legitimate QA tool.
 
 The implementation gap here is attribute reads. Once `get_product` returns attributes, bulk analysis across attribute completeness, value consistency, and localization coverage becomes possible without any architectural changes.
+
+### Agents, not humans, are the right client for bulk
+
+MCP servers are not only for humans in chat interfaces. An agent connecting to this server faces none of the chat-session constraints: no context window shared with conversation history, no human waiting for a reply, no session timeout. It can run loops, page through large catalogs, retry failures, and manage state externally.
+
+The sequential tool call constraint still applies (each call is still one at a time), but an agent running unattended overnight can work through 10,000 products systematically. The architecture does not need to change; the client does.
+
+This server is already built on standard HTTP + OAuth 2.1, which any agent framework supporting MCP can connect to. The read tools (`list_catalogs`, `list_products_in_category`) and `create_product` work for agents today. `get_product` and `update_product` are the missing pieces before bulk enrichment workflows become practical.
