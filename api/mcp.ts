@@ -21,9 +21,8 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Rate limiting on /mcp — 60 requests per minute per IP.
-// Note: in-memory store per Vercel instance; not globally consistent across
-// concurrent instances. Sufficient for abuse prevention at this scale.
+// Rate limiting — in-memory store per Vercel instance; not globally consistent
+// across concurrent instances. Sufficient for abuse prevention at this scale.
 // For strict global limits, replace the default store with a Redis-backed one
 // (e.g. rate-limit-redis) pointing at Vercel KV or Upstash.
 const mcpRateLimiter = rateLimit({
@@ -31,7 +30,17 @@ const mcpRateLimiter = rateLimit({
   limit: 60,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "Too many requests — please wait a moment and try again." },
+  message: { error: "Too many requests. Please wait a moment and try again." },
+});
+
+// Auth endpoints are rate-limited more strictly: they are called at most once
+// per connection setup, so 20/min per IP is already generous.
+const authRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a moment and try again." },
 });
 
 // ─── Signing secret ───────────────────────────────────────────────────────────
@@ -339,7 +348,7 @@ app.get("/.well-known/oauth-protected-resource", (req: Request, res: Response) =
 // TODO (production): persist registrations and enforce client_id at /authorize
 // to prevent unregistered clients from bypassing the registration step.
 
-app.post("/register", (req: Request, res: Response) => {
+app.post("/register", authRateLimiter, (req: Request, res: Response) => {
   if (!requireSigningSecret(res)) return;
 
   const { redirect_uris, client_name, grant_types, response_types } = req.body as {
@@ -383,7 +392,7 @@ app.post("/register", (req: Request, res: Response) => {
 // redirect_uri is validated in both flows: must be localhost or HTTPS.
 // PKCE (S256) remains the primary protection against code interception.
 
-app.get("/authorize", (req: Request, res: Response) => {
+app.get("/authorize", authRateLimiter, (req: Request, res: Response) => {
   if (!requireSigningSecret(res)) return;
 
   const { client_id, redirect_uri, state, code_challenge, code_challenge_method } =
@@ -437,7 +446,7 @@ app.get("/authorize", (req: Request, res: Response) => {
 // Form submission for the dynamic registration flow.
 // Verifies the CSRF token, validates inputs, encrypts credentials into the
 // auth code, and redirects back to the client exactly as the legacy flow does.
-app.post("/authorize", (req: Request, res: Response) => {
+app.post("/authorize", authRateLimiter, (req: Request, res: Response) => {
   if (!requireSigningSecret(res)) return;
 
   const {
@@ -496,7 +505,7 @@ app.post("/authorize", (req: Request, res: Response) => {
 // We decrypt the auth code, check expiry, verify PKCE, then encrypt all three
 // credentials into a Bearer token using AES-256-GCM.
 
-app.post("/token", (req: Request, res: Response) => {
+app.post("/token", authRateLimiter, (req: Request, res: Response) => {
   if (!requireSigningSecret(res)) return;
 
   const { grant_type, code, code_verifier, client_secret } = req.body as Record<string, string>;

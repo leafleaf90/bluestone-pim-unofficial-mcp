@@ -20,6 +20,8 @@ For full setup instructions, see the [connect page](https://bluestone-mcp-unoffi
 
 - "Using Bluestone PIM, show me my catalogs"
 - "List all products in the first catalog you found"
+- "Show me products in Dutch"
+- "Show me only published products in the Clothes catalog"
 - "Create a new product called Summer Jacket"
 
 ## Docs
@@ -35,6 +37,22 @@ For full setup instructions, see the [connect page](https://bluestone-mcp-unoffi
 | [docs/mcp-patterns.md](docs/mcp-patterns.md) | Developers | Required patterns and checklist for tool authors |
 | [docs/api-quick-reference.md](docs/api-quick-reference.md) | Developers | Bluestone API endpoints and shapes |
 | [CHANGELOG.md](CHANGELOG.md) | Developers | History of significant changes |
+
+## For SI partners
+
+If you implement Bluestone for clients, you can fork this repo and build your own MCP server tailored to your workflows. Add tools, extend the data model, deploy under your own Vercel instance.
+
+This is a personal project, not an official Bluestone product. Reach out on Slack as you normally would if you have questions.
+
+Start with `src/tools.ts` (where tools are registered) and [docs/extending.md](docs/extending.md).
+
+## For customers
+
+This is not a Bluestone product. It is a personal experiment, published openly. Bluestone has not reviewed, endorsed, or supported it in any way.
+
+It works against the documented Bluestone APIs using your own credentials. If you run the server locally or deploy your own Vercel instance, your credentials stay entirely within your own infrastructure and are never stored by this project. See [docs/how-it-works.md](docs/how-it-works.md) for the full security model.
+
+The shared test deployment at `bluestone-mcp-unofficial.vercel.app` is fine for a quick look. For anything beyond that, run your own instance (Option B in the [setup guide](docs/setup-developer.md)) so you control where credentials go. If your organisation has a security review process, loop them in before deploying.
 
 ## License
 

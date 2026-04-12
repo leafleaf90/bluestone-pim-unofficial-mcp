@@ -1,4 +1,4 @@
-# Setup — Developer guide
+# Setup: Developer guide
 
 There are three ways to run the Bluestone PIM MCP server:
 
@@ -8,10 +8,10 @@ There are three ways to run the Bluestone PIM MCP server:
 | **Remote (Vercel)** | A deployed serverless function anyone can connect to | A Vercel deployment + credentials |
 
 Jump to the option that fits:
-- [Option A — Local setup](#option-a-local-setup-stdio) — run the server on your own machine
-- [Option B — Deploy to Vercel](#option-b-deploy-to-vercel) — host the server so others can connect without Node.js
-- [Option C — Connect via Claude Desktop](#option-c-connect-to-an-existing-vercel-deployment-claude-desktop) — someone else has already deployed it, connect with Claude Desktop
-- [Option D — Connect via Cursor](#option-d-connect-to-an-existing-vercel-deployment-cursor) — someone else has already deployed it, connect with Cursor
+- [Option A: Local setup](#option-a-local-setup-stdio) - run the server on your own machine
+- [Option B: Deploy to Vercel](#option-b-deploy-to-vercel) - host the server so others can connect without Node.js
+- [Option C: Connect via Claude Desktop](#option-c-connect-to-an-existing-vercel-deployment-claude-desktop) - someone else has already deployed it, connect with Claude Desktop
+- [Option D: Connect via Cursor](#option-d-connect-to-an-existing-vercel-deployment-cursor) - someone else has already deployed it, connect with Cursor
 
 ---
 
@@ -99,7 +99,7 @@ Vercel will give you a deployment URL, e.g. `https://your-project.vercel.app`.
 
 ### 2. Set the signing secret
 
-`SIGNING_SECRET` is used to encrypt auth codes and Bearer tokens — without it the server will refuse all auth requests.
+`SIGNING_SECRET` is used to encrypt auth codes and Bearer tokens. Without it the server will refuse all auth requests.
 
 Generate a value:
 ```bash
@@ -112,7 +112,7 @@ Add it in Vercel: **Project → Settings → Environment Variables → Add**. Ke
 vercel --prod
 ```
 
-> **Rotation:** Rotate `SIGNING_SECRET` periodically (every 90 days is a reasonable baseline) and immediately if you suspect it has been compromised. When rotated, all existing Bearer tokens are invalidated — users will need to reconnect once to get a new token.
+> **Rotation:** Rotate `SIGNING_SECRET` periodically (every 90 days is a reasonable baseline) and immediately if you suspect it has been compromised. When rotated, all existing Bearer tokens are invalidated; users will need to reconnect once to get a new token.
 
 ### 3. Share the URL with users
 
@@ -124,7 +124,7 @@ Give users your deployment URL (e.g. `https://your-project.vercel.app/mcp`) and 
 
 Follow this if someone else has already deployed the server and given you the URL.
 
-> **Unofficial test deployment:** `https://bluestone-mcp-unofficial.vercel.app/mcp` — available for testing if you don't have your own deployment yet.
+> **Unofficial test deployment:** `https://bluestone-mcp-unofficial.vercel.app/mcp`, available for testing if you don't have your own deployment yet.
 
 ### 1. Open the connector UI
 
@@ -137,7 +137,7 @@ Claude Desktop → **Settings** → **Customize** → **Connectors** → **Add c
 
 Then open **Advanced settings**:
 
-- **Client ID**: your MAPI Client ID and PAPI key joined with a colon — no spaces:
+- **Client ID**: your MAPI Client ID and PAPI key joined with a colon, no spaces:
   ```
   your-mapi-client-id:your-papi-key
   ```
@@ -147,7 +147,7 @@ Then open **Advanced settings**:
 
 ### 3. Authorise
 
-Click **Add**. A browser window opens briefly and closes — that is the OAuth authorisation flow completing. Normal behaviour.
+Click **Add**. A browser window opens briefly and closes. That is the OAuth authorisation flow completing. Normal behaviour.
 
 The connector will appear in your list. Enable it with the toggle.
 
@@ -155,7 +155,7 @@ The connector will appear in your list. Enable it with the toggle.
 
 ## Option D: Connect to an existing Vercel deployment (Cursor)
 
-> **Unofficial test deployment:** `https://bluestone-mcp-unofficial.vercel.app/mcp` — available for testing if you don't have your own deployment yet.
+> **Unofficial test deployment:** `https://bluestone-mcp-unofficial.vercel.app/mcp`, available for testing if you don't have your own deployment yet.
 
 ### 1. Add the server to your Cursor config
 
@@ -184,7 +184,7 @@ Cursor will open a browser window showing a **Connect to Bluestone PIM** form. E
 
 Click **Authorise**. The browser window closes and Cursor completes the OAuth flow automatically.
 
-> Cursor uses dynamic client registration (RFC 7591), which is why you see a form instead of the instant redirect that Claude Desktop does. Both flows produce the same encrypted Bearer token — the difference is only in how credentials are collected.
+> Cursor uses dynamic client registration (RFC 7591), which is why you see a form instead of the instant redirect that Claude Desktop does. Both flows produce the same encrypted Bearer token; the difference is only in how credentials are collected.
 
 ---
 
@@ -197,10 +197,10 @@ The server supports two OAuth 2.1 + PKCE flows depending on the client.
 Claude Desktop encodes credentials directly in `client_id` as `{mapiClientId}:{papiKey}`:
 
 1. Claude Desktop opens `/authorize` with the composite `client_id` and a PKCE S256 challenge
-2. The server validates `redirect_uri` (must be localhost or HTTPS), extracts credentials from `client_id`, encrypts them into a short-lived AES-256-GCM auth code, and redirects back — the payload is opaque in the redirect URL, and `mapiClientSecret` is intentionally absent so it never travels in the redirect
+2. The server validates `redirect_uri` (must be localhost or HTTPS), extracts credentials from `client_id`, encrypts them into a short-lived AES-256-GCM auth code, and redirects back; the payload is opaque in the redirect URL, and `mapiClientSecret` is intentionally absent so it never travels in the redirect
 3. Claude Desktop exchanges the code at `/token`, sending the PKCE verifier and `client_secret` (the MAPI secret)
 4. The server decrypts the auth code, checks expiry, verifies the PKCE challenge, then encrypts all three credentials into a Bearer token using AES-256-GCM
-5. All subsequent MCP requests carry that encrypted Bearer token — the server decrypts it, verifies the embedded expiration timestamp, and rejects it if expired. Nothing is stored on the server
+5. All subsequent MCP requests carry that encrypted Bearer token; the server decrypts it, verifies the embedded expiration timestamp, and rejects it if expired. Nothing is stored on the server
 
 **Cursor and other RFC 7591 clients (dynamic registration flow)**
 
@@ -208,7 +208,7 @@ Claude Desktop encodes credentials directly in `client_id` as `{mapiClientId}:{p
 2. Cursor opens a browser to `/authorize`; the server detects the opaque `client_id` and renders an HTML form
 3. The user enters all three Bluestone credentials in the form: `mapiClientId`, `mapiClientSecret`, and PAPI key
 4. The server verifies a CSRF token (to prevent cross-site form submission), encrypts all three credentials into an AES-256-GCM auth code, and redirects back to Cursor
-5. Cursor exchanges the code at `/token` with only the PKCE verifier — the MAPI secret is already inside the encrypted auth code, so no `client_secret` param is needed
+5. Cursor exchanges the code at `/token` with only the PKCE verifier; the MAPI secret is already inside the encrypted auth code, so no `client_secret` param is needed
 
 ---
 
@@ -216,7 +216,7 @@ Claude Desktop encodes credentials directly in `client_id` as `{mapiClientId}:{p
 
 **Check Claude Desktop UI:**
 
-Click the **+** button in the chat input bar, then select **Connectors**. You should see `bluestone-pim` listed with a blue toggle — that means the server is connected and active.
+Click the **+** button in the chat input bar, then select **Connectors**. You should see `bluestone-pim` listed with a blue toggle: that means the server is connected and active.
 
 **Check the MCP logs (local only):**
 
@@ -235,22 +235,60 @@ npm run build
 # Restart Claude Desktop
 ```
 
-Claude Desktop must be restarted to pick up changes — it only reads the config and launches the server once at startup.
+Claude Desktop must be restarted to pick up changes; it only reads the config and launches the server once at startup.
 
 ---
 
-## Adding or updating screenshots
+## Adding or updating examples
 
-Screenshots for the connect page live in `public/connect/images/`. They are served as WebP for performance.
+The Examples section on the connect page is driven by a `EXAMPLES` data array and a `renderClaudeWindow()` rendering function, both in `public/connect/index.html`. Each entry in `EXAMPLES` is a plain object describing one conversation. No framework, just data and a function.
 
-**Workflow:**
+### Example object shape
 
-1. Drop your new screenshot (PNG or JPG) into `public/connect/images/`
-2. Run the optimizer — it converts to WebP, resizes to max 1400px wide, and deletes the original:
+```javascript
+{
+  chatTitle: 'Clothes catalog',       // shown as the open chat title inside the mock window
+  label: 'Browse a catalog and create a product',  // heading above the window
+  turns: [ /* see turn types below */ ],
+  screenshot: {                        // optional: shown below the window
+    src: 'chat_examples/my-image.webp',
+    caption: 'Alt text and caption',
+  },
+  missing: [                           // optional: "What's missing" section (HTML strings)
+    '<strong>Feature name:</strong> explanation.',
+  ],
+  notes: [                             // optional: "About this conversation" section (HTML strings)
+    '<strong>Observation:</strong> explanation.',
+  ],
+}
+```
+
+### Turn types
+
+| Type | Fields | Renders as |
+|---|---|---|
+| `user` | `text` (HTML string) | Right-aligned dark bubble |
+| `reply` | `text` (HTML string) | Left-aligned Claude response with copy/thumbs icons |
+| `tool` | `name` (tool name), `display` (optional label override) | Grey tool-call line with `>` chevron |
+| `form` | `pairs: [{ q, a }]` | Right-aligned bubble showing Q&A rows, labelled "Form responses". Use this to represent Claude Desktop's interactive option-picker UI |
+
+Use `display` on tool turns to match the exact label Claude Desktop shows (e.g. `'Loaded tools, used Bluestone PIM integration'`). If omitted, the tool name is title-cased automatically.
+
+HTML is rendered directly in `text`, `q`, `a`, and the `missing`/`notes` arrays, so you can use `<strong>`, `<code>`, `<br>`, `&mdash;`, etc.
+
+### Adding a screenshot to an example
+
+1. Drop the PNG or JPG into `public/connect/images/chat_examples/`
+2. Run the optimizer:
    ```bash
    npm run optimize-images
    ```
-3. Reference the resulting `.webp` file in `public/connect/index.html` using the `[screenshot: filename.webp]` syntax
+   This converts to WebP, resizes to max 1400px wide, and deletes the original.
+3. Set the `screenshot` field on the example object using the `.webp` filename.
+
+### Adding or updating static screenshots (non-example images)
+
+Screenshots outside the examples live in `public/connect/images/`. Same optimization workflow: drop PNG/JPG in, run `npm run optimize-images`, reference the `.webp` output.
 
 ---
 
@@ -259,7 +297,7 @@ Screenshots for the connect page live in `public/connect/images/`. They are serv
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `bluestone-pim` missing under + → Connectors | Config not read or server crashed at start | Check `~/Library/Logs/Claude/mcp-server-bluestone-pim.log` (local) or Vercel function logs (remote) |
-| "Authorization with the MCP server failed" | Wrong credentials or malformed client_id | Double-check the `mapiClientId:papiKey` format — colon separator, no spaces |
+| "Authorization with the MCP server failed" | Wrong credentials or malformed client_id | Double-check the `mapiClientId:papiKey` format: colon separator, no spaces |
 | Tool call returns error | API key wrong or network issue | Test the curl in [api.md](api.md) directly |
 | `Cannot find module` error | Build not run | Run `npm run build` |
 | Changes not appearing | Claude Desktop not restarted | Quit and relaunch |

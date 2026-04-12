@@ -36,7 +36,7 @@ Include the trigger condition and any required sequencing.
 Without this, models dump every field into chat.
 
 ```
-"Full attribute values are included — surface them only when the user asks for details on a specific product."
+"Full attribute values are included; surface them only when the user asks for details on a specific product."
 ```
 
 ### Include display instructions for hierarchical data
@@ -105,13 +105,13 @@ return {
 };
 ```
 
-No JSON wrapper. A mutation has no structured data for the model to reason over — a confirmation string is all that is needed.
+No JSON wrapper. A mutation has no structured data for the model to reason over. A confirmation string is all that is needed.
 
 ---
 
 ## Tool annotations
 
-Every tool must declare annotations. They tell compliant clients how to handle the tool — whether to auto-execute it, whether to warn the user, and whether calling it twice is safe.
+Every tool must declare annotations. They tell compliant clients how to handle the tool: whether to auto-execute it, whether to warn the user, and whether calling it twice is safe.
 
 ```typescript
 annotations: {
@@ -126,6 +126,8 @@ Rules:
 - Write tools (create/update/delete): `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false`
 - An update that is safe to retry (e.g. setting a field to the same value) may set `idempotentHint: true`
 
+**A note on `destructiveHint: true` for create operations.** Strictly speaking, `destructiveHint` is intended for actions that are hard to undo or that overwrite data (deletes, overwrites). Creating a new product is not destructive in that sense: nothing is removed and the product can be cleaned up. There is a reasonable argument for setting `destructiveHint: false` on `create_product`. We keep it `true` as a conservative default because: (a) it prompts the client (Claude Desktop) to ask the user to confirm before calling the tool, which is good UX for a first-time user naming something in a live PIM; and (b) the extra confirmation turn is a small cost compared to an accidental creation in a shared catalog. If this turns out to be friction for experienced users, flip it to `false`.
+
 Annotations are hints to the client, not enforced by the protocol. But omitting them leaves the client to assume worst-case defaults, which means unnecessary confirmation prompts on read tools and no extra caution on writes.
 
 ---
@@ -137,7 +139,7 @@ Use Zod for all parameters. The `.describe()` call is the model's only documenta
 ```typescript
 inputSchema: {
   categoryId: z.string()
-    .describe("The category ID — get this from list_catalogs"),
+    .describe("The category ID; get this from list_catalogs"),
   limit: z.number().int().min(1).max(200).optional()
     .describe("Max products to return (default 50). Call again with a higher offset for more."),
 }
@@ -152,7 +154,7 @@ Rules:
 
 ## Pagination
 
-Any tool that returns a list must accept `limit` and `page`. Both APIs use 0-indexed pagination internally — the tool always exposes 1-indexed `page` to the model and subtracts 1 before passing to Bluestone. PAPI uses `itemsOnPage`/`pageNo`; MAPI uses `page`/`pageSize`. See `docs/mcp-design.md` for the full comparison.
+Any tool that returns a list must accept `limit` and `page`. Both APIs use 0-indexed pagination internally; the tool always exposes 1-indexed `page` to the model and subtracts 1 before passing to Bluestone. PAPI uses `itemsOnPage`/`pageNo`; MAPI uses `page`/`pageSize`. See `docs/mcp-design.md` for the full comparison.
 
 ```typescript
 inputSchema: {
@@ -183,7 +185,7 @@ text:
   JSON.stringify({ totalCount, page: effectivePage, totalPages, returned: showing, hasMore, results }, null, 2)
 ```
 
-**Cross-page GROUP/VARIANT splits:** With page-based pagination, a GROUP and some of its VARIANTs may land on different pages. Include orphaned VARIANTs (whose parent GROUP is not on the current page) as standalone items in the response — the `type` field tells the model how to display them.
+**Cross-page GROUP/VARIANT splits:** With page-based pagination, a GROUP and some of its VARIANTs may land on different pages. Include orphaned VARIANTs (whose parent GROUP is not on the current page) as standalone items in the response; the `type` field tells the model how to display them.
 
 ---
 
@@ -200,13 +202,13 @@ Use the `papiErrorMessage` and `mapiErrorMessage` helpers in `src/tools.ts`. The
 | 429 | "Rate limit exceeded. Wait a moment and try again." |
 | other | `Bluestone [PAPI/MAPI] error {status}: {body}` |
 
-When adding a new API helper (e.g. `mapiPatch`, `mapiDelete`), call the appropriate helper in the error path — do not throw raw status strings.
+When adding a new API helper (e.g. `mapiPatch`, `mapiDelete`), call the appropriate helper in the error path. Do not throw raw status strings.
 
 ---
 
 ## Tool bypass: when the model reaches for code instead
 
-When Claude has code execution or artifact creation available alongside the MCP, it sometimes reasons "I can fetch this via HTTP" and tries to call the Bluestone API directly using bash or an artifact. This always fails because the credentials only exist inside the MCP tool execution context — but it erodes trust and wastes the user's time.
+When Claude has code execution or artifact creation available alongside the MCP, it sometimes reasons "I can fetch this via HTTP" and tries to call the Bluestone API directly using bash or an artifact. This always fails because the credentials only exist inside the MCP tool execution context, but it erodes trust and wastes the user's time.
 
 Two defenses, applied in combination:
 
@@ -226,30 +228,30 @@ The `instructions` field on `McpServer` is sent during the MCP handshake and rea
 Add a one-sentence guard to the description of any tool that is the natural entry point for data access. `list_catalogs` and `list_products_in_category` are the common targets:
 
 ```
-"Do not attempt to fetch catalog data via HTTP, bash, or code — use this tool directly."
+"Do not attempt to fetch catalog data via HTTP, bash, or code. Use this tool directly."
 ```
 
 **What this does not fix**
 
 These instructions reduce the frequency but are not a complete solution. When the model has strong code execution priors (e.g. the conversation was opened in Code mode, or the system prompt emphasizes code) it may still choose code over the MCP tool. The only reliable mitigation is user-side: phrasing requests as "Using Bluestone PIM, show me..." names the source explicitly and makes the MCP tools the obvious match. If the behavior occurs mid-conversation, redirecting with "Don't write code. Use the Bluestone PIM tools directly." usually corrects it.
 
-Document this limitation where users will encounter it — in the Troubleshooting section of the connect page.
+Document this limitation where users will encounter it: in the Troubleshooting section of the connect page.
 
 ---
 
 ## Guardrails: don't offer what doesn't exist
 
-After a mutation, models naturally suggest logical next steps — "would you like to add attributes or assign it to a category?" This is a problem when those tools don't exist: the user says yes, and the model either fails or backtracks, eroding trust.
+After a mutation, models naturally suggest logical next steps: "would you like to add attributes or assign it to a category?" This is a problem when those tools don't exist: the user says yes, and the model either fails or backtracks, eroding trust.
 
 For any write tool, explicitly state in the description what the model must NOT offer as a follow-up:
 
 ```
-"After creating, do NOT offer to add attributes or assign the product to a category — 
-these tools do not exist yet. Instead, tell the user the product was created and 
+"After creating, do NOT offer to add attributes or assign the product to a category.
+These tools do not exist yet. Instead, tell the user the product was created and 
 suggest they open Bluestone PIM to continue enriching it."
 ```
 
-The same applies when a tool's scope is intentionally narrow. If `create_product` only sets the name, tell the model that setting other fields is not available — do not leave it to guess what comes next.
+The same applies when a tool's scope is intentionally narrow. If `create_product` only sets the name, tell the model that setting other fields is not available. Do not leave it to guess what comes next.
 
 ---
 

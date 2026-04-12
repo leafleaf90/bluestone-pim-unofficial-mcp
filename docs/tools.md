@@ -1,6 +1,6 @@
 # Tools
 
-Claude uses tool descriptions to decide when and how to call each tool. The description is not just documentation — it is what Claude reads at runtime to understand the tool's purpose and how to present results.
+Claude uses tool descriptions to decide when and how to call each tool. The description is what Claude reads at runtime to understand the tool's purpose and how to present results.
 
 ---
 
@@ -18,7 +18,7 @@ Not just:
 Show me my catalogs
 ```
 
-When Claude has code execution or artifact creation available alongside the MCP, it can try to fetch Bluestone data via HTTP or write a bash script instead of calling the MCP tool. It always fails — credentials are only available inside the tool execution context — but it wastes time and erodes trust. Naming the source in the first message removes the ambiguity and makes the MCP tools the obvious match.
+When Claude has code execution or artifact creation available alongside the MCP, it can try to fetch Bluestone data via HTTP or write a bash script instead of calling the MCP tool. It always fails because credentials are only available inside the tool execution context, but it wastes time and erodes trust. Naming the source in the first message removes the ambiguity and makes the MCP tools the obvious match.
 
 If it goes wrong mid-conversation, redirect with: "Don't write code. Use the Bluestone PIM tools directly."
 
@@ -138,7 +138,7 @@ Add new mappings in `mapProductState()` in `src/tools.ts` as they are discovered
 
 ## `list_published_catalogs`
 
-**Purpose:** List published (live) catalogs. Returns only data that has been synced — no unpublished changes.
+**Purpose:** List published (live) catalogs. Returns only data that has been synced. No unpublished changes.
 
 **Input:** None
 
@@ -156,7 +156,7 @@ Header: x-api-key
 
 ## `list_published_products_in_category`
 
-**Purpose:** List published (live) products in a category. Returns only synced data — no unpublished changes.
+**Purpose:** List published (live) products in a category. Returns only synced data. No unpublished changes.
 
 **Input:**
 
@@ -173,7 +173,7 @@ GET /v1/categories/{categoryId}/products?subCategories=true&itemsOnPage={limit}&
 Header: x-api-key
 ```
 
-PAPI pagination uses 0-indexed `pageNo` — the tool subtracts 1 from the 1-indexed `page` input.
+PAPI pagination uses 0-indexed `pageNo`; the tool subtracts 1 from the 1-indexed `page` input.
 
 ---
 
@@ -185,12 +185,12 @@ PAPI pagination uses 0-indexed `pageNo` — the tool subtracts 1 from the 1-inde
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `name` | string | Yes | Product name — Claude will confirm with the user before calling |
+| `name` | string | Yes | Product name. Claude will confirm with the user before calling |
 | `categoryId` | string | No | Catalog category ID to assign the product to after creation |
 
 **API calls:**
 
-Step 1 — create the product:
+Step 1: create the product:
 ```
 POST /pim/products
 Header: authorization: Bearer <token>
@@ -198,7 +198,7 @@ Body: { "name": "..." }
 → 201, resource-id header contains the new product ID
 ```
 
-Step 2 — assign to category (only if `categoryId` is provided):
+Step 2: assign to category (only if `categoryId` is provided):
 ```
 POST /pim/catalogs/nodes/{categoryId}/products
 Header: authorization: Bearer <token>
@@ -215,8 +215,8 @@ If the category assignment fails, the product creation is still reported as succ
 
 **Example prompts:**
 - "Create a product called Test Widget"
-- "Add a new product" — Claude will ask for the name first
-- After listing products: "Yes, create a product here" — Claude will ask for the name and pass the `categoryId`
+- "Add a new product": Claude will ask for the name first
+- After listing products: "Yes, create a product here": Claude will ask for the name and pass the `categoryId`
 
 ---
 
@@ -224,4 +224,4 @@ If the category assignment fails, the product creation is still reported as succ
 
 At startup, Claude Desktop sends a `tools/list` request to the MCP server. The server responds with the tool name, description, and input schema for each tool. Claude stores these and uses the descriptions to match user intent.
 
-The input schema (defined with Zod) tells Claude what parameters to fill in and their types. Claude infers the values from the conversation — for example, it extracts the `categoryId` from the catalog the user mentioned, using the ID it received from `list_catalogs`.
+The input schema (defined with Zod) tells Claude what parameters to fill in and their types. Claude infers the values from the conversation, for example it extracts the `categoryId` from the catalog the user mentioned, using the ID it received from `list_catalogs`.

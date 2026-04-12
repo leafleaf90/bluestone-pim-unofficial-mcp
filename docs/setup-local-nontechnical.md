@@ -1,4 +1,4 @@
-# Setup guide — no technical experience required
+# Setup guide: no technical experience required
 
 This guide takes you from a brand new Mac to having Claude Desktop talk directly to Bluestone PIM. Follow every step in order and you'll be up and running.
 
@@ -8,15 +8,15 @@ This guide takes you from a brand new Mac to having Claude Desktop talk directly
 
 There are two ways to connect Claude to Bluestone PIM:
 
-**Option A — Local setup (this guide, Steps 1–10)**
-You install a small bridge program on your Mac. When Claude Desktop starts, it runs the bridge automatically in the background. Nothing runs in the cloud — everything stays on your Mac.
+**Option A: Local setup (this guide, Steps 1–10)**
+You install a small bridge program on your Mac. When Claude Desktop starts, it runs the bridge automatically in the background. Nothing runs in the cloud; everything stays on your Mac.
 
-**Option B — Hosted version (skip to the bottom of this page)**
+**Option B: Hosted version (skip to the bottom of this page)**
 No installation needed. You connect Claude Desktop or Cursor directly to a server already running in the cloud. All you need are your Bluestone credentials.
 
 ---
 
-## Step 1 — Install an IDE (code editor)
+## Step 1: Install an IDE (code editor)
 
 An IDE is just a program for opening and editing code files. You need it to edit one configuration file later. Pick one:
 
@@ -33,18 +33,18 @@ Either one works fine. VS Code is the safe default if you're unsure.
 
 ---
 
-## Step 2 — Install Node.js
+## Step 2: Install Node.js
 
 Node.js is what actually runs the bridge program. Think of it as the engine.
 
 1. Go to [nodejs.org](https://nodejs.org)
 2. Click the big **LTS** button (the one that says "Recommended for most users")
-3. Open the downloaded file and follow the installer — just click Continue and Install through all the steps
+3. Open the downloaded file and follow the installer. Just click Continue and Install through all the steps
 4. When it finishes, close the installer
 
 ---
 
-## Step 3 — Open a Terminal
+## Step 3: Open a Terminal
 
 The Terminal is a text-based way to give your Mac instructions. It looks intimidating but you're only going to type a few commands, and they're provided for you below.
 
@@ -52,11 +52,11 @@ To open Terminal:
 - Press **Command + Space** to open Spotlight
 - Type `Terminal` and press Enter
 
-A window opens with a blinking cursor. That's it — you're in the Terminal.
+A window opens with a blinking cursor. That's it. You're in the Terminal.
 
 ---
 
-## Step 4 — Verify Node.js installed correctly
+## Step 4: Verify Node.js installed correctly
 
 In the Terminal, type this exactly and press Enter:
 
@@ -68,9 +68,9 @@ You should see something like `v22.0.0` (the number may differ). If you see a nu
 
 ---
 
-## Step 5 — Get the project files
+## Step 5: Get the project files
 
-You should have received a folder called `bluestone-unofficial-mcp`. Place it somewhere permanent on your Mac — your Documents folder is a good choice.
+You should have received a folder called `bluestone-unofficial-mcp`. Place it somewhere permanent on your Mac. Your Documents folder is a good choice.
 
 For example, your folder structure should look something like:
 
@@ -87,13 +87,13 @@ Do not move this folder after completing setup, as Claude Desktop will look for 
 
 ---
 
-## Step 6 — Add your API key
+## Step 6: Add your API key
 
 1. Open the `bluestone-unofficial-mcp` folder in your IDE (VS Code or Cursor)
    - In VS Code: go to **File → Open Folder** and select `bluestone-unofficial-mcp`
 2. Find the file called `.env` in the file list on the left
    - If you don't see it, make sure hidden files are visible: in VS Code press **Command + Shift + P**, type `toggle hidden`, and select **Toggle Hidden Files**
-3. Open `.env` — it looks like this:
+3. Open `.env`. It looks like this:
    ```
    PAPI_KEY=your-papi-key-here
    ```
@@ -107,7 +107,7 @@ PAPI_KEY=theActualKeyYouWereGiven
 
 ---
 
-## Step 7 — Run the setup commands
+## Step 7: Run the setup commands
 
 Go back to Terminal. You need to navigate to the `bluestone-unofficial-mcp` folder. Type this command but replace the path with wherever you actually put the folder:
 
@@ -123,7 +123,7 @@ Now run these two commands, one at a time, pressing Enter after each:
 npm install
 ```
 
-This downloads the code libraries the bridge needs. Wait for it to finish — it may take 30 seconds. You'll see a lot of text scroll past, that's normal.
+This downloads the code libraries the bridge needs. Wait for it to finish; it may take 30 seconds. You'll see a lot of text scroll past, that's normal.
 
 ```
 npm run build
@@ -133,7 +133,7 @@ This compiles the bridge program so it's ready to run. When it finishes with no 
 
 ---
 
-## Step 8 — Install Claude Desktop
+## Step 8: Install Claude Desktop
 
 If you don't have Claude Desktop yet:
 
@@ -143,7 +143,7 @@ If you don't have Claude Desktop yet:
 
 ---
 
-## Step 9 — Connect the bridge to Claude Desktop
+## Step 9: Connect the bridge to Claude Desktop
 
 This is the one step where you edit a configuration file. This tells Claude Desktop where to find your bridge program.
 
@@ -172,7 +172,7 @@ Find the last `}` at the very end of the file. Before it, add a comma after the 
 }
 ```
 
-**Important:** Replace `YOUR_USERNAME` with your actual Mac username. If you're not sure what it is, open Terminal and type `whoami` — it will print your username.
+**Important:** Replace `YOUR_USERNAME` with your actual Mac username. If you're not sure what it is, open Terminal and type `whoami`. It will print your username.
 
 Also replace `theActualKeyYouWereGiven` with your real API key (same one from Step 6).
 
@@ -180,7 +180,7 @@ Also replace `theActualKeyYouWereGiven` with your real API key (same one from St
 
 ---
 
-## Step 10 — Restart Claude Desktop and verify
+## Step 10: Restart Claude Desktop and verify
 
 1. Quit Claude Desktop completely: right-click its icon in the Dock and choose **Quit**
 2. Relaunch Claude Desktop from your Applications folder
@@ -188,7 +188,7 @@ Also replace `theActualKeyYouWereGiven` with your real API key (same one from St
 4. Select **Connectors**
 5. You should see **bluestone-pim** listed with a blue toggle
 
-If you see it with the blue toggle — you're done. The bridge is running.
+If you see it with the blue toggle, you're done. The bridge is running.
 
 ---
 
@@ -225,7 +225,7 @@ If you don't want to install anything locally, you can connect directly to the s
    - **Client Secret**: your MAPI Client Secret
 5. Click **Add**
 
-A browser window will open briefly and close on its own — that is the authorisation completing. Normal behaviour.
+A browser window will open briefly and close on its own. That is the authorisation completing. Normal behaviour.
 
 You should now see **Bluestone PIM** listed under Connectors with a blue toggle. Enable it and you're ready.
 

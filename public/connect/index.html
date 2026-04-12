@@ -35,6 +35,7 @@
       .nav-link.active { color: #60a5fa; }
     }
     h2[id], h3[id] { scroll-margin-top: 8rem; }
+    .prose blockquote p::before, .prose blockquote p::after { content: none; }
     .mock-sidebar { display: flex; }
     @media (max-width: 560px) { .mock-sidebar { display: none; } }
     h2 .anchor-link, h3 .anchor-link { opacity: 0; transition: opacity 0.15s; }
@@ -92,6 +93,8 @@
       <a href="#chatgpt" class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><img src="/brand_assets/chatgpt_logo.png" alt="" class="w-4 h-4 object-contain rounded shrink-0 bg-white p-px">ChatGPT</a>
       <a href="#other-clients" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Other clients</a>
       <a href="#troubleshooting" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Troubleshooting</a>
+      <a href="#for-customers" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">For customers</a>
+      <a href="#for-si-partners" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">For SI partners</a>
       <span class="text-slate-300 dark:text-slate-600">·</span>
       <a href="#for-the-curious" class="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors italic">For the curious</a>
     </div>
@@ -100,10 +103,13 @@
   </div><!-- end sticky top block -->
 
   <!-- Disclaimer banner -->
-  <div class="bg-slate-100 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/60">
-    <div class="max-w-5xl mx-auto px-6 py-3">
-      <p class="text-sm text-slate-500 dark:text-slate-400">
-        Personal project, not an official Bluestone PIM product. Built independently, nights and weekends. Not endorsed or supported by Bluestone PIM.
+  <div class="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/40">
+    <div class="max-w-5xl mx-auto px-6 py-3 flex items-start gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+      </svg>
+      <p class="text-sm text-amber-800 dark:text-amber-300">
+        Personal project. Not an official Bluestone PIM product. Not endorsed, reviewed, or supported by Bluestone PIM in any capacity.
       </p>
     </div>
   </div>
@@ -124,6 +130,8 @@
           <a href="#chatgpt" class="nav-link flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors"><img src="/brand_assets/chatgpt_logo.png" alt="" class="w-4 h-4 object-contain rounded shrink-0 bg-white p-px">ChatGPT</a>
           <a href="#other-clients" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Other clients</a>
           <a href="#troubleshooting" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Troubleshooting</a>
+          <a href="#for-customers" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">For customers</a>
+          <a href="#for-si-partners" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">For SI partners</a>
           <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest pt-5 pb-1">For the curious</p>
           <a href="#for-the-curious" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Under the hood</a>
           <a href="#design-notes" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Design notes</a>
@@ -204,6 +212,8 @@ If you don't have these, contact your Bluestone PIM administrator.
 Your credentials are encrypted into a session token at the point of connection and are never stored on the server.
 
 > **Note:** This server connects to the **Bluestone PIM test environment** only (`api.test.bluestonepim.com`). Production environments are not currently supported.
+
+> **Shared instance:** The URL used in the steps below points to a personal test deployment running on Vercel's free plan. It is fine for trying things out. For team or client use, please deploy your own instance. See [For customers](#for-customers) and [For SI partners](#for-si-partners) below.
 
 ---
 
@@ -403,11 +413,35 @@ This happens when Claude has code execution or artifact creation available along
 Two ways to prevent it. First, be explicit in your opening message: "Using Bluestone PIM, show me my catalogs" is more reliable than "show me my catalogs." Second, if it happens mid-conversation, redirect: "Don't write code. Use the Bluestone PIM tools directly." The server description now includes an explicit instruction to the model not to attempt direct API calls, which reduces how often this occurs, but it is not a complete fix. When Claude has strong code execution priors (for example, if you opened the conversation in Code mode), it may still choose code over the MCP tool.
 
 **"Authorization with the MCP server failed" (reference code starting with `ofid_`)**
-First, check the URL you entered ends in `/mcp` and uses the exact address shown above — no redirects. OAuth token exchange breaks silently if the URL redirects to a different domain, even if the page loads fine in a browser.
+First, check the URL you entered ends in `/mcp` and uses the exact address shown above: no redirects. OAuth token exchange breaks silently if the URL redirects to a different domain, even if the page loads fine in a browser.
 
 If the URL is correct: this is a [known bug in Claude Desktop's OAuth implementation](https://github.com/anthropics/claude-ai-mcp/issues/136), unrelated to your credentials. The flow appears to complete but Claude Desktop never finishes the token exchange. To work around it: disconnect, quit Claude Desktop fully (Cmd+Q on Mac), reopen, and reconnect. A cold start sometimes resolves it. If it keeps failing, try connecting via **Cursor** instead.
 
 Still stuck? [Open an issue on GitHub](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/issues). I can't promise a fix, but I will read it.
+
+---
+
+## For customers
+
+This is not a Bluestone PIM product. It is a personal project, published openly. Bluestone has not reviewed, endorsed, or supported it in any way.
+
+Your credentials are encrypted into a session token at the point of connection and are not stored by this server. If your organisation has security or compliance requirements around API credentials, run your own instance rather than using the shared test deployment above. Option B in the [setup guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md) covers deploying to your own Vercel account, so credentials stay within your own infrastructure. For large organisations: loop in your IT or security team before deploying.
+
+This connects to the Bluestone test environment only. Do not build dependencies on it for anything that matters.
+
+**The shared instance runs on Vercel's free plan.** That means cold starts on the first request after a quiet period, and a monthly limit on serverless function invocations. It is fine for trying things out, but please do not use it as infrastructure for a team or a client. If you are doing anything beyond personal exploration, deploy your own instance. It takes about five minutes and is free on your own Vercel account too.
+
+---
+
+## For SI partners
+
+If you implement Bluestone for clients, you can fork this repo and build your own MCP server tailored to your workflows. Add tools, extend the data model, deploy under your own URL with your own credentials. Your clients connect to your instance, not this one.
+
+Start with `src/tools.ts` (where tools are registered) and the [extending guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md).
+
+**Why Vercel, and do you have to use it?** Vercel was the natural fit here: the server has no persistent storage (no database, no session store), and serverless functions match that well. Credentials come from the encrypted Bearer token on every request, and a new `McpServer` instance is created per request. MAPI OAuth tokens are cached briefly in memory on warm Vercel instances to avoid redundant token fetches, but nothing is written to disk and there is no shared state between instances. One command to deploy and the free tier covers a personal test instance. That said, there is nothing Vercel-specific about the server itself. It is plain Node.js. The only Vercel-specific file is `vercel.json`, which handles routing. You can deploy it on Railway, Fly.io, a VPS, your own cloud infrastructure, or anywhere else that runs Node. For client deployments you will almost certainly want your own hosting so you control uptime, credentials, and costs independently of this project, and so you understand exactly what your provider charges as usage scales.
+
+This is a personal project, not an official Bluestone product. Reach out on Slack as you normally would.
 
 ---
 
@@ -492,51 +526,96 @@ If you are thinking through the same problems (how to write tool descriptions th
 
     var EXAMPLES = [
       {
-        chatTitle: 'Bluestone PIM catalogs',
+        chatTitle: 'Clothes catalog',
         label: 'Browse a catalog and create a product',
         turns: [
           { type: 'user', text: 'Using Bluestone PIM, what catalogs do I have?' },
-          { type: 'tool', name: 'list_catalogs' },
-          { type: 'reply', text: 'Found 3 catalogs: <strong>Electronics</strong>, <strong>Apparel</strong>, and <strong>Home &amp; Living</strong>. Which would you like to explore?' },
-          { type: 'user', text: 'Show me products in Electronics' },
-          { type: 'tool', name: 'list_products_in_category' },
-          { type: 'reply', text: 'Found 24 products in <strong>Electronics</strong> (working state, includes sub-categories).<br><br>Wireless Headphones Pro &nbsp;·&nbsp; SINGLE<br>Smart Speaker Mini &nbsp;·&nbsp; SINGLE &nbsp;·&nbsp; Draft<br>USB-C Hub 7-in-1 &nbsp;·&nbsp; GROUP<br>&hellip; and 21 more.<br><br>Would you like to create a new product in this catalog?' },
-          { type: 'user', text: 'Yes, call it Wireless Keyboard Pro' },
-          { type: 'tool', name: 'create_product' },
-          { type: 'reply', text: 'Product <strong>Wireless Keyboard Pro</strong> created and assigned to Electronics. Open Bluestone PIM to continue enriching it.' },
+          { type: 'tool', name: 'search_tools', display: 'Loading tools' },
+          { type: 'tool', name: 'list_catalogs', display: 'List catalogs' },
+          { type: 'reply', text: 'You have 5 catalogs:<br><br>1. <strong>Enrichment Structure</strong><br>2. <strong>Skincare</strong><br>3. <strong>Clothes</strong><br>4. <strong>Outputs</strong><br>5. <strong>Intake - ERP</strong><br><br>Would you like to browse the products in any of these?' },
+          { type: 'user', text: 'Show me products in Clothes' },
+          { type: 'tool', name: 'list_products_in_category', display: 'List products in category' },
+          { type: 'reply', text: 'There\'s currently just one product in the <strong>Clothes</strong> catalog:<br><br><strong>T-shirt - Green</strong> &mdash; type: Single, status: Draft<br><br>Would you like to create a new product in this catalog or do anything else with this one?' },
+          { type: 'user', text: 'Create "T-shirt - Blue"' },
+          { type: 'reply', text: 'To confirm &mdash; should I create a new product named <strong>"T-shirt - Blue"</strong> in the <strong>Clothes</strong> catalog?' },
+          { type: 'user', text: 'Yes' },
+          { type: 'tool', name: 'create_product', display: 'Create product' },
+          { type: 'reply', text: '<strong>T-shirt - Blue</strong> has been created and added to the Clothes catalog. You can head into Bluestone PIM to continue enriching it with attributes, images, and more.' },
+        ],
+        screenshot: { src: 'chat_examples/bluestone_pim_ui_t-shirt_created.webp', caption: 'T-shirt - Blue in Bluestone PIM immediately after creation' },
+        missing: [
+          '<strong>Variant grouping:</strong> "T-shirt - Green" and "T-shirt - Blue" are separate Single products, but they should be variants under a GROUP. Making this work requires either explicit user intent ("these should be variants") or heuristic name-prefix detection. Neither is trivial to get right.',
+          '<strong>Attributes and images at creation:</strong> after creating a product, the natural next step is adding images and filling in attribute values. Neither is supported yet.',
+        ],
+        notes: [
+          '<strong>Why did Claude ask for confirmation before creating?</strong> The <code>create_product</code> tool carries a <code>destructiveHint: true</code> annotation, which tells the client to be cautious and ask before calling it. Claude Desktop responds by inserting a confirmation turn. You could argue that creating a product is not truly destructive (nothing is overwritten, and the product can be deleted), but the confirmation is kept as a conservative default for now. It is good UX when a user is new to the flow or working in a shared catalog. If it becomes friction, flipping the annotation to <code>false</code> removes the extra turn.',
+          '<strong>Why no offer to add attributes after creation?</strong> There are no attribute or image tools in the server yet. The tool description explicitly tells the model not to offer these as next steps, so it redirects to the PIM UI instead. Once those tools exist, the follow-up will happen naturally.',
         ]
       },
       {
-        chatTitle: 'New product',
+        chatTitle: 'Red T-shirt',
         label: 'Create a product directly',
         turns: [
           { type: 'user', text: 'Create a product in Bluestone PIM' },
-          { type: 'reply', text: 'What should the product be named?' },
-          { type: 'user', text: 'Test Widget' },
-          { type: 'reply', text: 'Confirming: the product name will be <strong>Test Widget</strong>. Shall I create it?' },
-          { type: 'user', text: 'Yes' },
-          { type: 'tool', name: 'create_product' },
-          { type: 'reply', text: 'Product <strong>Test Widget</strong> created successfully. Open Bluestone PIM to continue enriching it.' },
+          { type: 'reply', text: 'I\'ll help you create a product in Bluestone PIM! Let me first search for the available tool, then gather the necessary information from you.' },
+          { type: 'tool', name: 'search_tools', display: 'Searched available tools' },
+          { type: 'reply', text: 'Let me fetch the available catalogs so we can place the product in the right category.' },
+          { type: 'tool', name: 'list_catalogs', display: 'List catalogs' },
+          { type: 'reply', text: 'I can see your catalogs. To create the product, I need a couple of details from you: go ahead and type the product name, and let me know which catalog it belongs to.' },
+          { type: 'form', pairs: [
+            { q: 'What should the product be named?', a: 'Red T-shirt' },
+            { q: 'Which catalog should it be assigned to?', a: 'Clothes' },
+          ]},
+          { type: 'tool', name: 'create_product', display: 'Create product' },
+          { type: 'reply', text: 'Done! <strong>Red T-shirt</strong> has been created and assigned to the <strong>Clothes</strong> catalog. You can now open Bluestone PIM to enrich it with attributes, images, and other details.' },
+        ],
+        screenshot: { src: 'chat_examples/bluestone_pim_ui_red_t-shirt_created.webp', caption: 'Red T-shirt in Bluestone PIM immediately after creation' },
+        missing: [
+          '<strong>Naming convention detection:</strong> the Clothes catalog already had "T-shirt - Green" and "T-shirt - Blue". Claude created "Red T-shirt" without noticing the inconsistency. If it had listed products in the target catalog before creating, it could have spotted the pattern and suggested "T-shirt - Red" instead.',
+          '<strong>Attributes and images at creation:</strong> same limitation as example 1. No attribute or image tools exist yet.',
+        ],
+        notes: [
+          '<strong>The interactive form UI.</strong> When Claude needs structured input and has multiple questions, Claude Desktop can present a step-by-step option picker rather than a plain freetext reply box. Each question gets its own screen with numbered options and a free-text input. The user\'s answers are bundled into a single message bubble showing all Q&A pairs. This is a Claude Desktop feature, not something the MCP server controls.',
+          '<strong>Why did Claude list catalogs before asking for the name?</strong> The <code>create_product</code> tool requires a <code>categoryId</code> to assign the product. Claude fetched catalogs proactively so it could offer them as choices in the form, rather than asking for a raw ID the user would have to look up.',
+          '<strong>The naming inconsistency is a data quality gap.</strong> Claude only called <code>list_catalogs</code>, not <code>list_products_in_category</code>, so it never saw "T-shirt - Green" and "T-shirt - Blue". Without that context it had no basis to flag the naming mismatch. A future improvement: when creating a product, optionally call <code>list_products_in_category</code> on the target catalog first and surface any naming pattern to the user before they commit to a name.',
         ]
       },
       {
-        chatTitle: 'Apparel &mdash; Dutch',
+        chatTitle: 'Clothes catalog in Dutch',
         label: 'Switch language context',
         turns: [
-          { type: 'user', text: 'Using Bluestone PIM, show me the Apparel catalog in Dutch' },
-          { type: 'tool', name: 'list_contexts' },
-          { type: 'tool', name: 'list_products_in_category' },
-          { type: 'reply', text: 'Found context <strong>nl</strong> for Dutch. Found 31 products in <strong>Apparel</strong> (working state, context: nl). Names are shown in Dutch where translations exist, falling back to English when not available.' },
+          { type: 'user', text: 'Using Bluestone PIM, show me the Clothes catalog in Dutch' },
+          { type: 'tool', name: 'search_tools', display: 'Loading tools' },
+          { type: 'tool', name: 'list_contexts', display: 'List contexts' },
+          { type: 'tool', name: 'list_catalogs', display: 'List catalogs' },
+          { type: 'tool', name: 'list_products_in_category', display: 'List products in category' },
+          { type: 'reply', text: 'Here\'s the <strong>Kleren</strong> (Clothes) catalog in Dutch. 4 products found, all currently in Draft state:<br><br>' +
+            '<table style="font-size:12px;border-collapse:collapse;width:100%;margin-bottom:10px;">' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.15);color:#888;"><td style="padding:3px 10px 3px 0;">#</td><td style="padding:3px 10px;">Naam</td><td style="padding:3px 10px;">Type</td><td style="padding:3px 10px;">Status</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:5px 10px 5px 0;color:#888;">1</td><td style="padding:5px 10px;">T-shirt - Groen</td><td style="padding:5px 10px;color:#888;">Single</td><td style="padding:5px 10px;color:#888;">Draft</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:5px 10px 5px 0;color:#888;">2</td><td style="padding:5px 10px;">T-shirt - Blauw</td><td style="padding:5px 10px;color:#888;">Single</td><td style="padding:5px 10px;color:#888;">Draft</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:5px 10px 5px 0;color:#888;">3</td><td style="padding:5px 10px;">T-shirt - Rood</td><td style="padding:5px 10px;color:#888;">Single</td><td style="padding:5px 10px;color:#888;">Draft</td></tr>' +
+            '<tr><td style="padding:5px 10px 5px 0;color:#888;">4</td><td style="padding:5px 10px;">T-shirt - Yellow</td><td style="padding:5px 10px;color:#888;">Single</td><td style="padding:5px 10px;color:#888;">Draft</td></tr>' +
+            '</table>' +
+            'Worth noting: "T-shirt - Yellow" hasn\'t been translated to Dutch yet. The other three are properly localized (Groen, Blauw, Rood). Would you like to create a new product in this catalog, or do anything else with these?'
+          },
+        ],
+        missing: [
+          '<strong>Adding or updating translations:</strong> Claude can spot a missing translation but cannot fix it. There is no tool yet to write a localized name back to a product.',
+        ],
+        notes: [
+          '<strong>"Used Bluestone PIM integration, loaded tools" is a collapsed group.</strong> Claude Desktop bundles multiple tool calls under a single expandable label. In this conversation it ran five steps: Loading tools (twice, as Claude Desktop discovers the MCP tool list), List contexts, List catalogs, List products in category. The single label with a chevron collapses all of them.',
+          '<strong>The missing translation was caught without being asked.</strong> Claude noticed "T-shirt - Yellow" still used the English color name while the other three were localized, and flagged it unprompted. This is the AI layer adding value beyond raw retrieval: the tool just returns data, but the model reasons over it.',
         ]
       },
       {
-        chatTitle: 'Published: Electronics',
+        chatTitle: 'Published: Clothes',
         label: 'Check what is actually live in your store',
         turns: [
-          { type: 'user', text: "Using Bluestone PIM, show me only what's published in Electronics, not drafts" },
-          { type: 'tool', name: 'list_published_catalogs' },
-          { type: 'tool', name: 'list_published_products_in_category' },
-          { type: 'reply', text: 'Using published data only (live store, no unpublished changes). Found <strong>18 published products</strong> in Electronics. To see working state including drafts, ask without the &ldquo;published&rdquo; qualifier.' },
+          { type: 'user', text: "Using Bluestone PIM, show me only what's published in Clothes, not drafts" },
+          { type: 'tool', name: 'list_published_catalogs', display: 'List published catalogs' },
+          { type: 'tool', name: 'list_published_products_in_category', display: 'List published products in category' },
+          { type: 'reply', text: 'Using published data only (live store, no unpublished changes). The <strong>Clothes</strong> catalog has no published products yet &mdash; T-shirt - Green is still in Draft state. To see working state including drafts, ask without the &ldquo;published&rdquo; qualifier.' },
         ]
       },
       {
@@ -544,9 +623,9 @@ If you are thinking through the same problems (how to write tool descriptions th
         label: 'A creative one, because why not',
         turns: [
           { type: 'user', text: 'Using Bluestone PIM, write a haiku about spring. One line per product, actually create them.' },
-          { type: 'tool', name: 'create_product' },
-          { type: 'tool', name: 'create_product' },
-          { type: 'tool', name: 'create_product' },
+          { type: 'tool', name: 'create_product', display: 'Create product' },
+          { type: 'tool', name: 'create_product', display: 'Create product' },
+          { type: 'tool', name: 'create_product', display: 'Create product' },
           { type: 'reply', text: 'Created 3 products in Bluestone PIM:<br><br><em>&ldquo;Cherry blossoms fall&rdquo;</em><br><em>&ldquo;New inventory waits&rdquo;</em><br><em>&ldquo;Season of fresh stock&rdquo;</em><br><br>Your haiku is now in the database. Delete them when you&rsquo;re done.' },
         ]
       },
@@ -572,8 +651,9 @@ If you are thinking through the same problems (how to write tool descriptions th
             turn.text + '</div></div>';
         }
         if (turn.type === 'tool') {
+          var label = turn.display || toolDisplayName(turn.name);
           return '<div style="color:#666;font-size:12px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;display:flex;align-items:center;gap:5px;padding:3px 0;margin:2px 0;">' +
-            '<span>' + toolDisplayName(turn.name) + '</span>' +
+            '<span>' + label + '</span>' +
             '<span style="opacity:0.6;font-size:10px;">&#8250;</span>' +
             '</div>';
         }
@@ -584,13 +664,26 @@ If you are thinking through the same problems (how to write tool descriptions th
             ICON_COPY + ICON_THUMB_UP + ICON_THUMB_DOWN + ICON_RETRY +
             '</div></div>';
         }
+        if (turn.type === 'form') {
+          var rows = turn.pairs.map(function(p) {
+            return '<div style="margin-bottom:6px;">' +
+              '<span style="color:#888;font-size:11.5px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;display:block;">Q: ' + p.q + '</span>' +
+              '<span style="color:#d0d0d0;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;display:block;margin-top:1px;">A: ' + p.a + '</span>' +
+              '</div>';
+          }).join('');
+          return '<div style="display:flex;justify-content:flex-end;margin:6px 0;">' +
+            '<div style="background:#3a3a3a;border:1px solid rgba(255,255,255,0.08);font-size:13.5px;line-height:1.55;padding:10px 14px;border-radius:18px;border-bottom-right-radius:3px;max-width:80%;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' +
+            '<div style="color:#666;font-size:10.5px;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Form responses</div>' +
+            rows +
+            '</div></div>';
+        }
         return '';
       }).join('');
     }
 
     function renderClaudeWindow(example) {
       return '<div class="not-prose my-10">' +
-        '<p style="font-size:12.5px;color:#94a3b8;margin:0 0 10px 4px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;letter-spacing:0.01em;">' + example.label + '</p>' +
+        '<p style="font-size:17px;font-weight:600;color:#cbd5e1;margin:0 0 12px 4px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' + example.label + '</p>' +
         '<div style="border-radius:12px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.55),0 0 0 1px rgba(255,255,255,0.06);">' +
 
         // Window chrome
@@ -637,6 +730,30 @@ If you are thinking through the same problems (how to write tool descriptions th
         '</div>' +
 
         '</div>' + // end window
+        (example.screenshot
+          ? '<figure class="not-prose mt-5">' +
+            '<img src="/connect/images/' + example.screenshot.src + '" alt="' + example.screenshot.caption + '" class="rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-full">' +
+            '<figcaption style="font-size:12px;color:#94a3b8;margin-top:6px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' + example.screenshot.caption + '</figcaption>' +
+            '</figure>'
+          : '') +
+        (example.missing && example.missing.length
+          ? '<div class="not-prose mt-5 pl-4 border-l-2 border-slate-200 dark:border-slate-700">' +
+            '<p class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2" style="font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">What\'s missing</p>' +
+            '<ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;">' +
+            example.missing.map(function(item) {
+              return '<li style="font-size:13px;color:#64748b;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;line-height:1.5;">' + item + '</li>';
+            }).join('') +
+            '</ul></div>'
+          : '') +
+        (example.notes && example.notes.length
+          ? '<div class="not-prose mt-5 pl-4 border-l-2 border-blue-200 dark:border-blue-900">' +
+            '<p class="text-xs font-semibold text-blue-400 dark:text-blue-600 uppercase tracking-wide mb-2" style="font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">About this conversation</p>' +
+            '<ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;">' +
+            example.notes.map(function(item) {
+              return '<li style="font-size:13px;color:#64748b;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;line-height:1.5;">' + item + '</li>';
+            }).join('') +
+            '</ul></div>'
+          : '') +
         '</div>'; // end not-prose
     }
 
@@ -727,7 +844,7 @@ If you are thinking through the same problems (how to write tool descriptions th
     const parsedHtml = marked.parse(processed).replace(new RegExp(PLACEHOLDER, 'g'), serverUrlHtml);
     document.getElementById('content').innerHTML = parsedHtml;
 
-    // Generate heading IDs — marked v11 does not auto-generate them
+    // Generate heading IDs (marked v11 does not auto-generate them)
     document.querySelectorAll('#content h2, #content h3').forEach(function(h) {
       var slug = h.textContent.trim().toLowerCase()
         .replace(/[^\w\s]/g, '').trim().replace(/\s+/g, '-');

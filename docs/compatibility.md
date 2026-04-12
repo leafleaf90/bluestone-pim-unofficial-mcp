@@ -15,7 +15,7 @@ These clients have been tested directly with this server.
 
 | Client | Mode | Notes |
 |---|---|---|
-| **Claude Desktop** | STDIO (local) and HTTP (remote) | STDIO is the simplest setup. Remote HTTP uses the legacy `clientId:papiKey` flow — no browser form needed. |
+| **Claude Desktop** | STDIO (local) and HTTP (remote) | STDIO is the simplest setup. Remote HTTP uses the legacy `clientId:papiKey` flow; no browser form needed. |
 | **Cursor** | HTTP (remote) | Uses dynamic client registration. Browser form collects all three credentials on first connect. |
 
 ---
@@ -74,4 +74,4 @@ Clients that strictly follow the MCP OAuth 2.1 spec (dynamic registration, prote
 
 ---
 
-*Last updated: April 2026. MCP client support is evolving quickly — verify against each client's current documentation before assuming compatibility.*
+*Last updated: April 2026. MCP client support is evolving quickly; verify against each client's current documentation before assuming compatibility.*

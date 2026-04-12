@@ -2,7 +2,7 @@
 
 All tools live in `src/tools.ts` inside the `createMcpServer()` factory function. This file is shared by both the local STDIO entry point (`src/index.ts`) and the Vercel handler (`api/mcp.ts`).
 
-Before writing a new tool, read [mcp-patterns.md](mcp-patterns.md) for the required description, response format, and error handling rules. The skeletons below are the minimal starting point — the patterns doc explains what goes in each field and why.
+Before writing a new tool, read [mcp-patterns.md](mcp-patterns.md) for the required description, response format, and error handling rules. The skeletons below are the minimal starting point; the patterns doc explains what goes in each field and why.
 
 ---
 
@@ -24,7 +24,7 @@ server.registerTool(
       idempotentHint: true,
     },
     inputSchema: {
-      someId: z.string().describe("The ID — get this from your_other_tool"),
+      someId: z.string().describe("The ID; get this from your_other_tool"),
     },
   },
   async ({ someId }) => {
@@ -47,21 +47,21 @@ Then rebuild:
 
 ```bash
 npm run build
-# Restart Claude Desktop (local) — remote deploys pick up automatically on next Vercel deploy
+# Restart Claude Desktop (local); remote deploys pick up automatically on next Vercel deploy
 ```
 
 ---
 
 ## Adding new MAPI write tools
 
-MAPI is already wired up — the Bearer token cache, `getBearerToken()`, and `mapiPost()` helper are all in `src/tools.ts`. To add a new write tool, register it inside `createMcpServer`.
+MAPI is already wired up: the Bearer token cache, `getBearerToken()`, and `mapiPost()` helper are all in `src/tools.ts`. To add a new write tool, register it inside `createMcpServer`.
 
 The token is fetched automatically on first use, cached per `clientId`, and refreshed 60 seconds before expiry (tokens last 1 hour). You never need to manage auth.
 
 ### Available MAPI helpers
 
 ```typescript
-// POST — create a resource
+// POST: create a resource
 // Returns the parsed response body and the resource-id header (ID of the created resource)
 mapiPost<T>(path: string, body: unknown, creds: Credentials): Promise<{ data: T; resourceId: string | null }>
 ```
@@ -91,7 +91,7 @@ async function mapiPatch(path: string, body: unknown, creds: Credentials): Promi
 }
 ```
 
-### Example — update a product name
+### Example: update a product name
 
 ```typescript
 server.registerTool(
@@ -121,7 +121,7 @@ server.registerTool(
 
 ## Deploying to Vercel
 
-The Vercel deployment is already set up in `api/mcp.ts` and `vercel.json`. See [setup-developer.md](setup-developer.md) — Option B for the user-facing config.
+The Vercel deployment is already set up in `api/mcp.ts` and `vercel.json`. See [setup-developer.md](setup-developer.md), Option B for the user-facing config.
 
 To deploy:
 
@@ -130,4 +130,4 @@ npm install -g vercel   # one-time
 vercel                  # follow prompts, deploy to production with --prod
 ```
 
-The server is stateless — each request creates a new `McpServer` instance with the credentials from the request headers. No shared state between requests.
+The server has no persistent storage. Each request creates a new `McpServer` instance with credentials from the encrypted Bearer token. MAPI OAuth tokens are cached in memory on warm Vercel instances for performance but are not persisted to disk and are not shared across instances.

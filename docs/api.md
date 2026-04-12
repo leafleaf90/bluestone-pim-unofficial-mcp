@@ -9,7 +9,7 @@
 
 ---
 
-## Public API (PAPI) — published data only
+## Public API (PAPI): published data only
 
 Base path: `/v1`  
 Authentication: static header `x-api-key`  
@@ -80,7 +80,7 @@ Response shape:
 
 ---
 
-## Management API (MAPI) — working state read/write
+## Management API (MAPI): working state read/write
 
 Three API families share the same Bearer token and base domain:
 
@@ -95,8 +95,8 @@ Authentication: OAuth 2.0 client credentials flow. The server fetches a Bearer t
 Common request headers:
 ```
 authorization: Bearer <token>
-context: <context-id>          (optional — e.g. "en", "l3600")
-context-fallback: true         (always sent — returns fallback-language data instead of null)
+context: <context-id>          (optional, e.g. "en", "l3600")
+context-fallback: true         (always sent; returns fallback-language data instead of null)
 ```
 
 ---
@@ -168,7 +168,7 @@ Response shape:
 }
 ```
 
-Note: `data` contains objects with an `id` field, not plain strings. There is no `total` field — use the count endpoint below.
+Note: `data` contains objects with an `id` field, not plain strings. There is no `total` field; use the count endpoint below.
 
 ---
 
@@ -219,9 +219,9 @@ Response shape:
 ```
 
 Key fields:
-- `metadata.name.value` — context-keyed object, not a plain string. Extract with `value[context] ?? value["en"] ?? Object.values(value)[0]`
-- `metadata.state` — raw API value (e.g. `PLAYGROUND_ONLY`). Mapped to UI labels via `mapProductState()` in `src/tools.ts`
-- `metadata.type` — `SINGLE`, `GROUP`, or `VARIANT`
+- `metadata.name.value`: context-keyed object, not a plain string. Extract with `value[context] ?? value["en"] ?? Object.values(value)[0]`
+- `metadata.state`: raw API value (e.g. `PLAYGROUND_ONLY`). Mapped to UI labels via `mapProductState()` in `src/tools.ts`
+- `metadata.type`: `SINGLE`, `GROUP`, or `VARIANT`
 
 Note: the Bluestone UI uses `POST /pim/products/list/by-ids` (returns name as a plain string), but that endpoint is not in the official PIM spec. This integration uses `list/views/by-ids` with the METADATA view instead.
 

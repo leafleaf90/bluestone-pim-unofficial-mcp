@@ -40,13 +40,13 @@ You (typing in Claude Desktop)
                                                           ▼
                                                    Response → Claude → you
 ```
-No local process. The server runs as a serverless function on Vercel. Credentials travel as a Bearer token on every request — nothing is stored server-side.
+No local process. The server runs as a serverless function on Vercel. Credentials travel as a Bearer token on every request. Nothing is stored server-side.
 
 ---
 
 ## Model Context Protocol (MCP)
 
-MCP is an open standard from Anthropic that lets Claude use external "tools" — functions that Claude can call to fetch data or perform actions. The protocol is built on [JSON-RPC 2.0](https://www.jsonrpc.org/specification).
+MCP is an open standard from Anthropic that lets Claude use external "tools": functions that Claude can call to fetch data or perform actions. The protocol is built on [JSON-RPC 2.0](https://www.jsonrpc.org/specification).
 
 Three types of things an MCP server can expose:
 
@@ -56,7 +56,7 @@ Three types of things an MCP server can expose:
 | **Resources** | File-like data Claude can read | No |
 | **Prompts** | Pre-written prompt templates | No |
 
-This server exposes four tools. See [tools.md](tools.md) for details.
+This server exposes six tools. See [tools.md](tools.md) for details.
 
 ---
 
@@ -67,12 +67,12 @@ The MCP spec defines two transport mechanisms. This project implements both.
 **STDIO (local)**
 - Claude Desktop runs `node build/src/index.js` as a child process
 - Communication is via JSON-RPC over stdin/stdout
-- `console.log()` must never be used — stdout is the JSON-RPC channel. Use `console.error()` (stderr) for logging
+- `console.log()` must never be used: stdout is the JSON-RPC channel. Use `console.error()` (stderr) for logging
 - Process is terminated automatically when Claude Desktop quits
 
 **StreamableHTTP (remote)**
 - Claude Desktop sends JSON-RPC over HTTPS to the Vercel function
-- Each request is stateless — no session, no shared state between requests
+- No persistent storage: credentials come from the encrypted Bearer token on every request, and a new `McpServer` instance is created per request. MAPI OAuth tokens are cached in memory on warm instances but nothing is written to disk and there is no shared state between instances.
 - Auth uses OAuth 2.1 with PKCE (see [setup-developer.md](setup-developer.md) for the credential flow)
 
 ---
@@ -134,7 +134,7 @@ Claude Desktop quits
 
 The server does not need to be started manually. It has no persistent state between Claude sessions.
 
-> This lifecycle applies to local (STDIO) mode only. In remote (Vercel) mode there is no persistent process — each request spins up a serverless function instance independently.
+> This lifecycle applies to local (STDIO) mode only. In remote (Vercel) mode there is no persistent process; each request spins up a serverless function instance independently.
 
 ---
 
@@ -147,29 +147,29 @@ The server does not need to be started manually. It has no persistent state betw
 
 **Remote**
 - The Vercel deployment is a public HTTPS endpoint, so proper auth is required
-- Uses OAuth 2.1 with PKCE — the flow recommended by the MCP spec for remote servers
+- Uses OAuth 2.1 with PKCE, the flow recommended by the MCP spec for remote servers
 - Two auth flows are supported depending on the client:
 
-  **Legacy flow (Claude Desktop)** — `client_id` encodes credentials directly as `{mapiClientId}:{papiKey}`:
+  **Legacy flow (Claude Desktop):** `client_id` encodes credentials directly as `{mapiClientId}:{papiKey}`:
   1. Claude Desktop opens a browser to `/authorize` with the composite `client_id`, `redirect_uri`, and a PKCE S256 challenge
-  2. The server validates `redirect_uri` (must be localhost or HTTPS), extracts credentials from `client_id`, encrypts them into a short-lived AES-256-GCM auth code, and redirects back immediately — no login screen, the payload is opaque in the redirect URL, and `mapiClientSecret` is intentionally absent here so it never travels in the redirect
+  2. The server validates `redirect_uri` (must be localhost or HTTPS), extracts credentials from `client_id`, encrypts them into a short-lived AES-256-GCM auth code, and redirects back immediately; no login screen appears, the payload is opaque in the redirect URL, and `mapiClientSecret` is intentionally absent here so it never travels in the redirect
   3. Claude Desktop POSTs to `/token` with the PKCE verifier and `mapiClientSecret`; the server decrypts the auth code, checks expiry, verifies the PKCE challenge, then encrypts all three credentials into a Bearer token using AES-256-GCM
 
   **Dynamic registration flow (Cursor and RFC 7591 clients)**:
   1. The client POSTs to `/register` and receives an opaque `client_id` (no credentials yet)
   2. The client opens a browser to `/authorize`; the server detects the opaque `client_id` and renders an HTML form asking for all three Bluestone credentials: `mapiClientId`, `mapiClientSecret`, and PAPI key
-  3. A CSRF token (HMAC-SHA256 of `SIGNING_SECRET` + `state` + `code_challenge`) is embedded as a hidden field and verified on POST submission — this prevents a malicious page from tricking a user into submitting the form
+  3. A CSRF token (HMAC-SHA256 of `SIGNING_SECRET` + `state` + `code_challenge`) is embedded as a hidden field and verified on POST submission; this prevents a malicious page from tricking a user into submitting the form
   4. On form submit the server validates `redirect_uri`, verifies the CSRF token, encrypts all three credentials into the auth code (AES-256-GCM), and redirects back to the client
-  5. The client POSTs to `/token` with the PKCE verifier; the server decrypts the auth code and retrieves the MAPI secret from within it — no `client_secret` body param is required from the client
+  5. The client POSTs to `/token` with the PKCE verifier; the server decrypts the auth code and retrieves the MAPI secret from within it; no `client_secret` body param is required from the client
 
 - That encrypted Bearer token is sent on every subsequent `/mcp` request; the server decrypts it using `SIGNING_SECRET` to recover the credentials and forwards them to the Bluestone APIs
-- Bearer tokens contain an expiration timestamp inside the encrypted payload. The server verifies it on every request — a stolen token cannot be used indefinitely, it expires after 59 minutes
-- Tokens are bound to their owner via AES-GCM Additional Authenticated Data (AAD) — the user's `mapiClientId` is cryptographically tied to the token, so knowing `SIGNING_SECRET` alone is not enough to bulk-decrypt all tokens
-- `SIGNING_SECRET` should be rotated periodically (every 90 days) and immediately if compromised — rotation invalidates all existing tokens and requires users to reconnect once
+- Bearer tokens contain an expiration timestamp inside the encrypted payload. The server verifies it on every request, so a stolen token cannot be used indefinitely; it expires after 59 minutes
+- Tokens are bound to their owner via AES-GCM Additional Authenticated Data (AAD): the user's `mapiClientId` is cryptographically tied to the token, so knowing `SIGNING_SECRET` alone is not enough to bulk-decrypt all tokens
+- `SIGNING_SECRET` should be rotated periodically (every 90 days) and immediately if compromised; rotation invalidates all existing tokens and requires users to reconnect once
 - Nothing is stored server-side at any point; Vercel function logs show request metadata only, never credential values
 
 **Both modes**
-- The server only makes outbound HTTP requests — it does not open ports or listen for connections
+- The server only makes outbound HTTP requests; it does not open ports or listen for connections
 - Claude always shows you which tool is being called before it executes (human in the loop)
 
 ---
@@ -180,9 +180,9 @@ The current implementation is suitable for a beta/internal deployment. The follo
 
 | Area | Current state | What to do |
 |---|---|---|
-| **redirect_uri validation** | Blocks `javascript:` and `data:` only — custom schemes and plain HTTP are accepted | Enforce an allowlist of registered redirect URIs per client. Store URIs at `/register` time and verify them at `/authorize`. |
-| **Client registration persistence** | Stateless — any opaque `client_id` is accepted at `/authorize` | Persist registered clients (e.g. Vercel KV) and reject unregistered `client_id`s at `/authorize`. |
-| **Rate limiting** | `/mcp` is rate-limited (60 req/min per IP, in-memory). `/authorize`, `/token`, and `/register` are not. | The in-memory store is per Vercel instance — not globally consistent across concurrent instances. For strict global limits, replace with a Redis-backed store (e.g. `rate-limit-redis` + Vercel KV or Upstash). Also add rate limiting to the auth endpoints. |
+| **redirect_uri validation** | Blocks `javascript:` and `data:` only; custom schemes and plain HTTP are accepted | Enforce an allowlist of registered redirect URIs per client. Store URIs at `/register` time and verify them at `/authorize`. |
+| **Client registration persistence** | Stateless: any opaque `client_id` is accepted at `/authorize` | Persist registered clients (e.g. Vercel KV) and reject unregistered `client_id`s at `/authorize`. |
+| **Rate limiting** | All endpoints rate-limited in-memory: `/mcp` at 60 req/min per IP, auth endpoints (`/authorize`, `/token`, `/register`) at 20 req/min per IP. | In-memory store is per Vercel instance, not globally consistent across concurrent instances. For strict global limits, replace with a Redis-backed store (e.g. `rate-limit-redis` + Vercel KV or Upstash). |
 | **CSP** | `'unsafe-inline'` for styles; no `form-action` restriction (CSRF is handled by HMAC token instead) | Add a per-request nonce to remove `'unsafe-inline'`; re-evaluate `form-action` once routing behaviour is confirmed. |
 | **MAPI token cache** | In-memory per Vercel instance (accidental statefulness) | Move to an external cache (e.g. Vercel KV) so tokens survive across cold starts and concurrent instances. |
 | **Direct header fallback** | `x-papi-key` / `x-mapi-client-id` / `x-mapi-client-secret` headers bypass OAuth | Remove this fallback, or restrict it to requests from trusted IPs only. |

@@ -66,7 +66,7 @@ Key design decisions:
 - **No database.** All state (auth codes, bearer tokens) is encoded as AES-256-GCM encrypted strings. The `SIGNING_SECRET` env var is the only server-side secret.
 - **Two auth flows share `/authorize`:** The *legacy* flow (Claude Desktop) encodes `mapiClientId:papiKey` directly in `client_id`. The *dynamic registration* flow (Cursor, RFC 7591 clients) shows an HTML form to collect credentials.
 - **Bearer tokens are encrypted credentials.** The `/token` response contains an AES-GCM blob that decrypts back to `{ papiKey, mapiClientId, mapiClientSecret }`. No session store needed.
-- **Each `/mcp` request is stateless.** A new `McpServer` instance is created per request; credentials come from the decrypted Bearer token (or fallback `x-papi-key` / `x-mapi-*` headers for dev use).
+- **Each `/mcp` request creates a new `McpServer` instance.** Credentials come from the decrypted Bearer token (or fallback `x-papi-key` / `x-mapi-*` headers for dev use). There is no persistent storage, but Vercel reuses warm instances so in-memory state (notably the MAPI token cache in `getBearerToken()`) can survive across requests on the same instance.
 
 Vercel routing is in `vercel.json` — all OAuth and MCP paths rewrite to `/api/mcp`.
 
