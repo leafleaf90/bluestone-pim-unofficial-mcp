@@ -506,6 +506,26 @@ The current implementation is three calls, two of them in parallel. The search e
 
 The drawback: if Bluestone changes their internal API shape, this breaks without notice. That is a real risk for an unofficial project.
 
+### Bulk actions and scale
+
+A common question: can this handle bulk operations? Importing a spreadsheet of thousands of products, enriching an entire catalog at once, mass-publishing drafts?
+
+The short answer is: not through a chat interface, and that is not really a solvable problem — it is a design boundary.
+
+Chat-based MCP is the right tool for individual product work, spot checks, small batch operations (tens, not thousands), and QA over existing data. The limitations that make large-scale bulk actions impractical here are structural:
+
+**Context window.** A 10,000-row spreadsheet does not fit in a conversation. Even in chunks, the model degrades on very long inputs — attention drops and you get errors or skipped rows toward the end.
+
+**Sequential tool calls.** MCP tool calls run one at a time within a conversation. Creating 10,000 products at one to two seconds per call would take hours and time out long before finishing.
+
+**No job state.** If a bulk operation fails halfway through, there is no resume point. No job tracking, no retry logic, no way to know what was created and what was not.
+
+**No file ingestion.** Data has to pass through the model's context window. There is no way to stream a file directly to the MCP server.
+
+Where bulk operations do make sense with AI in the loop: use the model to *prepare and validate* the operation — check a dataset for issues, flag inconsistencies, confirm intent — then hand execution off to a proper batch process that calls the Bluestone API directly. The AI layer handles reasoning; a background job handles scale.
+
+The more interesting near-term case is bulk *analysis* rather than bulk *writes*: run a consistency check across a full catalog, catch missing translations, flag products in unexpected states. That fits the chat model well. It is read-heavy, the output is a summary rather than thousands of mutations, and the AI layer adds genuine value over a raw API call.
+
 ### What is not implemented yet, and why
 
 **Product detail and attributes.** The endpoints exist. The difficulty is presentation: Bluestone stores attribute values against definition IDs, not human-readable names. To show "Color: Blue" instead of `{ definitionId: "abc123", value: "Blue" }`, the tool would need to fetch the attribute definitions separately and join them. That is two or three extra API calls per product detail request. It is solvable, just not yet done.

@@ -159,3 +159,35 @@ All list tools expose `limit` and `page` (1-indexed) to the model. The two APIs 
 MAPI's large default (1000) means most category node listings fit in a single call. The `list_products_in_category` tool still accepts a `limit` param to keep responses bounded and avoid flooding the model's context window.
 
 MAPI's node products endpoint does not return `totalCount`. `hasMore` is inferred: if the returned count equals the requested page size, there may be more. PAPI responses include `totalCount`, so `totalPages` can be computed exactly for `list_published_products_in_category`.
+
+---
+
+## Bulk actions and scale
+
+This section documents the design boundary between chat-based MCP and bulk operations, and where the two can work together.
+
+### Why bulk operations do not fit the chat model
+
+The most commonly requested bulk scenario is large-scale ingestion: import a spreadsheet of thousands of products, enrich an entire catalog, mass-publish drafts. These do not work through a chat interface for structural reasons, not implementation gaps:
+
+**Context window.** A 10,000-row spreadsheet does not fit in a single conversation context. Even chunked across multiple turns, the model degrades on very long inputs. Attention drops and errors or skipped rows appear toward the end of large inputs.
+
+**Sequential tool calls.** MCP tool calls run one at a time within a conversation. 10,000 `create_product` calls at one to two seconds each would take hours and time out long before completing.
+
+**No job state.** There is no mechanism for a long-running job across turns. If a bulk operation fails halfway through, there is no resume point, no retry logic, and no way to know what succeeded and what did not.
+
+**No file ingestion path.** Data must pass through the model's context window. There is no way to stream a file directly to the MCP server.
+
+### Where AI does fit in bulk workflows
+
+The useful pattern is AI for reasoning, a separate process for execution:
+
+- Use the model to validate a dataset before ingestion: check for missing required fields, flag naming inconsistencies, confirm the operation intent with the user.
+- Hand execution off to a background job or script that calls the Bluestone MAPI directly, outside the chat context.
+- Use the model to verify results after the fact: spot-check a sample, run a consistency check across the affected catalog.
+
+### Bulk analysis is a better fit than bulk writes
+
+Read-heavy bulk operations fit the chat model reasonably well. Running a consistency check across a full catalog, catching missing translations, flagging products in unexpected states — these produce a summary rather than thousands of mutations, and the AI layer adds genuine value over a raw API call. The Dutch catalog example already demonstrates this at small scale: Claude noticed a missing translation unprompted. The same reasoning applied across a full catalog is a legitimate QA tool.
+
+The implementation gap here is attribute reads. Once `get_product` returns attributes, bulk analysis across attribute completeness, value consistency, and localization coverage becomes possible without any architectural changes.
