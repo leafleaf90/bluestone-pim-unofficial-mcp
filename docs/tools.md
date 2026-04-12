@@ -196,8 +196,10 @@ PAPI pagination uses 0-indexed `pageNo`; the tool subtracts 1 from the 1-indexed
 **Design note:** See `docs/mcp-design.md` (Response shaping) for why image URLs are included in list responses but images are not fetched there — and why this is a separate on-demand tool rather than part of the list call.
 
 **Example prompts:**
-- "Show me what T-shirt - Green looks like"
-- "Can I see the product image?"
+- "Show me what T-shirt - Green looks like from Bluestone PIM"
+- "Can I see the product image from Bluestone?"
+
+**Prompting note:** Phrase image requests with "from Bluestone PIM" rather than just "show the image". Without a source reference, a model with web search available may search the web first before falling back to this tool.
 
 ---
 

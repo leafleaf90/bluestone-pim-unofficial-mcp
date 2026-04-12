@@ -193,6 +193,8 @@ Start with "Using Bluestone PIM, ..." rather than just "Show me my catalogs." Th
 
 If it does go wrong mid-conversation, redirect with: "Don't write code. Use the Bluestone PIM tools directly."
 
+The same applies to image requests. If Claude has web search available, "show the image" can match a web search before it matches the MCP tool. Say "show me the product image from Bluestone PIM" to make the intent unambiguous.
+
 A few conversations showing what is possible. Each window is a mockup of how the exchange looks in Claude Desktop.
 
 ---
@@ -437,7 +439,7 @@ This connects to the Bluestone test environment only. Do not build dependencies 
 
 If you implement Bluestone for clients, you can fork this repo and build your own MCP server tailored to your workflows. Add tools, extend the data model, deploy under your own URL with your own credentials. Your clients connect to your instance, not this one.
 
-Start with `src/tools.ts` (where tools are registered) and the [extending guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md).
+Start with `src/tools.ts` (where tools are registered) and the [extending guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md). The [design doc](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-design.md) includes a Behavior quirks section covering edge cases in model behavior discovered through testing. Worth reading before you ship tools to clients.
 
 **Why Vercel, and do you have to use it?** Vercel was the natural fit here: the server has no persistent storage (no database, no session store), and serverless functions match that well. Credentials come from the encrypted Bearer token on every request, and a new `McpServer` instance is created per request. MAPI OAuth tokens are cached briefly in memory on warm Vercel instances to avoid redundant token fetches, but nothing is written to disk and there is no shared state between instances. One command to deploy and the free tier covers a personal test instance. That said, there is nothing Vercel-specific about the server itself. It is plain Node.js. The only Vercel-specific file is `vercel.json`, which handles routing. You can deploy it on Railway, Fly.io, a VPS, your own cloud infrastructure, or anywhere else that runs Node. For client deployments you will almost certainly want your own hosting so you control uptime, credentials, and costs independently of this project, and so you understand exactly what your provider charges as usage scales.
 

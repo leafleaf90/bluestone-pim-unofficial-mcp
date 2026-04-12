@@ -48,7 +48,7 @@ Every tool maps the raw Bluestone API response to a smaller, purpose-built objec
 
 **Why:** Raw API responses are wide. The PAPI product detail response contains media arrays, attribute definitions, relation lists, bundle lists, variant arrays, category arrays, publish info references, and more. Passing all of this to the model on every list call would flood the context window, increase cost, and make it harder for the model to focus on what matters. Response shaping keeps the payload lean and makes the model's output more predictable.
 
-The pattern also acts as an abstraction layer: the tool decides what to expose, not the API. If the API changes a field name or nesting structure, only the tool changes — the model's view of the data stays stable.
+The pattern also acts as an abstraction layer: the tool decides what to expose, not the API. If the API changes a field name or nesting structure, only the tool changes; the model's view of the data stays stable.
 
 **Image URL decision:** Product media is a clear case of a response shaping trade-off.
 
@@ -74,7 +74,11 @@ Write operations (create, update, delete) return a simple confirmation string ra
 
 ---
 
-## Tool bypass: model reaching for code instead of MCP tools
+## Behavior quirks
+
+Edge cases in model behavior discovered through testing. These are not code bugs; they are places where the model's tool selection goes wrong and the fix is a combination of description guards and user-side prompting.
+
+### Code and HTTP bypass
 
 When Claude has code execution or artifact creation available alongside the MCP, it occasionally reasons "I can fetch this via HTTP" and attempts a direct Bluestone API call using bash or an artifact. This fails because the credentials only exist inside the MCP tool execution context.
 
@@ -85,7 +89,20 @@ When Claude has code execution or artifact creation available alongside the MCP,
 
 **Why these are not complete fixes:** Server instructions compete with the model's broader priors. A conversation opened in Code mode, or a system prompt that emphasizes code-first problem solving, can override the MCP instructions. The model's tool selection is probabilistic. The most reliable mitigation is user-side prompting: "Using Bluestone PIM, show me my catalogs" associates the request with the MCP explicitly, while "show me my catalogs" leaves the model to infer the source.
 
-This is documented in the Troubleshooting section of the connect page so users know what to do when it happens.
+### Web search bypass for product images
+
+Observed in testing: the user said "show the image" after receiving a product list. The model had web search available, matched the request to web search, fetched generic stock photos, then self-corrected and called `get_product_image`. The tool worked correctly in the end, but only after a wasted round-trip.
+
+The cause is ambiguity: "show the image" is a strong web search prior. The model has the `imageUrl` from the product list in context, but without a source reference it does not reliably connect the request to the MCP tool.
+
+**Mitigations applied:**
+
+1. `McpServer` instructions: "Do not search the web for Bluestone product images. When the user asks to see a product image, call `get_product_image` with the `imageUrl` from the product list."
+2. `list_published_products_in_category` description: "When the user asks to see a product image, call `get_product_image` with that imageUrl. Do not search the web." This fires in context, at the point where the model has just received the product list and an image request is most likely.
+3. `get_product_image` description: "Do not search the web for product images. Do not use the imageUrl as a markdown image link. Always call this tool."
+4. User-side prompting advice on the connect page: phrase image requests as "show me the product image from Bluestone PIM" rather than just "show the image".
+
+**Why the `list_published_products_in_category` guard is the strongest:** By the time the user asks for an image, the model has already received that tool's result with `imageUrl` in hand. An instruction in that description fires at exactly the right moment in context, not at startup when the model first reads all descriptions.
 
 ---
 

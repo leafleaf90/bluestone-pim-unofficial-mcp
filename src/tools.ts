@@ -341,7 +341,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "IMPORTANT: All Bluestone PIM data must come from the tools in this server. " +
         "Do not attempt to fetch Bluestone data using HTTP requests, bash commands, code artifacts, or any other method. " +
         "The tools handle authentication and API access internally. " +
-        "Direct API calls will fail because credentials are only available inside the tool execution context.",
+        "Direct API calls will fail because credentials are only available inside the tool execution context.\n" +
+        "Do not search the web for Bluestone product images. When the user asks to see a product image, call get_product_image with the imageUrl from the product list.",
     }
   );
 
@@ -641,7 +642,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Use list_products_in_category instead when the user is working on enrichment or wants working state. " +
         "Call list_published_catalogs first to get valid category IDs.\n\n" +
         "Product types in the response: GROUP (parent with variants), VARIANT (child of a GROUP), SINGLE (standalone). " +
-        "Each product includes an imageUrl (preview) when a media asset is present — show it to the user when displaying product details. " +
+        "Each product includes an imageUrl (preview) when a media asset is present. " +
+        "When the user asks to see a product image, call get_product_image with that imageUrl — do not search the web. " +
         "If the requested catalog is not found in the published results, call list_catalogs to check whether it exists in working state, and inform the user it has not been published yet.",
       inputSchema: {
         categoryId: z
@@ -736,7 +738,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Fetch and display a product image inline in chat. " +
         "Use the imageUrl returned by list_published_products_in_category. " +
         "Call this when the user asks to see a product image or wants a visual preview. " +
-        "Do not call this automatically for every product in a list — only when the user explicitly asks to see an image.",
+        "Do not call this automatically for every product in a list — only when the user explicitly asks to see an image. " +
+        "Do not search the web for product images. Do not use the imageUrl as a markdown image link. Always call this tool.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
