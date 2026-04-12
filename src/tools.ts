@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { VERSION } from "./version.js";
 
 // ─── Credentials ──────────────────────────────────────────────────────────────
 
@@ -295,7 +296,7 @@ export function createMcpServer(creds: Credentials): McpServer {
   const server = new McpServer(
     {
       name: "bluestone-pim",
-      version: "1.4.0",
+      version: VERSION,
     },
     {
       instructions:

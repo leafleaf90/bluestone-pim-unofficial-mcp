@@ -33,6 +33,8 @@ All MCP tools are registered inside a single `createMcpServer(creds: Credentials
 - `list_published_products_in_category` — calls PAPI `/categories/{id}/products` via `papiGet()` (published/live data only)
 - `create_product` — calls MAPI `/pim/products` via `mapiPost()`
 
+Version is defined in `src/version.ts` and imported by both `src/tools.ts` and `api/mcp.ts`. Update it there when bumping.
+
 The beta notice and capability summary are delivered via the `instructions` field on `McpServer` (server-level context, not a tool call). Do not add a `session_init` tool — this was an earlier approach that was replaced.
 
 **MAPI is the default for reads.** Working state data (including unpublished changes) comes from MAPI. PAPI is reserved for the `list_published_*` tools that explicitly return live/synced data only. See `docs/mcp-design.md` for the reasoning.

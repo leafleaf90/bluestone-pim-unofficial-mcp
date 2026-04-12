@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { VERSION } from "../src/version.js";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import {
@@ -294,7 +295,7 @@ function renderCredentialsForm(params: {
 // ─── Health check ─────────────────────────────────────────────────────────────
 
 app.get("/", (_req: Request, res: Response) => {
-  res.json({ status: "ok", service: "bluestone-pim-mcp" });
+  res.json({ status: "ok", service: "bluestone-pim-mcp", version: VERSION, info: "Visit /connect for setup instructions and documentation." });
 });
 
 // ─── OAuth 2.1 discovery ──────────────────────────────────────────────────────
