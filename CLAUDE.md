@@ -97,6 +97,107 @@ The connect page is a single HTML file. Content is written as Markdown in a `<sc
 
 Image paths must be **absolute** (`/connect/images/filename.webp`), not relative (`./images/`). Relative paths break on Vercel when the page is served without a trailing slash.
 
+## Workflows
+
+### "Check copy" (`/check-copy`)
+
+Scan all modified files (per `git diff --name-only`) for copy style violations. Report each violation with file, line number, and the offending text. Do not auto-fix. List findings and wait for instruction.
+
+Violations to check:
+- Em dashes (`—`) anywhere in `.ts`, `.html`, `.md` files
+- The contrast construction "not just X, it is Y" and variants ("not merely", "not simply")
+- Trailing summary paragraphs that start with "In summary" or "To summarize" (AI filler)
+
+If no violations are found, say so clearly. This check is also run automatically as part of "Prepare git push".
+
+---
+
+### "Add example" (`/add-example`)
+
+Use when adding a new example conversation to the Examples section of `public/connect/index.html`.
+
+1. **Clarify** with the user: what is the scenario, what tools are called, is there a screenshot, what should the notes cover?
+2. **Read the existing examples** in the `EXAMPLES` array in `index.html` to understand the data structure before writing anything.
+3. **Turn types** available in `renderTurns()`:
+   - `{ type: 'user', text }`: user message bubble
+   - `{ type: 'reply', text }`: Claude reply (supports inline HTML)
+   - `{ type: 'tool', name, display }`: tool call row
+   - `{ type: 'tool-with-image', name, display, imageSrc, imageAlt }`: tool call with image preview (use for `get_product_image`)
+   - `{ type: 'form', pairs: [{q, a}] }`: form response bubble
+4. **Optional fields** on the example object: `screenshot` (`{ src, caption }`), `notes` (array of HTML strings), `missing` (array of HTML strings for "What's missing" block).
+5. **Image paths** must be absolute (`/connect/images/filename.webp`), not relative.
+6. **Notes and missing text** support inline HTML. No em dashes.
+7. Run `/check-copy` on the file after editing.
+8. If the example demonstrates a new tool, check that `docs/recent-updates.md` has the corresponding entry.
+
+---
+
+### "Update tool description" (`/update-tool-description`)
+
+Use when changing a tool description, response text, follow-up behaviour, or error message in `src/tools.ts`.
+
+1. **Read the current description** for the tool being changed.
+2. **Read the relevant sections of `docs/mcp-patterns.md`**: description checklist, response format, error handling, and follow-up behaviour sections all apply.
+3. **Read `docs/mcp-design.md`** if the change involves a behavior quirk or a design decision that has prior context.
+4. Make the edit.
+5. Verify annotations are still correct for the tool type (read vs mutation).
+6. Run `/check-copy` on the changed file.
+7. If the change affects what users can expect from the tool, consider whether `docs/tools.md` needs updating too.
+
+---
+
+### "Add tool" (`/add-tool`)
+
+Use when adding a new MCP tool to `src/tools.ts`. Follow these steps in order:
+
+1. **Read the patterns doc** (`docs/mcp-patterns.md`) before writing anything.
+2. **Clarify** with the user: what does the tool do, which API endpoint, MAPI or PAPI, read or mutation?
+3. **Register** inside `createMcpServer()` using the appropriate helper (`mapiGet`, `mapiPostBody`, `papiGet`, or `mapiPost`). See the Adding new tools section below for URL construction.
+4. **Description:** write it per `docs/mcp-patterns.md`. No em dashes. Include failure mode guidance for non-obvious failures.
+5. **Zod schema:** type all inputs. Use `.describe()` on every parameter.
+6. **Annotations:** every tool must have `readOnlyHint`, `destructiveHint`, `idempotentHint`. Read tools: `true, false, true`. Write tools: `false, true, false`.
+7. **Response:** shape the output: only fields the model needs. Start with a plain-text summary line before any JSON.
+8. **Error handling:** surface meaningful messages. Check existing `papiErrorMessage` / `mapiErrorMessage` helpers cover the new tool's failure cases.
+9. **Update CLAUDE.md:** add the tool to the tools list in the Shared core section.
+10. **Update McpServer instructions:** if the tool changes what the server can do, update the capability summary in the `instructions` field.
+11. **Run `/check-copy`** on the changes before finishing.
+12. **Consider `docs/recent-updates.md`:** does this tool deserve a "New" badge entry on the connect page?
+13. **Update the Claude Code workflows section** in the connect page (`#fork-and-extend`) if the new tool changes what a fork can do out of the box.
+
+---
+
+### "Add slash command" (`/add-slash-command`)
+
+Use when defining a new workflow in this Workflows section.
+
+1. Write the workflow definition here in CLAUDE.md following the format of the existing workflows: name in backticks, numbered steps, no em dashes.
+2. Add the new command to the Claude Code workflows list in the "Fork and extend" section of `public/connect/index.html`, one line, name and one-sentence description.
+3. Run `/check-copy` on both files.
+
+---
+
+### "Prepare git push"
+
+When the user says "Prepare git push", run the following steps in order:
+
+**Step 1: Recent updates review**
+
+Run `git log --oneline` to identify commits since the hash stored in `memory/last_push.md`. Read `public/connect/index.html` to see the current "Recent updates" entries. For each commit since the last push, assess whether the change is user-facing enough to deserve a spot (new capability, meaningful behavior change, important clarification). Exclude internal refactors, visual fixes, and changes users would never notice.
+
+If any current entry should be replaced or a new one added, list the proposed changes and the reasoning, and wait for the user to approve before editing the file. Check `docs/recent-updates.md` for badge type guidance.
+
+**Step 2: Commit message**
+
+Produce a single-line `git commit -m` command, ready to copy and paste, with no line breaks. Scan it for em dashes before surfacing it. Em dashes are forbidden in all copy including commit messages.
+
+**Step 3: Em dash check**
+
+Run `/check-copy` on all modified files. Report any found. Do not proceed past this step if any are present.
+
+**Step 4: Update memory**
+
+After the user confirms the commit message, write `memory/last_push.md` with the commit hash (from `git rev-parse HEAD` after the commit) and a one-paragraph plain-English summary of what was included. This is what you read at the start of Step 1 on the next invocation.
+
 ### Copy style
 
 No em dashes anywhere in the connect page, tool descriptions, error messages, or docs. Use a colon or comma instead. Em dashes read as AI-generated.

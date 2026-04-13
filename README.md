@@ -54,6 +54,10 @@ It works against the documented Bluestone APIs using your own credentials. If yo
 
 The shared test deployment at `bluestone-mcp-unofficial.vercel.app` is fine for a quick look. For anything beyond that, run your own instance (Option B in the [setup guide](docs/setup-developer.md)) so you control where credentials go. If your organisation has a security review process, loop them in before deploying.
 
+## Author
+
+Built by [Viktor Lövgren](https://www.linkedin.com/in/viktorlovgren/). Personal side project, not affiliated with Bluestone PIM.
+
 ## License
 
 MIT

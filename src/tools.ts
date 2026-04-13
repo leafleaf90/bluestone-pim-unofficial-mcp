@@ -447,7 +447,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Returns product IDs and names only, no attributes. " +
         "Pass categoryName (the catalog name from list_catalogs) so it appears in the response summary. " +
         "After displaying the product list, ask the user if they would like to create a new product in this catalog. " +
-        "If they say yes, call create_product and pass the same categoryId so the product is assigned automatically.",
+        "If they say yes, call create_product and pass the same categoryId so the product is assigned automatically. " +
+        "If 0 products are returned and the user expected some, the categoryId may be incorrect. Suggest calling list_catalogs to verify.",
       inputSchema: {
         categoryId: z
           .string()
@@ -740,7 +741,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Call this when the user asks to see a product image or wants a visual preview. " +
         "Do not call this automatically for every product in a list. Only call it when the user explicitly asks to see an image. " +
         "Do not search the web for product images. Do not use the imageUrl as a markdown image link. Always call this tool. " +
-        "The tool result will tell you exactly what to say to the user about where to find the image.",
+        "The tool result will tell you exactly what to say to the user about where to find the image. " +
+        "If the fetch fails, tell the user the image could not be loaded and give them the imageUrl to open directly in their browser.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -805,6 +807,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "The product name is required. Always confirm the name with the user before calling this tool. " +
         "Returns the name and ID of the newly created product. " +
         "If categoryId is provided, the product will also be assigned to that catalog category after creation. " +
+        "Category assignment is a separate step: if it fails, the product still exists and the failure is reported separately. " +
+        "If product creation itself fails, report the error to the user and do not retry without their confirmation. " +
         "After creating, tell the user the product was created and suggest they open Bluestone PIM to continue enriching it.",
       inputSchema: {
         name: z

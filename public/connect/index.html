@@ -42,6 +42,19 @@
     h2:hover .anchor-link, h3:hover .anchor-link { opacity: 1; }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .status-checking { animation: pulse-dot 1.2s ease-in-out infinite; }
+    .badge-new, .badge-improved, .badge-fixed, .badge-note {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      padding: 1px 7px; border-radius: 4px; margin-right: 4px;
+      vertical-align: middle; letter-spacing: 0.02em; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    }
+    .badge-new      { background: #dcfce7; color: #166534; }
+    .badge-improved { background: #dbeafe; color: #1e40af; }
+    .badge-fixed    { background: #fef9c3; color: #854d0e; }
+    .badge-note     { background: #f1f5f9; color: #475569; }
+    .dark .badge-new      { background: #14532d; color: #86efac; }
+    .dark .badge-improved { background: #1e3a5f; color: #93c5fd; }
+    .dark .badge-fixed    { background: #422006; color: #fde68a; }
+    .dark .badge-note     { background: #1e293b; color: #94a3b8; }
   </style>
 </head>
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased">
@@ -85,6 +98,7 @@
   <!-- Mobile nav -->
   <nav id="mobile-nav" class="md:hidden bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700/60 px-6 overflow-x-auto">
     <div class="flex gap-5 py-3 text-sm whitespace-nowrap">
+      <a href="#recent-updates" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Recent updates</a>
       <a href="#what-can-it-do" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">What can it do?</a>
       <a href="#examples" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Examples</a>
       <a href="#before-you-start" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Before you start</a>
@@ -96,6 +110,7 @@
       <a href="#troubleshooting" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Troubleshooting</a>
       <a href="#for-customers" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">For customers</a>
       <a href="#for-si-partners" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">For SI partners</a>
+      <a href="#fork-and-extend" class="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Fork and extend</a>
     </div>
   </nav>
 
@@ -121,6 +136,7 @@
       <nav class="sticky top-24">
         <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Contents</p>
         <div class="space-y-0.5">
+          <a href="#recent-updates" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Recent updates</a>
           <a href="#what-can-it-do" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">What can it do?</a>
           <a href="#examples" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Examples</a>
           <a href="#before-you-start" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Before you start</a>
@@ -132,10 +148,11 @@
           <a href="#troubleshooting" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Troubleshooting</a>
           <a href="#for-customers" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">For customers</a>
           <a href="#for-si-partners" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">For SI partners</a>
+          <a href="#fork-and-extend" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Fork and extend</a>
           <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest pt-5 pb-1">For the curious</p>
           <a href="#for-the-curious" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Under the hood</a>
           <a href="#design-notes" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Design notes</a>
-          <a href="#on-designing-for-language-models" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">On designing for AI</a>
+          <a href="#on-designing-for-language-models" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">On designing for language models</a>
         </div>
       </nav>
     </aside>
@@ -165,6 +182,14 @@
 # Connect to Bluestone PIM
 
 Connect your AI assistant directly to your Bluestone PIM organisation. Once connected, you can ask questions like *"show me all products in the DPP category"* and get live answers.
+
+---
+
+## Recent updates
+
+- <span class="badge-new">New</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
+- <span class="badge-note">Note</span> **April 2026:** Mobile support clarified. claude.ai in the browser works on phone. The native Claude app does not support remote MCP servers yet.
+- <span class="badge-note">Note</span> **April 2026:** Agents section added to Design notes. Covers why bulk operations don't fit the chat model but work well for an unattended agent connecting to this server.
 
 ---
 
@@ -437,7 +462,7 @@ Your credentials are encrypted into a session token at the point of connection a
 
 This connects to the Bluestone test environment only. Do not build dependencies on it for anything that matters.
 
-**The shared instance runs on Vercel's free plan.** That means cold starts on the first request after a quiet period, and a monthly limit on serverless function invocations. It is fine for trying things out, but please do not use it as infrastructure for a team or a client. If you are doing anything beyond personal exploration, deploy your own instance. It takes about five minutes and is free on your own Vercel account too.
+**The shared instance runs on Vercel's free plan.** That means cold starts on the first request after a quiet period, and a monthly limit on serverless function invocations. It is fine for trying things out, but please do not use it as infrastructure for a team or a client. If you are doing anything beyond personal exploration, deploy your own instance. It takes about five minutes and is free on your own Vercel account too. See [Fork and extend](#fork-and-extend) for how.
 
 ---
 
@@ -447,11 +472,73 @@ If you implement Bluestone for clients, you can fork this repo and build your ow
 
 Start with `src/tools.ts` (where tools are registered) and the [extending guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md). The [design doc](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-design.md) includes a Behavior quirks section covering edge cases in model behavior discovered through testing. Worth reading before you ship tools to clients.
 
+For a full developer guide including Claude Code workflows, see [Fork and extend](#fork-and-extend) below.
+
 **Why Vercel, and do you have to use it?** Vercel was the natural fit here: the server has no persistent storage (no database, no session store), and serverless functions match that well. Credentials come from the encrypted Bearer token on every request, and a new `McpServer` instance is created per request. MAPI OAuth tokens are cached briefly in memory on warm Vercel instances to avoid redundant token fetches, but nothing is written to disk and there is no shared state between instances. One command to deploy and the free tier covers a personal test instance. That said, there is nothing Vercel-specific about the server itself. It is plain Node.js. The only Vercel-specific file is `vercel.json`, which handles routing. You can deploy it on Railway, Fly.io, a VPS, your own cloud infrastructure, or anywhere else that runs Node. For client deployments you will almost certainly want your own hosting so you control uptime, credentials, and costs independently of this project, and so you understand exactly what your provider charges as usage scales.
 
 This is a personal project, not an official Bluestone product. Reach out on Slack as you normally would.
 
 ---
+
+## Fork and extend
+
+This repo is MIT licensed. Fork it, extend it, deploy it under your own URL with your own credentials. Your instance has no dependency on this one.
+
+### Why fork
+
+An MCP server shapes how an AI assistant behaves with your data. The tools you expose, the descriptions you write, the autonomy you grant or restrict: all of these are design decisions, and the right decisions differ by team and use case. Just as a customer like H&M would build their own UI rather than use ours directly, it is natural to want an MCP server tuned to your specific workflows.
+
+Some examples of what a forked "boutique" server might look like:
+
+- **Enrichment expert:** tools and descriptions optimized for attribute completeness workflows, with guardrails that prevent accidental mutations
+- **Migration expert:** tools for bulk-validating product data before import, with confirmation steps at every write
+- **Demo setup expert:** tools for rapidly scaffolding catalog structures and sample products in a test environment
+
+The distinction between these is not only which tools exist. It is also tone, autonomy level, tool descriptions, and what the model is instructed to do after each action.
+
+### What you get when you fork
+
+- The OAuth 2.1 token broker (handles Claude Desktop, Cursor, and RFC 7591 clients)
+- The MCP server scaffold with working tools: browsing, product listing, image fetching, product creation
+- The connect page (`public/connect/index.html`), ready to customize for your deployment
+- AES-256-GCM encrypted bearer tokens with no database dependency
+
+What you supply: Bluestone PIM credentials (MAPI client ID/secret, PAPI key), a Vercel account (or other Node host), and a `SIGNING_SECRET` for token encryption.
+
+### How to deploy
+
+See [docs/setup-developer.md](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/setup-developer.md) for the full setup guide. The short version:
+
+```bash
+git clone https://github.com/leafleaf90/bluestone-pim-unofficial-mcp
+npm install
+# add .env with PAPI_KEY, MAPI_CLIENT_ID, MAPI_CLIENT_SECRET, SIGNING_SECRET
+npm run build
+vercel --prod
+```
+
+### How to add tools
+
+All tools are registered in `src/tools.ts` inside `createMcpServer()`. Read [docs/mcp-patterns.md](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-patterns.md) before writing a new tool. It defines required description format, response shaping, annotations, and error handling. Code skeletons are in [docs/extending.md](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md).
+
+Key rules: every tool needs `readOnlyHint`, `destructiveHint`, and `idempotentHint` annotations. Every response starts with a plain-text summary line before any JSON. No em dashes in descriptions: they read as AI-generated and erode trust.
+
+### Claude Code workflows
+
+If you develop this server using [Claude Code](https://claude.ai/code), the following workflows are defined in `CLAUDE.md` and activate automatically in the repo:
+
+| Workflow | What it does |
+|---|---|
+| `/check-copy` | Scans modified files for em dashes and other style violations. Reports findings, does not auto-fix. |
+| `/add-tool` | Walks through the full checklist for adding a new tool: patterns doc, Zod schema, annotations, response shaping, error handling, CLAUDE.md update, connect page update. |
+| `/update-tool-description` | Loads the relevant pattern constraints before editing a tool description, and verifies annotations are still correct after. |
+| `/add-example` | Scaffolds a new example conversation in the connect page, with the correct data structure and turn types. |
+| `/add-slash-command` | Adds a new workflow to CLAUDE.md and updates this table. |
+| `Prepare git push` | Reviews changes since last push for Recent updates candidates, produces a commit message, runs `/check-copy`, and updates push memory. |
+
+### Design decisions already made
+
+Before changing architecture or tool behavior, read [docs/mcp-design.md](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-design.md). It documents why MAPI is the default for reads, how context headers work, why the OAuth flow handles two client types on one endpoint, and the behavior quirks discovered through testing. Many of the things that look like obvious improvements have already been tried and replaced.
 
 ## For the curious
 
@@ -496,13 +583,13 @@ The obvious choice is to default reads to MAPI. The complication is that MAPI is
 
 An early version of product listing called the MAPI node-products endpoint directly. It worked, but only returned products assigned to the root catalog node. Products in sub-categories were silently missing.
 
-Fixing this required finding how the Bluestone PIM UI actually does it. The answer, found via network inspection: `POST /search/products/search` with a `categoryFilters` field set to `type: IN_ANY_CHILD`. That filter recursively includes products from the requested node and every node beneath it, which is the behavior you would expect from "list products in this catalog."
+The fix: `POST /search/products/search` with a `categoryFilters` field set to `type: IN_ANY_CHILD`. That filter recursively includes products from the requested node and every node beneath it, which is the behavior you would expect from "list products in this catalog." This matches the "List products recursively" browsing setting in the Bluestone PIM UI, which is on by default and can be turned off per session.
 
-The current implementation is three calls, two of them in parallel. The search endpoint returns only product IDs with no total count. A separate count endpoint runs at the same time to get the accurate total. Then a third call to `POST /pim/products/list/views/by-ids` resolves the IDs to product names, types, and states. The API returns state as a raw value (`PLAYGROUND_ONLY`) which the server maps to the label the Bluestone UI shows (`Draft`) before the model sees it.
+The current implementation is three calls, two of them in parallel. The search endpoint returns only product IDs with no total count. A separate count endpoint runs at the same time to get the accurate total. Then a third call to `POST /pim/products/list/views/by-ids` resolves the IDs to product names, types, and states. The API returns state as a raw value (`PLAYGROUND_ONLY`) which the server maps to the label the UI shows (`Draft`) before the model sees it.
 
-**The endpoint the UI uses, but I cannot.** The Bluestone PIM UI uses `POST /pim/products/list/by-ids`, which returns a simpler flat response with the product name already as a plain string. This is the cleaner endpoint for the use case. The problem: it does not appear in the official PIM API specification. Using undocumented internal endpoints would make the integration fragile, able to break silently on any UI update. Instead I use `POST /pim/products/list/views/by-ids`, which is in the spec and returns the same data, but with names stored as context-keyed objects (`{ value: { en: "T-shirt", nl: "T-shirt" } }`). The right language key is extracted at read time.
+**A note on `list/by-ids` vs `list/views/by-ids`.** The UI uses `POST /pim/products/list/by-ids`, a simpler endpoint that returns the product name as a plain string. The problem: it is not in the official PIM API specification, and the internal API is not exposed for external use. The spec-compliant alternative is `POST /pim/products/list/views/by-ids`, which returns the same data but with names as context-keyed objects (`{ value: { en: "T-shirt", nl: "T-shirt" } }`). The right language key is extracted at read time.
 
-The drawback: if Bluestone changes their internal API shape, this breaks without notice. That is a real risk for an unofficial project.
+**Inspecting UI network traffic is a useful starting point.** Bluestone PIM is API-first, and the UI calls many of the same endpoints available to MCP developers. Opening the browser network panel while using the UI is a practical way to discover how data is structured and which endpoints do what. That said, what is optimal for the UI is not always optimal for an MCP tool: the UI optimizes for rendering speed, not for what a language model needs to reason over.
 
 ### Bulk actions and scale
 
@@ -557,6 +644,14 @@ The data side adds its own complications. In a normal integration the API is doc
 What the development loop looks like in practice: write description text, test model behavior, notice the gaps, adjust. Repeat. It is slower and less deterministic than writing code, and the feedback cycle is conversational rather than computational. I am learning as I go. I suspect most people building MCP integrations right now are too, regardless of what they are connecting.
 
 If you are thinking through the same problems (how to write tool descriptions that produce consistent model behavior, how to decide when to surface nuance versus when to simplify, how to design response shapes that give the model what it actually needs) I would like to hear how you are approaching it. Open an issue or a discussion on [GitHub](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp).
+
+### Further reading
+
+A March 2026 paper, [From Human Interfaces to Agent Interfaces](https://arxiv.org/abs/2603.20300), argues that software design is undergoing a fundamental shift: the primary user of a system is increasingly an AI agent, not a human, and software should be designed accordingly. The unit of design shifts from feature/page to what they call an "invocable capability": a self-contained unit of functionality with structured input and output, explicit contracts, and predictable behavior.
+
+Most of the decisions documented here are concrete instances of that shift. Response shaping keeps payloads lean so models can reason over them efficiently. Tool annotations (`readOnlyHint`, `destructiveHint`) are part of the explicit contract. The failure mode notes in tool descriptions address what the paper calls invocation reliability. The MAPI/PAPI split into distinct named tools rather than a single tool with a flag is capability decomposition in practice.
+
+The paper also notes that context window economics constrain how much a description can say: "descriptions should be sufficiently rich to support correct use while remaining compact enough for efficient inclusion in agent context." That is exactly the tension every tool description here is trying to resolve.
   </script>
 
   <script>

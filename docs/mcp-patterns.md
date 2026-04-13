@@ -2,6 +2,8 @@
 
 Rules and patterns to follow when adding or modifying tools in this server. Read this before touching `src/tools.ts`. For skeletons and build commands, see [extending.md](extending.md). For the reasoning behind these decisions, see [mcp-design.md](mcp-design.md).
 
+If you are working with Claude Code, the `/add-tool` and `/update-tool-description` workflows in `CLAUDE.md` run through these patterns as a checklist automatically.
+
 ---
 
 ## Philosophy

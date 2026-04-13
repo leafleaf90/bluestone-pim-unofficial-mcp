@@ -1,6 +1,8 @@
 {
   "name": "bluestone-unofficial-mcp",
   "version": "1.0.0",
+  "author": "Viktor Lövgren (https://www.linkedin.com/in/viktorlovgren/)",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "tsc",

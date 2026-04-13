@@ -4,6 +4,8 @@ All tools live in `src/tools.ts` inside the `createMcpServer()` factory function
 
 Before writing a new tool, read [mcp-patterns.md](mcp-patterns.md) for the required description, response format, and error handling rules. The skeletons below are the minimal starting point; the patterns doc explains what goes in each field and why.
 
+If you are working with Claude Code, use the `/add-tool` workflow defined in `CLAUDE.md`. It walks through the same checklist interactively and catches common omissions (missing annotations, em dashes in descriptions, forgotten CLAUDE.md updates).
+
 ---
 
 ## Adding a new read tool (PAPI)
