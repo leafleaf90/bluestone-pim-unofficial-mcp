@@ -1,8 +1,8 @@
-# Bluestone PIM — Unofficial MCP Server
+# Bluestone PIM MCP Server
 
-An unofficial, open-source MCP server that connects AI assistants (Claude Desktop, Cursor, ChatGPT) to your Bluestone PIM organisation. Browse catalogs, explore products, and create new products directly in chat.
+An open-source MCP server that connects AI assistants (Claude Desktop, Cursor, ChatGPT) to your Bluestone PIM organisation. Browse catalogs, explore products, and create new products directly in chat.
 
-> **Disclaimer:** This is a personal side project. It is not an official Bluestone PIM product and is not endorsed, supported, or affiliated with Bluestone PIM in any capacity. Use at your own risk.
+> **Bluestone Labs community project.** Not an official product. No SLA. Contributions and forks welcome.
 
 ## Quick start
 
@@ -42,13 +42,13 @@ For full setup instructions, see the [connect page](https://bluestone-mcp-unoffi
 
 If you implement Bluestone for clients, you can fork this repo and build your own MCP server tailored to your workflows. Add tools, extend the data model, deploy under your own Vercel instance.
 
-This is a personal project, not an official Bluestone product. Reach out on Slack as you normally would if you have questions.
+A Bluestone Labs community project. Questions? Open an issue on GitHub or reach out on Slack.
 
 Start with `src/tools.ts` (where tools are registered) and [docs/extending.md](docs/extending.md).
 
 ## For customers
 
-This is not a Bluestone product. It is a personal experiment, published openly. Bluestone has not reviewed, endorsed, or supported it in any way.
+This is a Bluestone Labs community project, not an official Bluestone product.
 
 It works against the documented Bluestone APIs using your own credentials. If you run the server locally or deploy your own Vercel instance, your credentials stay entirely within your own infrastructure and are never stored by this project. See [docs/how-it-works.md](docs/how-it-works.md) for the full security model.
 
@@ -56,7 +56,7 @@ The shared test deployment at `bluestone-mcp-unofficial.vercel.app` is fine for 
 
 ## Author
 
-Built by [Viktor Lövgren](https://www.linkedin.com/in/viktorlovgren/). Personal side project, not affiliated with Bluestone PIM.
+Built by [Viktor Lövgren](https://www.linkedin.com/in/viktorlovgren/). A Bluestone Labs community project.
 
 ## License
 

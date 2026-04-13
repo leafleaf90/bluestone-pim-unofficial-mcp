@@ -124,7 +124,7 @@ Give users your deployment URL (e.g. `https://your-project.vercel.app/mcp`) and 
 
 Follow this if someone else has already deployed the server and given you the URL.
 
-> **Unofficial test deployment:** `https://bluestone-mcp-unofficial.vercel.app/mcp`, available for testing if you don't have your own deployment yet.
+> **Community test deployment:** `https://bluestone-mcp-unofficial.vercel.app/mcp`, available for testing if you don't have your own deployment yet.
 
 ### 1. Open the connector UI
 
@@ -155,7 +155,7 @@ The connector will appear in your list. Enable it with the toggle.
 
 ## Option D: Connect to an existing Vercel deployment (Cursor)
 
-> **Unofficial test deployment:** `https://bluestone-mcp-unofficial.vercel.app/mcp`, available for testing if you don't have your own deployment yet.
+> **Community test deployment:** `https://bluestone-mcp-unofficial.vercel.app/mcp`, available for testing if you don't have your own deployment yet.
 
 ### 1. Add the server to your Cursor config
 

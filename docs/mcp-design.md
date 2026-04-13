@@ -133,7 +133,7 @@ Banning "there it is" by name and framing the problem as a visibility gap the mo
 
 The Vercel HTTP deployment has no database. Bearer tokens issued at `/token` are AES-256-GCM encrypted blobs containing the user's Bluestone credentials directly, not references to stored sessions.
 
-**Why:** Vercel serverless functions have no persistent memory between invocations. The alternatives (a database or Redis) add infrastructure for a personal/beta project. Encoding state in the token itself means the server only needs the `SIGNING_SECRET` env var to verify and decrypt. Nothing is stored.
+**Why:** Vercel serverless functions have no persistent memory between invocations. The alternatives (a database or Redis) add infrastructure for a community/beta project. Encoding state in the token itself means the server only needs the `SIGNING_SECRET` env var to verify and decrypt. Nothing is stored.
 
 The trade-off: token revocation is not possible. A token is valid until it expires. Acceptable at this scale.
 

@@ -9,6 +9,7 @@ npm run build           # compile TypeScript → build/
 npm run dev             # watch mode (tsc --watch)
 npm run vercel-build    # used by Vercel CI: compiles + copies HTML + logo into build/
 npm run optimize-images # convert screenshots in public/connect/images/ to WebP (deletes originals)
+cd public && python3 -m http.server 8080  # preview connect page at localhost:8080/connect/
 ```
 
 There are no tests. No linter is configured.
