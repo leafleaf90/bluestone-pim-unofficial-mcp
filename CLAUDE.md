@@ -43,7 +43,7 @@ The beta notice and capability summary are delivered via the `instructions` fiel
 
 **MAPI is the default for reads.** Working state data (including unpublished changes) comes from MAPI. PAPI is reserved for the `list_published_*` tools that explicitly return live/synced data only. See `docs/mcp-design.md` for the reasoning.
 
-Three MAPI API families share the same Bearer token and base domain (`api.test.bluestonepim.com`):
+Three MAPI API families share the same Bearer token and base domain (test: `api.test.bluestonepim.com`, production: `api.bluestonepim.com` when `ENVIRONMENT=production`):
 - **`/pim`** (`MAPI_PIM_BASE`): products, catalogs, attributes, categories
 - **`/search`** (`MAPI_SEARCH_BASE`): full-text and structured product search
 - **`/global-settings`** (`MAPI_GLOBAL_SETTINGS_BASE`): contexts (languages/markets)

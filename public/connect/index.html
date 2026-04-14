@@ -3,17 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bluestone PIM · MCP Server</title>
+  <title>Bluestone Labs · MCP Server</title>
   <meta name="description" content="Connect Claude, Cursor, or ChatGPT to your Bluestone PIM organisation via MCP. A Bluestone Labs community project, open source.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Bluestone PIM · MCP Server">
+  <meta property="og:title" content="Bluestone Labs · MCP Server">
   <meta property="og:description" content="Connect Claude, Cursor, or ChatGPT to your Bluestone PIM organisation via MCP. A Bluestone Labs community project, open source.">
   <meta property="og:image" content="https://bluestone-mcp-unofficial.vercel.app/og-image.jpg">
   <meta property="og:url" content="https://bluestone-mcp-unofficial.vercel.app/connect">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Bluestone PIM · MCP Server">
+  <meta name="twitter:title" content="Bluestone Labs · MCP Server">
   <meta name="twitter:description" content="Connect Claude, Cursor, or ChatGPT to your Bluestone PIM organisation via MCP. A Bluestone Labs community project, open source.">
   <meta name="twitter:image" content="https://bluestone-mcp-unofficial.vercel.app/og-image.jpg">
+  <meta name="robots" content="noindex, nofollow">
   <link rel="icon" type="image/png" href="/bluestone_pim_logo.png">
   <!-- Prevent flash of wrong theme before page renders -->
   <script>
@@ -136,6 +137,7 @@
           <a href="#recent-updates" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Recent updates</a>
           <a href="#what-can-it-do" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">What can it do?</a>
           <a href="#examples" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Examples</a>
+          <a href="#faq" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">FAQ</a>
           <a href="#before-you-start" class="nav-link block text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors">Before you start</a>
           <a href="#claude-desktop" class="nav-link flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors"><img src="/brand_assets/claude_logo.png" alt="" class="w-4 h-4 object-contain rounded shrink-0">Claude Desktop</a>
           <a href="#cursor" class="nav-link flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1.5 transition-colors"><img src="/brand_assets/cursor_logo.png" alt="" class="w-4 h-4 object-contain rounded shrink-0">Cursor</a>
@@ -223,6 +225,38 @@ A few conversations showing what is possible. Each window is a mockup of how the
 
 ---
 
+## FAQ
+
+### What is MCP?
+
+Model Context Protocol (MCP) is an open standard that lets AI assistants like Claude, Cursor, and ChatGPT connect to external tools and data sources. Instead of copying and pasting data into a chat window, the AI can read and act on live data directly. This server implements MCP for Bluestone PIM.
+
+### Why unofficial?
+
+This is a community project, part of Bluestone Labs: a space for open tools and experiments built by people who use and work with Bluestone PIM and want to push it further. Being unofficial means no SLA, no support commitments, and no guarantee it will stay in sync with API changes. It is open source: you can read the code, fork it, and run your own instance.
+
+### Is it safe to use with my PIM data?
+
+**On credentials:** Your credentials are never stored on the server. At the point of connection they are encrypted into a session token that only your client holds. The server decrypts them per-request to call the Bluestone PIM API, and nothing is written to a database. For team or client use, deploy your own instance so you control the infrastructure entirely.
+
+**On using AI with live data:** This server connects an AI model to your Bluestone PIM environment. AI models can misread instructions, call the wrong tool, or act on an ambiguous prompt in ways you did not intend. The create product tool requires the AI to confirm the product name before calling the API, but that is a soft guardrail: it depends on the AI client following the instruction. It is not enforced at the infrastructure level.
+
+This is a community project, not product-grade software. It does not have the guardrails or validation you would expect from a supported product. Treat it accordingly: use it for exploration and low-stakes tasks, be explicit in your prompts, and review any actions before confirming them. Do not rely on it as a primary workflow for production data you cannot afford to get wrong.
+
+### Do I need a developer to set this up?
+
+For Claude Desktop and Cursor: no. The setup is a form and a few copy-paste steps, documented below. ChatGPT requires a slightly more involved flow but is still step-by-step. If you want to fork and extend the server with new tools, that requires TypeScript experience, familiarity with the MCP pattern, and some understanding of how the Bluestone APIs work.
+
+### Will it modify my data?
+
+Most tools are read-only. A small number can write to your PIM, currently limited to creating products. MCP clients like Claude Desktop let you turn individual tools on and off, so you can restrict to read-only access if you prefer. Check your client's MCP settings to see and control which tools are active.
+
+### What AI tools does it work with?
+
+Claude Desktop, Cursor, and ChatGPT are tested and documented on this page. Any MCP-compatible client should work. Clients that support OAuth 2.1 dynamic registration (like Cursor) connect without manual credential entry.
+
+---
+
 ## Before you start
 
 You need three credentials from your Bluestone PIM account:
@@ -237,9 +271,9 @@ If you don't have these, contact your Bluestone PIM administrator.
 
 Your credentials are encrypted into a session token at the point of connection and are never stored on the server.
 
-> **Note:** This server connects to the **Bluestone PIM test environment** only (`api.test.bluestonepim.com`). Production environments are not currently supported.
+> **Note:** This server connects to the **Bluestone PIM test environment** by default (`api.test.bluestonepim.com`). To connect to production, set the `ENVIRONMENT=production` variable when deploying your own instance.
 
-> **Shared instance:** The URL used in the steps below points to a personal test deployment running on Vercel's free plan. It is fine for trying things out. For team or client use, please deploy your own instance. See [For customers](#for-customers) and [For SI partners](#for-si-partners) below.
+> **Shared instance:** The URL used in the steps below points to a community test deployment running on Vercel's free plan. It is fine for trying things out. For team or client use, please deploy your own instance. See [For customers](#for-customers) and [For SI partners](#for-si-partners) below.
 
 ---
 
@@ -437,7 +471,7 @@ Disconnect and reconnect the server. In Claude Desktop, restart the app after re
 Your MAPI credentials need write permissions. Read-only credentials work for browsing but not for create or update operations. Check with your Bluestone PIM administrator that the MAPI client has the correct scopes.
 
 **Tool returns an error about the API**
-Your credentials may point to the production Bluestone environment. This server currently connects to the **test environment** (`api.test.bluestonepim.com`) only.
+By default this server connects to the **test environment** (`api.test.bluestonepim.com`). If you need production, deploy your own instance with `ENVIRONMENT=production`.
 
 **Claude writes code or runs commands instead of using the tools**
 This happens when Claude has code execution or artifact creation available alongside the MCP, and reasons it can fetch the data directly. It cannot: the Bluestone credentials only exist inside the tool execution context, so direct HTTP calls will always fail with no API key.
@@ -455,11 +489,11 @@ Still stuck? [Open an issue on GitHub](https://github.com/leafleaf90/bluestone-p
 
 ## For customers
 
-This is not a Bluestone PIM product. It is a personal project, published openly. Bluestone has not reviewed, endorsed, or supported it in any way.
+This is not a Bluestone PIM product. It is a Bluestone Labs community project, published openly. Bluestone has not reviewed, endorsed, or supported it in any way.
 
 Your credentials are encrypted into a session token at the point of connection and are not stored by this server. If your organisation has security or compliance requirements around API credentials, run your own instance rather than using the shared test deployment above. Option B in the [setup guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md) covers deploying to your own Vercel account, so credentials stay within your own infrastructure. For large organisations: loop in your IT or security team before deploying.
 
-This connects to the Bluestone test environment only. Do not build dependencies on it for anything that matters.
+This shared instance connects to the Bluestone test environment. For production use, deploy your own instance with `ENVIRONMENT=production`.
 
 **The shared instance runs on Vercel's free plan.** That means cold starts on the first request after a quiet period, and a monthly limit on serverless function invocations. It is fine for trying things out, but please do not use it as infrastructure for a team or a client. If you are doing anything beyond personal exploration, deploy your own instance. It takes about five minutes and is free on your own Vercel account too. See [Fork and extend](#fork-and-extend) for how.
 
@@ -475,7 +509,7 @@ For a full developer guide including Claude Code workflows, see [Fork and extend
 
 **Why Vercel, and do you have to use it?** Vercel was the natural fit here: the server has no persistent storage (no database, no session store), and serverless functions match that well. Credentials come from the encrypted Bearer token on every request, and a new `McpServer` instance is created per request. MAPI OAuth tokens are cached briefly in memory on warm Vercel instances to avoid redundant token fetches, but nothing is written to disk and there is no shared state between instances. One command to deploy and the free tier covers a personal test instance. That said, there is nothing Vercel-specific about the server itself. It is plain Node.js. The only Vercel-specific file is `vercel.json`, which handles routing. You can deploy it on Railway, Fly.io, a VPS, your own cloud infrastructure, or anywhere else that runs Node. For client deployments you will almost certainly want your own hosting so you control uptime, credentials, and costs independently of this project, and so you understand exactly what your provider charges as usage scales.
 
-This is a personal project, not an official Bluestone product. Reach out on Slack as you normally would.
+This is a Bluestone Labs community project, not an official Bluestone product. Reach out on Slack as you normally would.
 
 ---
 
@@ -628,7 +662,7 @@ If you are building an agent workflow on top of this, the [GitHub repo](https://
 
 **Attribute editing.** Blocked on the above. Until the read side handles attributes cleanly, adding write tools on top would make the AI's behavior unpredictable.
 
-**Production environment.** The server currently hardcodes the test environment (`api.test.bluestonepim.com`). Adding production support is straightforward technically but requires decisions about credential handling that have not been made yet.
+**Production environment.** The server defaults to the test environment (`api.test.bluestonepim.com`). Set `ENVIRONMENT=production` on your deployment to point at `api.bluestonepim.com` and `idp.bluestonepim.com` instead.
 
 **Token revocation.** Because there is no database, issued tokens cannot be invalidated before they expire. If you need to revoke access, the only option is to rotate your MAPI client secret in Bluestone PIM.
 
