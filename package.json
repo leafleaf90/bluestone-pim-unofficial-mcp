@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "vercel-build": "tsc && mkdir -p build/connect/images && cp public/connect/index.html build/connect/index.html && cp public/bluestone_pim_logo.png build/bluestone_pim_logo.png && cp public/og-image.jpg build/og-image.jpg && cp -r public/brand_assets build/brand_assets && cp -r public/connect/images/. build/connect/images/",
+    "vercel-build": "tsc && mkdir -p build/connect/images && cp public/connect/index.html build/connect/index.html && cp public/404.html build/404.html && cp public/bluestone_pim_logo.png build/bluestone_pim_logo.png && cp public/og-image.jpg build/og-image.jpg && cp -r public/brand_assets build/brand_assets && cp -r public/connect/images/. build/connect/images/",
     "optimize-images": "node scripts/optimize-images.js"
   },
   "dependencies": {

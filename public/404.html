@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 - Bluestone Labs</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background-color: #060c1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      text-align: center;
+      padding: 2rem;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+    }
+    .four-oh-four {
+      font-size: clamp(8rem, 20vw, 14rem);
+      font-weight: 800;
+      line-height: 1;
+      color: #0d1f3c;
+      letter-spacing: -0.02em;
+      user-select: none;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-top: -0.5rem;
+    }
+    p {
+      font-size: 1.05rem;
+      color: #64748b;
+      max-width: 36ch;
+      line-height: 1.6;
+    }
+    a.btn {
+      margin-top: 1rem;
+      display: inline-block;
+      background: #e2e8f0;
+      color: #0f172a;
+      font-size: 1rem;
+      font-weight: 500;
+      padding: 0.875rem 2.25rem;
+      border-radius: 0.75rem;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    a.btn:hover { background: #f1f5f9; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="four-oh-four">404</div>
+    <h1>Nothing here</h1>
+    <p>This page does not exist. It may have moved, or the link was wrong to begin with.</p>
+    <a href="/connect/" class="btn">Back to Labs</a>
+  </div>
+</body>
+</html>
