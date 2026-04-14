@@ -43,6 +43,10 @@
     h2:hover .anchor-link, h3:hover .anchor-link { opacity: 1; }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .status-checking { animation: pulse-dot 1.2s ease-in-out infinite; }
+    .copy-md-btn.copy-md-success { color: #15803d; border-color: #86efac; background: #f0fdf4; }
+    @media (prefers-color-scheme: dark) {
+      .copy-md-btn.copy-md-success { color: #4ade80; border-color: #166534; background: #052e16; }
+    }
     .badge-new, .badge-improved, .badge-fixed, .badge-note {
       display: inline-block; font-size: 11px; font-weight: 600;
       padding: 1px 7px; border-radius: 4px; margin-right: 4px;
@@ -73,6 +77,7 @@
         <span id="status-dot" title="Checking server status…"
           class="status-checking w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0"></span>
         <span class="text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1.5 rounded-full font-medium">Beta</span>
+
 <a href="https://github.com/leafleaf90/bluestone-pim-unofficial-mcp" target="_blank" rel="noopener noreferrer"
           aria-label="View source on GitHub"
           class="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -188,6 +193,7 @@ Bluestone is built API-first, with clean structured data. This is exactly what A
 
 ## Recent updates
 
+- <span class="badge-new">New</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
 - <span class="badge-new">New</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
 - <span class="badge-note">Note</span> **April 2026:** Mobile support clarified. claude.ai in the browser works on phone. The native Claude app does not support remote MCP servers yet.
 - <span class="badge-note">Note</span> **April 2026:** Agents section added to Design notes. Covers why bulk operations don't fit the chat model but work well for an unattended agent connecting to this server.
@@ -963,9 +969,12 @@ The paper also notes that context window economics constrain how much a descript
 
         // Input bar
         '<div style="background:#1e1e1e;padding:10px 14px;border-top:1px solid rgba(255,255,255,0.05);">' +
-        '<div style="background:#2a2a2a;border-radius:10px;padding:9px 14px;display:flex;align-items:center;gap:8px;">' +
-        '<span style="color:#444;font-size:13px;flex:1;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Reply&hellip;</span>' +
-        '<span style="color:#444;font-size:11px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Sonnet&nbsp;4.6</span>' +
+        '<div style="background:#2a2a2a;border-radius:10px;padding:9px 14px 9px 14px;display:flex;flex-direction:column;gap:10px;">' +
+        '<span style="color:#555;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Reply&hellip;</span>' +
+        '<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">' +
+        '<span style="display:inline-flex;align-items:center;gap:4px;background:#141414;border-radius:6px;padding:3px 8px;font-size:11.5px;font-weight:500;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Sonnet&nbsp;4.6<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;"><polyline points="6 9 12 15 18 9"/></svg></span>' +
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>' +
+        '</div>' +
         '</div>' +
         '<p style="text-align:center;color:#3a3a3a;font-size:11px;margin:8px 0 2px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Claude is AI and can make mistakes. Please double-check responses.</p>' +
         '</div>' +
@@ -1085,6 +1094,163 @@ The paper also notes that context window economics constrain how much a descript
     const parsedHtml = marked.parse(processed).replace(new RegExp(PLACEHOLDER, 'g'), serverUrlHtml);
     document.getElementById('content').innerHTML = parsedHtml;
 
+    // Copy-page dropdown component
+    (function() {
+      var COPY_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      var MD_ICON = '<svg width="22" height="14" viewBox="0 0 80 50" fill="none" aria-hidden="true"><rect x="2" y="2" width="76" height="46" rx="8" stroke="currentColor" stroke-width="4"/><path d="M14 36V14L26 28L38 14V36M52 14V36M44 28L52 36L60 28" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      var CLAUDE_ICON = '<img src="/brand_assets/claude_logo.png" width="22" height="22" style="object-fit:contain;display:block;" alt="">';
+      var EXT = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;margin-left:3px;vertical-align:middle;" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+      var CHEV_DOWN = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+      var CHEV_UP   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+
+      // Serialize the EXAMPLES array to plain Markdown so copied content includes
+      // the example conversations, not just the #md source which omits them.
+      function stripHtml(s) {
+        return s
+          .replace(/<[^>]+>/g, '')
+          .replace(/&mdash;/g, '--').replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+          .replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '')
+          .trim();
+      }
+
+      function serializeExamplesToMarkdown() {
+        return EXAMPLES.map(function(ex) {
+          var lines = ['### ' + ex.chatTitle];
+          if (ex.label) lines.push('_' + ex.label + '_\n');
+          ex.turns.forEach(function(t) {
+            if (t.type === 'user') {
+              lines.push('**User:** ' + t.text);
+            } else if (t.type === 'reply') {
+              lines.push('**Claude:** ' + stripHtml(t.text));
+            } else if (t.type === 'tool' || t.type === 'tool-with-image') {
+              lines.push('_Tool call: ' + t.display + '_');
+            } else if (t.type === 'form') {
+              lines.push('_Claude asked for input:_');
+              t.pairs.forEach(function(p) { lines.push('- ' + p.q + ' ' + p.a); });
+            }
+          });
+          if (ex.notes && ex.notes.length) {
+            lines.push('\n**Notes:**');
+            ex.notes.forEach(function(n) { lines.push('- ' + stripHtml(n)); });
+          }
+          if (ex.missing && ex.missing.length) {
+            lines.push('\n**What\'s missing:**');
+            ex.missing.forEach(function(m) { lines.push('- ' + stripHtml(m)); });
+          }
+          return lines.join('\n');
+        }).join('\n\n---\n\n');
+      }
+
+      function buildCopyContent() {
+        var md = document.getElementById('md').textContent;
+        // Replace the [server-url] token with the actual URL
+        md = md.replace(/\[server-url\]/g, MCP_URL);
+        // Inject serialized examples into the Examples section, right before the
+        // --- separator that closes it (between the intro text and ## FAQ).
+        // This keeps them co-located with the section heading rather than appended
+        // at the end of the document.
+        var marker = '\n\n---\n\n## FAQ';
+        var insertAt = md.indexOf(marker);
+        if (insertAt !== -1) {
+          md = md.slice(0, insertAt) + '\n\n' + serializeExamplesToMarkdown() + md.slice(insertAt);
+        } else {
+          md += '\n\n' + serializeExamplesToMarkdown();
+        }
+        return md;
+      }
+
+      window.copyPageMd = function() {
+        // Always close the dropdown immediately before the async clipboard write.
+        window.closeCopyDropdown();
+        var content = buildCopyContent();
+        navigator.clipboard.writeText(content).then(function() {
+          var btn = document.getElementById('copy-main-btn');
+          var label = document.getElementById('copy-main-label');
+          label.textContent = 'Copied!';
+          btn.classList.add('copy-md-success');
+          setTimeout(function() { label.textContent = 'Copy page'; btn.classList.remove('copy-md-success'); }, 2000);
+        }).catch(function() {
+          var label = document.getElementById('copy-main-label');
+          if (label) { label.textContent = 'Failed'; setTimeout(function() { label.textContent = 'Copy page'; }, 2000); }
+        });
+      };
+
+      window.viewPageMd = function() {
+        var md = document.getElementById('md').textContent;
+        var blob = new Blob([md], { type: 'text/plain; charset=utf-8' });
+        window.open(URL.createObjectURL(blob), '_blank');
+        window.closeCopyDropdown();
+      };
+
+      window.toggleCopyDropdown = function() {
+        var menu = document.getElementById('copy-dropdown-menu');
+        var icon = document.getElementById('copy-chevron-icon');
+        var btn  = document.getElementById('copy-chevron-btn');
+        var open = menu.style.display !== 'none';
+        menu.style.display = open ? 'none' : 'block';
+        icon.innerHTML = open ? CHEV_DOWN : CHEV_UP;
+        btn.setAttribute('aria-expanded', String(!open));
+      };
+
+      window.closeCopyDropdown = function() {
+        var menu = document.getElementById('copy-dropdown-menu');
+        var icon = document.getElementById('copy-chevron-icon');
+        var btn  = document.getElementById('copy-chevron-btn');
+        if (menu) menu.style.display = 'none';
+        if (icon) icon.innerHTML = CHEV_DOWN;
+        if (btn)  btn.setAttribute('aria-expanded', 'false');
+      };
+
+      // Any click that reaches the document means it was outside the pill and
+      // menu (both call stopPropagation), so always close.
+      document.addEventListener('click', function() {
+        window.closeCopyDropdown();
+      });
+
+      function dropdownRow(iconSvg, title, sub, onclickAttr, href) {
+        var tag   = href ? 'a' : 'button';
+        var attrs = href
+          ? 'href="' + href + '" target="_blank" rel="noopener noreferrer" onclick="window.closeCopyDropdown()"'
+          : 'onclick="' + onclickAttr + '"';
+        return '<' + tag + ' ' + attrs + ' style="display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;background:transparent;border:none;cursor:pointer;border-radius:12px;text-align:left;text-decoration:none;" onmouseover="this.style.background=\'rgba(255,255,255,0.07)\'" onmouseout="this.style.background=\'transparent\'">' +
+          '<div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.09);display:flex;align-items:center;justify-content:center;color:#d4d4d4;flex-shrink:0;">' + iconSvg + '</div>' +
+          '<div><div style="font-size:13.5px;font-weight:500;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;margin-bottom:2px;">' + title + '</div>' +
+          '<div style="font-size:12px;color:#777;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' + sub + '</div></div>' +
+          '</' + tag + '>';
+      }
+
+      var openInClaudeUrl = 'https://claude.ai/new?q=' + encodeURIComponent('I want to ask questions about this page: ' + window.location.href);
+
+      document.querySelectorAll('#content p').forEach(function(p) {
+        if (!p.textContent.includes('MCP is the natural evolution of this')) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'not-prose mt-4';
+        wrap.style.cssText = 'position:relative;display:inline-block;';
+        wrap.innerHTML =
+          '<div id="copy-pill" class="inline-flex items-stretch border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-full">' +
+            '<button id="copy-main-btn" onclick="window.copyPageMd()" class="copy-md-btn inline-flex items-center gap-1.5 text-sm font-medium px-3.5 py-1.5 bg-transparent border-none cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors rounded-l-full" style="font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' +
+              COPY_ICON + '<span id="copy-main-label">Copy page</span>' +
+            '</button>' +
+            '<div class="bg-slate-200 dark:bg-slate-700" style="width:1px;margin:6px 0;flex-shrink:0;"></div>' +
+            '<button id="copy-chevron-btn" onclick="window.toggleCopyDropdown()" aria-label="More options" aria-expanded="false" class="inline-flex items-center px-2.5 bg-transparent border-none cursor-pointer text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors rounded-r-full">' +
+              '<span id="copy-chevron-icon">' + CHEV_DOWN + '</span>' +
+            '</button>' +
+          '</div>' +
+          '<div id="copy-dropdown-menu" style="display:none;position:absolute;left:0;top:calc(100% + 8px);background:#1c1c1e;border-radius:16px;padding:6px;min-width:290px;box-shadow:0 8px 32px rgba(0,0,0,0.35);z-index:100;">' +
+            dropdownRow(COPY_ICON, 'Copy page', 'Copy page as Markdown for LLMs', 'window.copyPageMd()', null) +
+            dropdownRow(MD_ICON, 'View as Markdown' + EXT, 'View this page as plain text', 'window.viewPageMd()', null) +
+            dropdownRow(CLAUDE_ICON, 'Open in Claude' + EXT, 'Ask questions about this page', null, openInClaudeUrl) +
+          '</div>';
+        p.insertAdjacentElement('afterend', wrap);
+        // Stop all clicks inside the pill and dropdown from reaching the
+        // document listener. This is the reliable pattern: inside = stopped,
+        // outside = reaches document = close. No fragile containment checks.
+        document.getElementById('copy-pill').addEventListener('click', function(e) { e.stopPropagation(); });
+        document.getElementById('copy-dropdown-menu').addEventListener('click', function(e) { e.stopPropagation(); });
+      });
+    })();
+
     // Generate heading IDs (marked v11 does not auto-generate them)
     document.querySelectorAll('#content h2, #content h3').forEach(function(h) {
       var slug = h.textContent.trim().toLowerCase()
@@ -1180,6 +1346,7 @@ The paper also notes that context window economics constrain how much a descript
       </span>
     </div>
   </footer>
+
 
 </body>
 </html>

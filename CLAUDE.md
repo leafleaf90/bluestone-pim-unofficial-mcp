@@ -98,6 +98,8 @@ The connect page is a single HTML file. Content is written as Markdown in a `<sc
 
 Image paths must be **absolute** (`/connect/images/filename.webp`), not relative (`./images/`). Relative paths break on Vercel when the page is served without a trailing slash.
 
+The page has a "Copy page as Markdown" dropdown button injected after the "MCP is the natural evolution of this" paragraph. The copy output is built by `buildCopyContent()` in the inline script: it takes the raw `#md` source, replaces `[server-url]` with the actual MCP URL, then splices in a serialized version of the `EXAMPLES` array right before the `## FAQ` section. This means **the `EXAMPLES` array feeds two things**: the rendered chat mockups on the page, and the Markdown copy output. When you add, remove, or edit an example, both are updated automatically.
+
 ## Workflows
 
 ### "Check copy" (`/check-copy`)
