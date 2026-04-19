@@ -78,7 +78,7 @@
           class="status-checking w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0"></span>
         <span class="text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1.5 rounded-full font-medium">Beta</span>
 
-<a href="https://github.com/bspim-labs/bluestone-pim-unofficial-mcp" target="_blank" rel="noopener noreferrer"
+<a href="https://github.com/leafleaf90/bluestone-pim-unofficial-mcp" target="_blank" rel="noopener noreferrer"
           aria-label="View source on GitHub"
           class="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -431,7 +431,7 @@ Any MCP client that supports remote HTTP servers and OAuth should work. The foll
 - Windsurf
 - Zed
 
-If you run into issues, please open a [GitHub issue](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/issues).
+If you run into issues, please open a [GitHub issue](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/issues).
 
 ---
 
@@ -451,7 +451,7 @@ The native Android app does not complete the MCP connector authentication in the
 
 **Claude for iOS**
 
-Not tested. If you try it, [open an issue on GitHub](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/issues) and let me know how it goes.
+Not tested. If you try it, [open an issue on GitHub](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/issues) and let me know how it goes.
 
 **Other mobile clients**
 
@@ -489,7 +489,7 @@ First, check the URL you entered ends in `/mcp` and uses the exact address shown
 
 If the URL is correct: this is a [known bug in Claude Desktop's OAuth implementation](https://github.com/anthropics/claude-ai-mcp/issues/136), unrelated to your credentials. The flow appears to complete but Claude Desktop never finishes the token exchange. To work around it: disconnect, quit Claude Desktop fully (Cmd+Q on Mac), reopen, and reconnect. A cold start sometimes resolves it. If it keeps failing, try connecting via **Cursor** instead.
 
-Still stuck? [Open an issue on GitHub](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/issues). I can't promise a fix, but I will read it.
+Still stuck? [Open an issue on GitHub](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/issues). I can't promise a fix, but I will read it.
 
 ---
 
@@ -497,7 +497,7 @@ Still stuck? [Open an issue on GitHub](https://github.com/bspim-labs/bluestone-p
 
 This is not a Bluestone PIM product. It is a Bluestone PIM Labs community project, published openly. Bluestone has not reviewed, endorsed, or supported it in any way.
 
-Your credentials are encrypted into a session token at the point of connection and are not stored by this server. If your organisation has security or compliance requirements around API credentials, run your own instance rather than using the shared test deployment above. Option B in the [setup guide](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md) covers deploying to your own Vercel account, so credentials stay within your own infrastructure. For large organisations: loop in your IT or security team before deploying.
+Your credentials are encrypted into a session token at the point of connection and are not stored by this server. If your organisation has security or compliance requirements around API credentials, run your own instance rather than using the shared test deployment above. Option B in the [setup guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md) covers deploying to your own Vercel account, so credentials stay within your own infrastructure. For large organisations: loop in your IT or security team before deploying.
 
 This shared instance connects to the Bluestone test environment. For production use, deploy your own instance with `ENVIRONMENT=production`.
 
@@ -509,7 +509,7 @@ This shared instance connects to the Bluestone test environment. For production 
 
 If you implement Bluestone for clients, you can fork this repo and build your own MCP server tailored to your workflows. Add tools, extend the data model, deploy under your own URL with your own credentials. Your clients connect to your instance, not this one.
 
-Start with `src/tools.ts` (where tools are registered) and the [extending guide](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md). The [design doc](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-design.md) includes a Behavior quirks section covering edge cases in model behavior discovered through testing. Worth reading before you ship tools to clients.
+Start with `src/tools.ts` (where tools are registered) and the [extending guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md). The [design doc](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-design.md) includes a Behavior quirks section covering edge cases in model behavior discovered through testing. Worth reading before you ship tools to clients.
 
 For a full developer guide including Claude Code workflows, see [Fork and extend](#fork-and-extend) below.
 
@@ -546,10 +546,10 @@ What you supply: Bluestone PIM credentials (MAPI client ID/secret, PAPI key), a 
 
 ### How to deploy
 
-See [docs/setup-developer.md](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/blob/main/docs/setup-developer.md) for the full setup guide. The short version:
+See [docs/setup-developer.md](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/setup-developer.md) for the full setup guide. The short version:
 
 ```bash
-git clone https://github.com/bspim-labs/bluestone-pim-unofficial-mcp
+git clone https://github.com/leafleaf90/bluestone-pim-unofficial-mcp
 npm install
 # add .env with PAPI_KEY, MAPI_CLIENT_ID, MAPI_CLIENT_SECRET, SIGNING_SECRET
 npm run build
@@ -558,7 +558,7 @@ vercel --prod
 
 ### How to add tools
 
-All tools are registered in `src/tools.ts` inside `createMcpServer()`. Read [docs/mcp-patterns.md](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-patterns.md) before writing a new tool. It defines required description format, response shaping, annotations, and error handling. Code skeletons are in [docs/extending.md](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md).
+All tools are registered in `src/tools.ts` inside `createMcpServer()`. Read [docs/mcp-patterns.md](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-patterns.md) before writing a new tool. It defines required description format, response shaping, annotations, and error handling. Code skeletons are in [docs/extending.md](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md).
 
 Key rules: every tool needs `readOnlyHint`, `destructiveHint`, and `idempotentHint` annotations. Every response starts with a plain-text summary line before any JSON. No em dashes in descriptions: they read as AI-generated and erode trust.
 
@@ -577,7 +577,7 @@ If you develop this server using [Claude Code](https://claude.ai/code), the foll
 
 ### Design decisions already made
 
-Before changing architecture or tool behavior, read [docs/mcp-design.md](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-design.md). It documents why MAPI is the default for reads, how context headers work, why the OAuth flow handles two client types on one endpoint, and the behavior quirks discovered through testing. Many of the things that look like obvious improvements have already been tried and replaced.
+Before changing architecture or tool behavior, read [docs/mcp-design.md](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/mcp-design.md). It documents why MAPI is the default for reads, how context headers work, why the OAuth flow handles two client types on one endpoint, and the behavior quirks discovered through testing. Many of the things that look like obvious improvements have already been tried and replaced.
 
 ## For the curious
 
@@ -602,7 +602,7 @@ A few concrete decisions that followed from those principles:
 - **Language switching without server state.** The server exposes a context parameter on read tools corresponding to Bluestone's language and market settings. When you ask for data in a specific language, the AI looks up the right context ID and passes it on subsequent calls. No session is needed on the server side. The model tracks the active language for the conversation naturally.
 - **Response shaping: only send the model what it needs.** Raw Bluestone API responses are wide. A product detail response contains media arrays, attribute definitions, relation lists, variant arrays, publish references, and more. Passing all of that to the model on every list call floods the context window, increases cost, and makes the model's output less predictable. Each tool maps the raw response to a smaller, purpose-built object before the model sees it. Only the fields required for the task are included. This also acts as an abstraction layer: if the API changes a field name or nesting structure, only the tool changes, not the model's view of the data. Product images are a clear example of the trade-off: the list tool includes the image URL in each product row (it is already in the response, no extra cost), but does not fetch and encode the image. Fetching and base64-encoding one image per product in a list of fifty would add fifty HTTP requests and balloon the context window with binary data. Instead, a separate `get_product_image` tool fetches a single image on demand when you ask to see it.
 
-If you are building on top of this or forking it, the [patterns and design docs](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp/tree/main/docs) in the repo go into more detail.
+If you are building on top of this or forking it, the [patterns and design docs](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/tree/main/docs) in the repo go into more detail.
 
 ## Design notes
 
@@ -660,7 +660,7 @@ The pattern: an orchestration agent receives a task ("enrich all products in the
 
 The tools that unlock this (`get_product` and `update_product`) are not implemented yet. But the server is already built on standard MCP over HTTP with OAuth, which means any agent framework that supports MCP can connect to it today for the read and create operations that do exist.
 
-If you are building an agent workflow on top of this, the [GitHub repo](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp) is the starting point. The same codebase, the same tools.
+If you are building an agent workflow on top of this, the [GitHub repo](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp) is the starting point. The same codebase, the same tools.
 
 ### What is not implemented yet, and why
 
@@ -682,7 +682,7 @@ The data side adds its own complications. In a normal integration the API is doc
 
 What the development loop looks like in practice: write description text, test model behavior, notice the gaps, adjust. Repeat. It is slower and less deterministic than writing code, and the feedback cycle is conversational rather than computational. I am learning as I go. I suspect most people building MCP integrations right now are too, regardless of what they are connecting.
 
-If you are thinking through the same problems (how to write tool descriptions that produce consistent model behavior, how to decide when to surface nuance versus when to simplify, how to design response shapes that give the model what it actually needs) I would like to hear how you are approaching it. Open an issue or a discussion on [GitHub](https://github.com/bspim-labs/bluestone-pim-unofficial-mcp).
+If you are thinking through the same problems (how to write tool descriptions that produce consistent model behavior, how to decide when to surface nuance versus when to simplify, how to design response shapes that give the model what it actually needs) I would like to hear how you are approaching it. Open an issue or a discussion on [GitHub](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp).
 
 ### Further reading
 
@@ -835,7 +835,7 @@ The paper also notes that context window economics constrain how much a descript
         notes: [
           '<strong>The image URL was already in the product list.</strong> When the user asked for the image, Claude didn\'t need to fetch the product again. The <code>imageUrl</code> came back in the original <code>list_published_products_in_category</code> response, so <code>get_product_image</code> could fetch and display it directly.',
           '<strong>The pending name change surfaced without being asked.</strong> The comparison showed "T-shirt - Green and Great!" as the draft name against "T-shirt - Green" as the live name. Claude flagged the discrepancy from the data alone.',
-          '<strong>Why the image is in the tool panel, not inline.</strong> The MCP spec supports returning images as base64 content blocks, and this tool does exactly that. But Claude Desktop renders them inside the collapsed tool result panel rather than inline in the chat. Attempts to fix this server-side failed. Adding an instruction to the tool description had no effect. Embedding the instruction directly in the tool result text also failed: the model can see the image in its context window and assumes the user can too, so it says "there it is" without directing the user anywhere. The current tool result text now explicitly addresses this gap:<br><br><code style="font-size:11px;background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:6px;display:block;line-height:1.6;">IMPORTANT: You can see this image in your context window, but the user cannot see it inline in the chat. The image is hidden inside a collapsed tool result panel that the user has to manually expand. Do not say "there it is" or imply the image is visible to them. Instead, tell the user they can open the image directly at this URL: [url]</code><br>The result: Claude now gives the direct URL. This appears to be a Claude Desktop rendering limitation rather than something fixable server-side, as far as I can tell. If you know of a way to render MCP image content blocks inline in the chat, I would genuinely like to hear it. Open an issue or discussion on <a href="https://github.com/bspim-labs/bluestone-pim-unofficial-mcp" style="text-decoration:underline;color:#93c5fd;">GitHub</a>.',
+          '<strong>Why the image is in the tool panel, not inline.</strong> The MCP spec supports returning images as base64 content blocks, and this tool does exactly that. But Claude Desktop renders them inside the collapsed tool result panel rather than inline in the chat. Attempts to fix this server-side failed. Adding an instruction to the tool description had no effect. Embedding the instruction directly in the tool result text also failed: the model can see the image in its context window and assumes the user can too, so it says "there it is" without directing the user anywhere. The current tool result text now explicitly addresses this gap:<br><br><code style="font-size:11px;background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:6px;display:block;line-height:1.6;">IMPORTANT: You can see this image in your context window, but the user cannot see it inline in the chat. The image is hidden inside a collapsed tool result panel that the user has to manually expand. Do not say "there it is" or imply the image is visible to them. Instead, tell the user they can open the image directly at this URL: [url]</code><br>The result: Claude now gives the direct URL. This appears to be a Claude Desktop rendering limitation rather than something fixable server-side, as far as I can tell. If you know of a way to render MCP image content blocks inline in the chat, I would genuinely like to hear it. Open an issue or discussion on <a href="https://github.com/leafleaf90/bluestone-pim-unofficial-mcp" style="text-decoration:underline;color:#93c5fd;">GitHub</a>.',
         ]
       },
       {
@@ -1336,7 +1336,7 @@ The paper also notes that context window economics constrain how much a descript
           Viktor Lövgren
         </a>
         <span>·</span>
-        <a href="https://github.com/bspim-labs/bluestone-pim-unofficial-mcp" target="_blank" rel="noopener noreferrer"
+        <a href="https://github.com/leafleaf90/bluestone-pim-unofficial-mcp" target="_blank" rel="noopener noreferrer"
           class="flex items-center gap-1 hover:text-slate-600 dark:hover:text-slate-300 transition-colors underline underline-offset-2">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
