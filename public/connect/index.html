@@ -593,7 +593,7 @@ A few principles guided the design:
 - **Tools serve models, not developers.** Descriptions and error messages are written for a language model to read and act on, not for a developer to debug.
 - **Lead with summaries, not raw data.** Every response starts with a plain-text sentence before any JSON. Models are less likely to paste raw data into chat when the key facts are already stated.
 - **Fail with user-actionable messages.** "Authentication failed: your API key may be invalid" is more useful than a status code.
-- **Guide the model, not just the user.** Tool descriptions tell the model when to call a tool, what to suppress unless asked, and how to behave with the data it receives.
+- **Guide both the model and the user.** Tool descriptions tell the model when to call a tool, what to suppress unless asked, and how to behave with the data it receives.
 
 A few concrete decisions that followed from those principles:
 
@@ -1105,7 +1105,7 @@ The paper also notes that context window economics constrain how much a descript
       var CHEV_UP   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
 
       // Serialize the EXAMPLES array to plain Markdown so copied content includes
-      // the example conversations, not just the #md source which omits them.
+      // the example conversations, since the #md source omits them.
       function stripHtml(s) {
         return s
           .replace(/<[^>]+>/g, '')

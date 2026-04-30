@@ -13,7 +13,7 @@ Four principles guide every tool in this server:
 1. **Tools serve models, not developers.** Descriptions, response text, and error messages are read by a language model at inference time. Write them accordingly.
 2. **Surface summaries, not raw data.** Lead every response with a plain-text summary line. Models are less likely to paste raw JSON into chat when the key facts are already stated.
 3. **Fail with user-actionable messages.** Errors go through the model to the user. "PAPI error 401" is useless. "Your API key may be invalid or expired" is not.
-4. **Guide the model, not just the user.** Descriptions tell the model when to call a tool, what to do with the result, and what to suppress unless asked.
+4. **Guide both the model and the user.** Descriptions tell the model when to call a tool, what to do with the result, and what to suppress unless asked.
 
 ---
 
@@ -21,7 +21,7 @@ Four principles guide every tool in this server:
 
 Descriptions are the model's only documentation for a tool. They determine when the tool is called and how its output is used.
 
-### Say when to call the tool, not just what it does
+### Say When To Call The Tool
 
 Include the trigger condition and any required sequencing.
 
@@ -259,7 +259,7 @@ The same applies when a tool's scope is intentionally narrow. If `create_product
 
 ## Checklist: registering a new tool
 
-- [ ] Description says **when** to call it, not just what it does
+- [ ] Description says **when** to call it and what it does
 - [ ] Description says **what to suppress** unless the user asks
 - [ ] Hierarchical data has **display instructions** in the description
 - [ ] No **session_init reminder** in the description

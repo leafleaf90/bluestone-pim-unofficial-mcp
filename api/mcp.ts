@@ -14,14 +14,14 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createMcpServer, Credentials } from "../src/tools.js";
 
 const app = express();
-// CSP is disabled — helmet's default includes `form-action 'self'` which blocks
+// CSP is disabled: helmet's default includes `form-action 'self'` which blocks
 // the credentials form POST. The form is protected by the HMAC CSRF token instead.
 // TODO (production): re-enable CSP with a proper nonce-based policy.
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Rate limiting — in-memory store per Vercel instance; not globally consistent
+// Rate limiting: in-memory store per Vercel instance; not globally consistent
 // across concurrent instances. Sufficient for abuse prevention at this scale.
 // For strict global limits, replace the default store with a Redis-backed one
 // (e.g. rate-limit-redis) pointing at Vercel KV or Upstash.
@@ -70,16 +70,16 @@ function requireSigningSecret(res: Response): boolean {
 
 // ─── Crypto helpers ───────────────────────────────────────────────────────────
 //
-// AES-256-GCM provides both confidentiality and authenticity — the auth tag
+// AES-256-GCM provides both confidentiality and authenticity: the auth tag
 // detects any tampering, so no separate HMAC is needed.
 //
 // Format for all encrypted values: "{iv}.{authTag}.{ciphertext}" (all base64url)
 
-// Derived once at module load — recomputing on every request would be wasteful
+// Derived once at module load: recomputing on every request would be wasteful
 // and the secret doesn't change at runtime.
 // Note: if SIGNING_SECRET is unset this derives a key from an empty string.
-// That key is never used in practice — requireSigningSecret() guards all auth
-// endpoints — but the derivation itself is harmless.
+// That key is never used in practice because requireSigningSecret() guards all
+// auth endpoints, but the derivation itself is harmless.
 const AES_KEY: Buffer = createHash("sha256").update(SIGNING_SECRET).digest();
 
 function encryptAES(plaintext: string): string {
@@ -105,14 +105,14 @@ function decryptAES(value: string): string | null {
   }
 }
 
-// Encrypt the auth code payload — keeps mapiClientId and PAPI key out of the
+// Encrypt the auth code payload: keeps mapiClientId and PAPI key out of the
 // redirect URL even if it is intercepted.
 function encryptAuthCode(payload: object): string {
   return encryptAES(JSON.stringify(payload));
 }
 
 // Decrypt and parse the auth code. Returns null if invalid, tampered, or expired.
-// mapiClientSecret is present only in the dynamic registration (form) flow —
+// mapiClientSecret is present only in the dynamic registration (form) flow -
 // in the legacy Claude Desktop flow it arrives separately as client_secret at /token.
 function decryptAuthCode(
   code: string
@@ -130,7 +130,7 @@ function decryptAuthCode(
 //
 // mapiClientId is used as AES-GCM Additional Authenticated Data (AAD) and
 // stored as a plaintext prefix on the token. This binds the token to a specific
-// client identity — decryption fails if the prefix is altered, so knowing
+// client identity: decryption fails if the prefix is altered, so knowing
 // SIGNING_SECRET alone is not enough to bulk-decrypt tokens without also knowing
 // each user's mapiClientId.
 //
@@ -165,7 +165,7 @@ function decryptToken(token: string): Credentials | null {
     const parsed = JSON.parse(decrypted) as Partial<Credentials> & { exp?: number };
     if (!parsed.papiKey || !parsed.mapiClientId || !parsed.mapiClientSecret) return null;
     if (!parsed.exp || Date.now() > parsed.exp) return null;
-    // Verify AAD prefix matches decrypted content — detects prefix tampering
+    // Verify AAD prefix matches decrypted content: detects prefix tampering
     if (parsed.mapiClientId !== mapiClientId) return null;
     return {
       papiKey: parsed.papiKey,
@@ -198,8 +198,8 @@ function verifyPKCE(codeVerifier: string, codeChallenge: string): boolean {
 // ─── redirect_uri validation ──────────────────────────────────────────────────
 //
 // Blocks javascript: and data: URIs (XSS vectors) and rejects unparseable URIs.
-// Everything else — localhost, HTTPS, and custom app URI schemes (e.g. cursor://)
-// — is allowed. Custom schemes are legitimate for desktop OAuth clients.
+// Everything else is allowed: localhost, HTTPS, and custom app URI schemes
+// (e.g. cursor://). Custom schemes are legitimate for desktop OAuth clients.
 //
 // PKCE (S256) is the primary protection against code interception regardless.
 //
@@ -257,7 +257,7 @@ function renderCredentialsForm(params: {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bluestone PIM — Authorise</title>
+  <title>Bluestone PIM: Authorise</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; padding: 40px 16px; }
@@ -325,7 +325,7 @@ app.get("/.well-known/oauth-authorization-server", (req: Request, res: Response)
 
 // ─── Protected resource metadata ─────────────────────────────────────────────
 //
-// RFC 9728 — tells MCP clients where to find the authorization server for this
+// RFC 9728: tells MCP clients where to find the authorization server for this
 // resource. Cursor and other strictly compliant clients look here before
 // attempting dynamic client registration.
 
@@ -339,10 +339,10 @@ app.get("/.well-known/oauth-protected-resource", (req: Request, res: Response) =
 
 // ─── Dynamic client registration ─────────────────────────────────────────────
 //
-// RFC 7591 — required by Cursor and any other strict OAuth 2.1 client.
+// RFC 7591: required by Cursor and any other strict OAuth 2.1 client.
 //
 // Returns a client_id (random 32-char hex) without storing any state.
-// Bluestone credentials are unknown at registration time — they are collected
+// Bluestone credentials are unknown at registration time: they are collected
 // via the HTML form shown at /authorize for these clients.
 //
 // TODO (production): persist registrations and enforce client_id at /authorize
@@ -568,7 +568,7 @@ app.post("/token", authRateLimiter, (req: Request, res: Response) => {
 
 // ─── MCP endpoint ─────────────────────────────────────────────────────────────
 //
-// app.all is intentional — the MCP SDK's handleRequest needs to handle both
+// app.all is intentional: the MCP SDK's handleRequest needs to handle both
 // GET (SSE stream initiation) and POST (JSON-RPC calls) on the same path.
 
 app.all("/mcp", mcpRateLimiter, async (req: Request, res: Response) => {
@@ -583,7 +583,7 @@ app.all("/mcp", mcpRateLimiter, async (req: Request, res: Response) => {
   }
 
   // Fallback: direct headers for development / non-OAuth clients.
-  // This bypasses the OAuth flow intentionally — remove if exposing publicly
+  // This bypasses the OAuth flow intentionally: remove if exposing publicly
   // without the OAuth layer.
   if (!creds) {
     const papiKey = req.headers["x-papi-key"] as string | undefined;

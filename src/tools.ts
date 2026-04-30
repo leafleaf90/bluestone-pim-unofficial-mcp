@@ -61,7 +61,7 @@ interface MapiCatalogsResponse {
 
 interface SearchProductsResponse {
   // data is an array of objects, not plain strings.
-  // total is NOT present — use POST /search/products/count separately.
+  // total is NOT present: use POST /search/products/count separately.
   data: Array<{ id: string }>;
 }
 
@@ -503,7 +503,7 @@ export function createMcpServer(creds: Credentials): McpServer {
       };
 
       // Step 1: Run the paginated search and a total count in parallel.
-      // The search response contains only IDs — no total count field.
+      // The search response contains only IDs: no total count field.
       // Total comes from a separate /count endpoint with the same filter body.
       const [searchResponse, countResponse] = await Promise.all([
         mapiPostBody<SearchProductsResponse>(
@@ -543,7 +543,7 @@ export function createMcpServer(creds: Credentials): McpServer {
       // Step 2: Resolve IDs to product data via POST /pim/products/list/views/by-ids.
       // Note: the UI uses POST /pim/products/list/by-ids (simpler flat response with name
       // as a plain string) but that endpoint is not in the official PIM API spec.
-      // We use list/views/by-ids with the METADATA view instead — name comes back as
+      // We use list/views/by-ids with the METADATA view instead: name comes back as
       // { value: { en: "...", nl: "..." } } and we extract the requested context key.
       const viewsResponse = await mapiPostBody<MapiProductViewsResponse>(
         `${MAPI_PIM_BASE}/products/list/views/by-ids?archiveState=ACTIVE`,
@@ -857,7 +857,7 @@ export function createMcpServer(creds: Credentials): McpServer {
             ],
           };
         } catch (err) {
-          // Product was created — report success and note the assignment failure.
+          // Product was created: report success and note the assignment failure.
           const message = err instanceof Error ? err.message : String(err);
           return {
             content: [

@@ -1,6 +1,6 @@
 # Changelog
 
-## Cursor OAuth support — 2026-04-10
+## Cursor OAuth support: 2026-04-10
 
 ### Background
 
@@ -23,7 +23,7 @@ Returns:
 
 #### `POST /register` (new endpoint)
 
-RFC 7591 dynamic client registration. Cursor POSTs here before opening the authorisation URL. The endpoint returns an opaque `client_id` (random 32-char hex). No state is persisted — Bluestone credentials are unknown at registration time and are collected in the next step.
+RFC 7591 dynamic client registration. Cursor POSTs here before opening the authorisation URL. The endpoint returns an opaque `client_id` (random 32-char hex). No state is persisted: Bluestone credentials are unknown at registration time and are collected in the next step.
 
 The registration request's `redirect_uris` array is validated and echoed back in the response, as required by the spec.
 
@@ -38,7 +38,7 @@ The form is a minimal, self-contained HTML page served directly from the Vercel 
 
 #### `POST /authorize` (new route)
 
-Handles form submission from the credentials form. Validates inputs, verifies the CSRF token, encrypts all three Bluestone credentials into an AES-256-GCM auth code, and redirects back to the client's `redirect_uri` with the code — exactly as the legacy flow does.
+Handles form submission from the credentials form. Validates inputs, verifies the CSRF token, encrypts all three Bluestone credentials into an AES-256-GCM auth code, and redirects back to the client's `redirect_uri` with the code: exactly as the legacy flow does.
 
 #### CSRF protection on the form
 
@@ -66,7 +66,7 @@ Added routing entries for the two new endpoints:
 
 #### `redirect_uri` validation
 
-`redirect_uri` is now validated on both `GET` and `POST /authorize`. Only `javascript:` and `data:` URIs are rejected — localhost, HTTPS, and custom app URI schemes (e.g. `cursor://`) are all accepted. PKCE remains the primary protection against code interception.
+`redirect_uri` is now validated on both `GET` and `POST /authorize`. Only `javascript:` and `data:` URIs are rejected: localhost, HTTPS, and custom app URI schemes (e.g. `cursor://`) are all accepted. PKCE remains the primary protection against code interception.
 
 #### CSP (`helmet`)
 
@@ -91,6 +91,6 @@ See the **Production hardening** table in `docs/how-it-works.md` for the full li
 | Item | Detail |
 |---|---|
 | No redirect_uri allowlist | URIs are not validated against what was registered at `/register`. Full fix requires persisting registrations. |
-| Stateless registration | Any opaque `client_id` is accepted at `/authorize` — unregistered clients can reach the form. |
+| Stateless registration | Any opaque `client_id` is accepted at `/authorize`: unregistered clients can reach the form. |
 | CSP disabled | Should be re-enabled with a nonce-based policy before production exposure. |
 | Rate limiting | `/register`, `/authorize`, and `/token` are rate-limited in-memory (20 req/min per IP). Not globally consistent across concurrent Vercel instances; replace with a Redis-backed store for strict global limits. |
