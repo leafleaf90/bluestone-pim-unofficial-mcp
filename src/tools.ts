@@ -606,7 +606,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- List published catalogs only (list_published_catalogs)\n" +
         "- List published products in a category, includes image URL per product (list_published_products_in_category)\n" +
         "- Fetch and display a product image inline (get_product_image)\n" +
-        "- Create a simple attribute definition with name, data type, and optional unit (create_attribute_definition)\n" +
+        "- Create an attribute definition with name, data type, optional unit, and required initial enum values for select attributes (create_attribute_definition)\n" +
         "- Create a dictionary value for a dictionary attribute definition (create_dictionary_value)\n" +
         "- Append values to single_select and multi_select attribute definitions (append_select_attribute_values)\n" +
         "- Create a catalog category node with optional parent category (create_category_node)\n" +
@@ -626,7 +626,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "then pass it to subsequent tool calls. The default context is 'en' (English).\n\n" +
         "Always confirm the product name and product number with the user before calling create_product. " +
         "Always confirm the exact missing category name and parent before calling create_category_node. " +
-        "Always confirm the exact missing attribute name, data type, and unit before calling create_attribute_definition. " +
+        "Always confirm the exact missing attribute name, data type, unit, and initial enum values for select attributes before calling create_attribute_definition. " +
         "Always confirm the exact dictionary or select values before calling create_dictionary_value or append_select_attribute_values. " +
         "Always confirm the exact product, attribute definition, and values before calling set_product_attribute. " +
         "Always confirm the exact product and target value before calling assign_product_to_category or update_product_name.\n\n" +
@@ -1123,9 +1123,11 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Use this only after list_attribute_definitions has shown that an onboarding source field has no suitable existing attribute. " +
         "Do not use this to create an alternative to a suitable existing attribute. " +
         "For approved onboarding mappings with a missing simple attribute, use this tool instead of telling the user to create the attribute in the Bluestone UI. " +
-        "Always present the proposed attribute name, data type, and unit to the user and get explicit confirmation before calling this tool. " +
-        "This first version creates the definition with name, dataType, and optional unit only. " +
-        "It does not create enum values, dictionary values, validation restrictions, groups, category nodes, or product attribute values. " +
+        "Always present the proposed attribute name, data type, unit, and initial enum values if relevant, then get explicit confirmation before calling this tool. " +
+        "For single_select and multi_select, enumValues is required because Bluestone rejects select attributes without enum restrictions at creation time. " +
+        "Do not fall back from single_select or multi_select to text unless the user explicitly approves that data type change. " +
+        "This tool creates the definition with name, dataType, optional unit, and initial enum values for select attributes. " +
+        "It does not create dictionary values, validation restrictions, groups, category nodes, or product attribute values. " +
         "After creating the attribute definition, return the new ID and tell the user it can be used with set_product_attribute.",
       annotations: {
         readOnlyHint: false,
@@ -1148,13 +1150,57 @@ export function createMcpServer(creds: Credentials): McpServer {
           .string()
           .optional()
           .describe("Optional unit, for example kg, mm, kW, m3/h, or years. Omit when the attribute has no unit."),
+        enumValues: z
+          .array(
+            z.object({
+              value: z
+                .string()
+                .min(1)
+                .describe("Enum value label to create on the select attribute."),
+              number: z
+                .string()
+                .optional()
+                .describe("Optional enum value number. Omit to let Bluestone generate or default it."),
+              metadata: z
+                .string()
+                .optional()
+                .describe("Optional metadata, for example a color hex code for color select values."),
+            })
+          )
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Required for single_select and multi_select attributes. Initial enum values confirmed by the user."),
       },
     },
-    async ({ name, dataType, unit }) => {
+    async ({ name, dataType, unit, enumValues }) => {
+      const isSelect = dataType === "single_select" || dataType === "multi_select";
+      if (isSelect && !enumValues?.length) {
+        throw new Error(
+          `Cannot create ${dataType} attribute "${name}" without initial enum values. Ask the user to confirm the allowed values, or explicitly approve a different data type. Do not fall back to text automatically.`
+        );
+      }
+      if (!isSelect && enumValues?.length) {
+        throw new Error(
+          `enumValues can only be used when dataType is single_select or multi_select. Confirm the intended data type before creating "${name}".`
+        );
+      }
+
       const body = {
         dataType,
         name,
         ...(unit && { unit }),
+        ...(isSelect && {
+          restrictions: {
+            enum: {
+              values: enumValues?.map((value) => ({
+                value: value.value,
+                ...(value.number && { number: value.number }),
+                ...(value.metadata && { metadata: value.metadata }),
+              })),
+            },
+          },
+        }),
       };
       const { resourceId } = await mapiPost<Record<string, unknown>>(
         "/pim/definitions",
@@ -1173,7 +1219,9 @@ export function createMcpServer(creds: Credentials): McpServer {
             type: "text" as const,
             text:
               `Attribute definition "${name}" created successfully. ID: ${resourceId}. ` +
-              `Data type: ${dataType}${unit ? `, unit: ${unit}` : ""}.`,
+              `Data type: ${dataType}${unit ? `, unit: ${unit}` : ""}` +
+              (isSelect ? `, enum values: ${enumValues?.length ?? 0}` : "") +
+              ".",
           },
         ],
       };

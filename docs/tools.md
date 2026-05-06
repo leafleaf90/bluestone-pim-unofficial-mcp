@@ -210,7 +210,7 @@ Header: context-fallback: true
 
 ## `create_attribute_definition`
 
-**Purpose:** Create a simple attribute definition in the working-state data model.
+**Purpose:** Create an attribute definition in the working-state data model. For `single_select` and `multi_select`, initial enum values must be provided at creation time.
 
 **Input:**
 
@@ -219,6 +219,7 @@ Header: context-fallback: true
 | `name` | string | Yes | Attribute definition name confirmed by the user |
 | `dataType` | string | Yes | One of the supported Bluestone attribute data types |
 | `unit` | string | No | Optional unit, for example `kg`, `mm`, `kW`, `m3/h`, or `years` |
+| `enumValues` | array | Required for `single_select` and `multi_select` | Initial enum values confirmed by the user |
 
 **API call:**
 ```
@@ -228,14 +229,24 @@ Body: { "dataType": "decimal", "name": "Weight", "unit": "kg" }
 → 201, resource-id header contains the new definition ID
 ```
 
+For select attributes:
+```
+POST /pim/definitions
+Header: authorization: Bearer <token>
+Body: { "dataType": "single_select", "name": "Supplier", "restrictions": { "enum": { "values": [{ "value": "Supplier A" }] } } }
+→ 201, resource-id header contains the new definition ID
+```
+
 Supported `dataType` values: `boolean`, `integer`, `decimal`, `date`, `time`, `date_time`, `location`, `single_select`, `multi_select`, `text`, `formatted_text`, `pattern`, `multiline`, `column`, `matrix`, `dictionary`.
 
 **What Claude does:**
 - Calls `list_attribute_definitions` first to avoid duplicate attributes
 - Uses this only when a source field was not mapped to a suitable existing PIM attribute
-- Presents the proposed name, data type, and unit to the user for explicit confirmation
-- Creates approved missing simple onboarding attributes through MCP instead of telling the user to create them in the Bluestone UI
-- Uses this only for simple definitions. It does not create enum values, dictionary values, validation restrictions, groups, category nodes, or product attribute values
+- Presents the proposed name, data type, unit, and initial enum values for select attributes to the user for explicit confirmation
+- Creates approved missing onboarding attributes through MCP instead of telling the user to create them in the Bluestone UI
+- Requires `enumValues` when creating `single_select` or `multi_select` because Bluestone rejects select attributes without enum restrictions
+- Does not fall back from `single_select` or `multi_select` to `text` unless the user explicitly approves that data type change
+- It does not create dictionary values, validation restrictions, groups, category nodes, or product attribute values
 - Returns the new definition ID from the `resource-id` header
 
 ---

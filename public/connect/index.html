@@ -199,7 +199,7 @@ Bluestone is built API-first, with clean structured data. This is exactly what A
 - <span class="badge-new">New</span> **May 2026:** Dictionary value creation added. Create missing values for dictionary attributes and use their IDs when setting product attributes.
 - <span class="badge-new">New</span> **May 2026:** Category node creation added. Create missing onboarding categories after checking the existing catalog tree.
 - <span class="badge-new">New</span> **May 2026:** Product attribute value writes added. Set mapped attribute values on products after the onboarding mapping is approved.
-- <span class="badge-new">New</span> **May 2026:** Simple attribute definition creation added. Create missing onboarding attributes with name, data type, and optional unit after confirmation.
+- <span class="badge-new">New</span> **May 2026:** Attribute definition creation added. Create missing onboarding attributes, including select attributes with initial enum values, after confirmation.
 - <span class="badge-new">New</span> **May 2026:** Product placement and rename tools added. Assign existing products to catalog categories and update product names after confirmation.
 - <span class="badge-new">New</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
 - <span class="badge-new">New</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
@@ -217,7 +217,7 @@ Almost nothing, if I am being honest. A handful of tools, but the point is the f
 - **Explore products**: list all products in a catalog, including sub-categories. You see working data: changes your team has made today that have not been published yet. Ask specifically for "published products" if you want to see only what is live.
 - **Inspect product detail**: fetch working-state product attributes, categories, assets, relations, and variant information
 - **Plan product data onboarding**: map incoming fields to product number, product name, existing attribute definitions, and category paths, with unclear matches called out before any writes happen
-- **Create missing attributes**: add simple attribute definitions with name, data type, and optional unit after confirmation
+- **Create missing attributes**: add attribute definitions with name, data type, optional unit, and initial enum values for select attributes after confirmation
 - **Create dictionary values**: add missing values for dictionary attributes before setting product attributes
 - **Append select values**: add missing single-select and multi-select enum values while preserving existing values
 - **Create missing categories**: add category nodes after confirming they do not already exist in the catalog tree
@@ -226,7 +226,7 @@ Almost nothing, if I am being honest. A handful of tools, but the point is the f
 - **Create a product**: create a new product by name and optional number (the server instructs the AI to confirm both before calling the tool, though this depends on the client)
 - **Place and rename products**: assign an existing product to a catalog category or update its name after confirmation
 
-**What to expect for now:** Browsing, product detail reads, onboarding planning, simple attribute creation, dictionary value creation, select enum append, category-node creation, product attribute value writes, creating products, category assignment, and product renaming work. Media, validation-rule creation, and advanced data-model configuration are not yet supported. This is a foundation to build on, not a replacement for the Bluestone PIM interface.
+**What to expect for now:** Browsing, product detail reads, onboarding planning, attribute creation, dictionary value creation, select enum append, category-node creation, product attribute value writes, creating products, category assignment, and product renaming work. Media, validation-rule creation, and advanced data-model configuration are not yet supported. This is a foundation to build on, not a replacement for the Bluestone PIM interface.
 
 A [Bluestone PIM Labs](https://labs.bluestonepim.com/) community project. Not an official Bluestone PIM product. No SLA, no support commitments. Contributions and forks welcome.
 
