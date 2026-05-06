@@ -54,11 +54,11 @@ Exclude:
 
 ---
 
-## Current entries (as of April 2026)
+## Current entries (as of May 2026)
 
 ```
+- <span class="badge-new">New</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
 - <span class="badge-new">New</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
 - <span class="badge-new">New</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
 - <span class="badge-note">Note</span> **April 2026:** Mobile support clarified. claude.ai in the browser works on phone. The native Claude app does not support remote MCP servers yet.
-- <span class="badge-note">Note</span> **April 2026:** Agents section added to Design notes. Covers why bulk operations don't fit the chat model but work well for an unattended agent.
 ```

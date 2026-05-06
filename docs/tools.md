@@ -26,6 +26,19 @@ See `docs/mcp-patterns.md` for the server-side mitigations (IMPORTANT instructio
 
 ---
 
+## Product onboarding prompts
+
+Requests about onboarding, importing, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, or preparing products before creation should use the read-only onboarding flow first:
+
+1. Call `list_attribute_definitions`
+2. Call `list_catalogs`
+3. Call `list_category_tree` if category placement below the catalog root is needed
+4. Present confident mappings, uncertain mappings, missing attributes, category suggestions, and validation notes
+
+No products or attributes should be created during this phase unless the user explicitly moves beyond planning and confirms a write action.
+
+---
+
 ---
 
 ## `list_contexts`
@@ -73,10 +86,84 @@ Header: context-fallback: true
 **What Claude does with the result:**
 - Lists catalogs with ID, name, and number
 - Uses the catalog ID directly as `categoryId` in `list_products_in_category`
+- Uses the catalog ID as `catalogId` in `list_category_tree` when category-level placement is needed
 
 **Example prompts:**
 - "Show me the catalogs"
 - "List all catalogs"
+
+---
+
+## `list_category_tree`
+
+**Purpose:** Fetch the working-state category tree for one catalog and return it as a flattened list with paths. This supports product onboarding when Claude needs to suggest where incoming products belong.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `catalogId` | string | Yes | Catalog ID from `list_catalogs` |
+| `catalogName` | string | No | Human-readable catalog name (shown in response summary) |
+| `search` | string | No | Case-insensitive filter across category name, number, and path |
+| `limit` | number | No | Categories per page (default 200, max 500) |
+| `page` | number | No | Page number, 1-indexed (default 1) |
+| `context` | string | No | Language/market context ID. Defaults to `"en"`. |
+
+**API call:**
+```
+GET /pim/catalogs/{catalogId}/nodes
+Header: authorization: Bearer <token>
+Header: context: <context>
+Header: context-fallback: true
+```
+
+**What Claude does with the result:**
+- Uses `path` and `depth` to present category placement suggestions clearly
+- Suppresses raw IDs unless the user asks for implementation detail or needs to confirm an exact category
+- Calls again with `search` or the next `page` if the category tree is large
+
+**Example prompts:**
+- "Map these products to existing categories"
+- "Which category should these imported products go into?"
+- "Show me the category tree for the Products catalog"
+
+---
+
+## `list_attribute_definitions`
+
+**Purpose:** Fetch the working-state attribute definitions used for product data onboarding and field mapping.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `search` | string | No | Case-insensitive search across name, number, group, data type, and unit |
+| `group` | string | No | Case-insensitive group filter |
+| `dataType` | string | No | Exact data type filter, for example `text`, `decimal`, `single_select`, or `dictionary` |
+| `includeReadOnly` | boolean | No | Include read-only definitions (default false) |
+| `includeRemoved` | boolean | No | Include definitions marked to be removed (default false) |
+| `includeCompound` | boolean | No | Include compound definitions (default true) |
+| `maxEnumValues` | number | No | Maximum enum values per select attribute (default 25, max 100). Use 0 to omit values |
+| `limit` | number | No | Definitions per page (default 100, max 500) |
+| `page` | number | No | Page number, 1-indexed (default 1) |
+
+**API call:**
+```
+GET /pim/definitions
+Header: authorization: Bearer <token>
+Header: context-fallback: true
+```
+
+**What Claude does with the result:**
+- Maps incoming spreadsheet columns or user-provided product fields to existing attributes
+- Presents confident matches, uncertain matches, fields with no good match, and suggested new attributes
+- Flags validation issues such as enum mismatches, range mismatches, unit ambiguity, context-aware fields, and read-only fields
+- Suppresses raw IDs and full enum lists unless the user asks for implementation detail
+
+**Example prompts:**
+- "Map this spreadsheet to our Bluestone PIM attributes"
+- "Do we already have attributes for these supplier fields?"
+- "Which attributes should I create for this product data?"
 
 ---
 

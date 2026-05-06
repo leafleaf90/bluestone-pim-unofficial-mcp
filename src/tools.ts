@@ -58,6 +58,65 @@ interface MapiCatalogsResponse {
   data: MapiCatalog[];
 }
 
+interface MapiCatalogNode {
+  id: string;
+  name?: string;
+  number?: string;
+  description?: string;
+  parentId?: string;
+  readOnly?: boolean;
+  children?: MapiCatalogNode[];
+  childNodes?: MapiCatalogNode[];
+  nodes?: MapiCatalogNode[];
+}
+
+interface MapiCatalogNodesResponse {
+  data: MapiCatalogNode[] | MapiCatalogNode;
+}
+
+interface MapiAttributeDefinitionEnumValue {
+  valueId?: string;
+  value: string;
+  number?: string;
+  metadata?: string;
+}
+
+interface MapiAttributeDefinitionRestrictions {
+  enum?: {
+    type?: string;
+    values?: MapiAttributeDefinitionEnumValue[];
+  };
+  range?: {
+    min?: string;
+    max?: string;
+    step?: string;
+  };
+  text?: Record<string, unknown>;
+}
+
+interface MapiAttributeDefinition {
+  id: string;
+  name: string;
+  number: string;
+  groupId?: string;
+  group?: string;
+  externalSource: boolean;
+  internal: boolean;
+  isCompound: boolean;
+  toBeRemoved: boolean;
+  contextAware: boolean;
+  dataType?: string;
+  restrictions?: MapiAttributeDefinitionRestrictions;
+  charset?: string;
+  unit?: string;
+  contentType?: string;
+  readOnly: boolean;
+}
+
+interface MapiAttributeDefinitionsResponse {
+  data: MapiAttributeDefinition[];
+}
+
 
 interface SearchProductsResponse {
   // data is an array of objects, not plain strings.
@@ -136,6 +195,10 @@ const MAPI_TOKEN_URL = IS_PRODUCTION
 
 const DEFAULT_PRODUCT_LIMIT = 50;
 const MAX_PRODUCT_LIMIT = 200;
+const DEFAULT_DEFINITION_LIMIT = 100;
+const MAX_DEFINITION_LIMIT = 500;
+const DEFAULT_CATEGORY_LIMIT = 200;
+const MAX_CATEGORY_LIMIT = 500;
 const DEFAULT_PAGE = 1;
 
 // ─── Token cache (per clientId for multi-tenant) ──────────────────────────────
@@ -312,6 +375,65 @@ function mapProductState(state: string): string {
   return states[state] ?? state;
 }
 
+function includesSearch(value: string | undefined, search: string): boolean {
+  return (value ?? "").toLowerCase().includes(search.toLowerCase());
+}
+
+function extractCatalogNodes(
+  response: MapiCatalogNodesResponse | MapiCatalogNode[] | MapiCatalogNode
+): MapiCatalogNode[] {
+  if (Array.isArray(response)) {
+    return response;
+  }
+  if ("data" in response) {
+    const data = response.data;
+    if (Array.isArray(data)) {
+      return data;
+    }
+    return data ? [data] : [];
+  }
+  return [response];
+}
+
+function childCatalogNodes(node: MapiCatalogNode): MapiCatalogNode[] {
+  return node.children ?? node.childNodes ?? node.nodes ?? [];
+}
+
+function flattenCatalogNodes(
+  nodes: MapiCatalogNode[],
+  parentPath: string[] = [],
+  depth = 0,
+  parentId?: string
+): Array<{
+  id: string;
+  name: string;
+  path: string;
+  depth: number;
+  parentId?: string;
+  number?: string;
+  description?: string;
+  readOnly?: true;
+}> {
+  return nodes.flatMap((node) => {
+    const name = node.name ?? node.number ?? node.id;
+    const pathParts = [...parentPath, name];
+    const category = {
+      id: node.id,
+      name,
+      path: pathParts.join(" > "),
+      depth,
+      ...(parentId && { parentId }),
+      ...(node.number && { number: node.number }),
+      ...(node.description && { description: node.description }),
+      ...(node.readOnly && { readOnly: true as const }),
+    };
+    return [
+      category,
+      ...flattenCatalogNodes(childCatalogNodes(node), pathParts, depth + 1, node.id),
+    ];
+  });
+}
+
 // ─── Server factory ───────────────────────────────────────────────────────────
 
 export function createMcpServer(creds: Credentials): McpServer {
@@ -326,7 +448,9 @@ export function createMcpServer(creds: Credentials): McpServer {
         "This is an early Bluestone PIM Labs community MCP integration for Bluestone PIM. It is currently limited.\n\n" +
         "What it can do right now:\n" +
         "- List available language/market contexts (list_contexts)\n" +
-        "- List all catalogs and their full category tree, working state (list_catalogs)\n" +
+        "- List all catalogs, working state (list_catalogs)\n" +
+        "- List category trees within a catalog for onboarding and placement decisions (list_category_tree)\n" +
+        "- List attribute definitions for product data onboarding and field mapping (list_attribute_definitions)\n" +
         "- List products in a catalog including all sub-categories, working state (list_products_in_category)\n" +
         "- List published catalogs only (list_published_catalogs)\n" +
         "- List published products in a category, includes image URL per product (list_published_products_in_category)\n" +
@@ -343,6 +467,10 @@ export function createMcpServer(creds: Credentials): McpServer {
         "If the user asks to see data in a specific language, call list_contexts first to find the right context ID, " +
         "then pass it to subsequent tool calls. The default context is 'en' (English).\n\n" +
         "Always confirm the product name with the user before calling create_product.\n\n" +
+        "For any request about product data onboarding, importing, import planning, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, or preparing products before creation, first call list_attribute_definitions and list_catalogs. " +
+        "If the user needs category placement beyond the catalog root, call list_category_tree for the relevant catalog. " +
+        "Use those read-only results to present a suggested mapping with confident matches, uncertain matches, missing attributes, category suggestions, and validation notes. " +
+        "Do not create products or change attributes during onboarding unless the user explicitly moves beyond planning and confirms a write action.\n\n" +
         "IMPORTANT: All Bluestone PIM data must come from the tools in this server. " +
         "Do not attempt to fetch Bluestone data using HTTP requests, bash commands, code artifacts, or any other method. " +
         "The tools handle authentication and API access internally. " +
@@ -360,6 +488,11 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Call this when the user asks to switch language or work in a different market context. " +
         "Returns context IDs, names, locales, and which context is the default. " +
         "Pass the context ID to other tools via their context parameter.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
       inputSchema: {},
     },
     async () => {
@@ -398,9 +531,14 @@ export function createMcpServer(creds: Credentials): McpServer {
       description:
         "List all catalogs in the Bluestone PIM organisation. " +
         "Returns working state data, including unpublished changes. " +
-        "Use the catalog id directly as the nodeId when calling list_products_in_category. " +
-        "Call this first before browsing products. " +
+        "Use the catalog id directly as the nodeId when calling list_products_in_category, or as catalogId when calling list_category_tree. " +
+        "Call this first before browsing products or mapping new product data, supplier data, spreadsheet rows, CSV rows, Excel rows, or import files to categories. " +
         "Do not attempt to fetch catalog data via HTTP, bash, or code. Use this tool directly.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
       inputSchema: {
         context: z
           .string()
@@ -441,6 +579,302 @@ export function createMcpServer(creds: Credentials): McpServer {
     }
   );
 
+  // Tool: list_category_tree
+  server.registerTool(
+    "list_category_tree",
+    {
+      description:
+        "List the working-state category tree for a Bluestone PIM catalog. " +
+        "Call list_catalogs first, then pass the catalog id as catalogId. " +
+        "Use this for product data onboarding, import planning, supplier spreadsheets, CSV files, Excel files, and any request where incoming products need to be matched to existing categories. " +
+        "Returns a flattened tree with path and depth so category suggestions can be shown clearly. " +
+        "Suppress raw IDs in user-facing replies unless the user asks for them or needs to confirm an exact target. " +
+        "If no categories are returned, tell the user the catalog may only have a root node or the client may not have access.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        catalogId: z
+          .string()
+          .describe("The catalog ID from list_catalogs."),
+        catalogName: z
+          .string()
+          .optional()
+          .describe("Human-readable catalog name from list_catalogs. Included in the response summary for context."),
+        search: z
+          .string()
+          .optional()
+          .describe("Optional case-insensitive search across category name, number, and path. Use this to narrow a large tree."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_CATEGORY_LIMIT)
+          .optional()
+          .describe(
+            `Categories per page (default ${DEFAULT_CATEGORY_LIMIT}, max ${MAX_CATEGORY_LIMIT}). ` +
+            "If hasMore is true in the response, call again with page incremented by 1."
+          ),
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Page number to fetch, 1-indexed (default 1)."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID (e.g. \"en\", \"l3600\"). " +
+            "Call list_contexts to see available values. Defaults to English if omitted."
+          ),
+      },
+    },
+    async ({ catalogId, catalogName, search, limit, page, context }) => {
+      const effectiveLimit = limit ?? DEFAULT_CATEGORY_LIMIT;
+      const effectivePage = page ?? DEFAULT_PAGE;
+      const effectiveContext = context ?? "en";
+      const label = catalogName ?? catalogId;
+
+      const data = await mapiGet<MapiCatalogNodesResponse | MapiCatalogNode[] | MapiCatalogNode>(
+        `${MAPI_PIM_BASE}/catalogs/${catalogId}/nodes`,
+        creds,
+        { context }
+      );
+
+      const categories = flattenCatalogNodes(extractCatalogNodes(data));
+      const filtered = search
+        ? categories.filter(
+            (category) =>
+              includesSearch(category.name, search) ||
+              includesSearch(category.number, search) ||
+              includesSearch(category.path, search)
+          )
+        : categories;
+
+      const total = filtered.length;
+      const start = (effectivePage - 1) * effectiveLimit;
+      const pagedCategories = filtered.slice(start, start + effectiveLimit);
+      const hasMore = start + pagedCategories.length < total;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Found ${total} categor${total === 1 ? "y" : "ies"} in "${label}" (working state, context: ${effectiveContext}). ` +
+              `Returned ${pagedCategories.length} on page ${effectivePage}` +
+              (hasMore
+                ? `. Call again with page=${effectivePage + 1} to fetch more.`
+                : ".") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  catalog: label,
+                  catalogId,
+                  context: effectiveContext,
+                  search: search ?? null,
+                  total,
+                  page: effectivePage,
+                  returned: pagedCategories.length,
+                  hasMore,
+                  categories: pagedCategories,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: list_attribute_definitions
+  server.registerTool(
+    "list_attribute_definitions",
+    {
+      description:
+        "List attribute definitions in the Bluestone PIM working-state data model. " +
+        "Use this before product data onboarding, importing, import planning, supplier data review, spreadsheet mapping, CSV mapping, Excel mapping, field mapping, attribute mapping, or deciding whether an incoming field already has a matching attribute. " +
+        "Returns shaped definition metadata: id, number, name, group, type, unit, context awareness, enum values, and validation restrictions. " +
+        "Suppress raw IDs and full enum lists in user-facing replies unless the user asks for implementation detail. " +
+        "When mapping incoming data, present confident matches, uncertain matches, fields with no good match, and validation issues such as enum or range mismatches.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        search: z
+          .string()
+          .optional()
+          .describe("Optional case-insensitive search across attribute name, number, group, data type, and unit."),
+        group: z
+          .string()
+          .optional()
+          .describe("Optional case-insensitive group filter, for example \"Marketing\" or \"Dimensions\"."),
+        dataType: z
+          .string()
+          .optional()
+          .describe("Optional exact data type filter, for example \"text\", \"decimal\", \"single_select\", or \"dictionary\"."),
+        includeReadOnly: z
+          .boolean()
+          .optional()
+          .describe("Whether to include read-only definitions (default false)."),
+        includeRemoved: z
+          .boolean()
+          .optional()
+          .describe("Whether to include definitions marked to be removed (default false)."),
+        includeCompound: z
+          .boolean()
+          .optional()
+          .describe("Whether to include compound definitions (default true)."),
+        maxEnumValues: z
+          .number()
+          .int()
+          .min(0)
+          .max(100)
+          .optional()
+          .describe("Maximum enum values to include per select attribute (default 25, max 100). Use 0 to omit enum values."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_DEFINITION_LIMIT)
+          .optional()
+          .describe(
+            `Definitions per page (default ${DEFAULT_DEFINITION_LIMIT}, max ${MAX_DEFINITION_LIMIT}). ` +
+            "If hasMore is true in the response, call again with page incremented by 1."
+          ),
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Page number to fetch, 1-indexed (default 1)."),
+      },
+    },
+    async ({
+      search,
+      group,
+      dataType,
+      includeReadOnly,
+      includeRemoved,
+      includeCompound,
+      maxEnumValues,
+      limit,
+      page,
+    }) => {
+      const effectiveLimit = limit ?? DEFAULT_DEFINITION_LIMIT;
+      const effectivePage = page ?? DEFAULT_PAGE;
+      const effectiveMaxEnumValues = maxEnumValues ?? 25;
+      const shouldIncludeCompound = includeCompound ?? true;
+
+      const data = await mapiGet<MapiAttributeDefinitionsResponse>(
+        `${MAPI_PIM_BASE}/definitions`,
+        creds
+      );
+
+      const filtered = (data.data ?? [])
+        .filter((definition) => includeReadOnly || !definition.readOnly)
+        .filter((definition) => includeRemoved || !definition.toBeRemoved)
+        .filter((definition) => shouldIncludeCompound || !definition.isCompound)
+        .filter((definition) =>
+          group ? includesSearch(definition.group, group) : true
+        )
+        .filter((definition) =>
+          dataType ? definition.dataType === dataType : true
+        )
+        .filter((definition) =>
+          search
+            ? includesSearch(definition.name, search) ||
+              includesSearch(definition.number, search) ||
+              includesSearch(definition.group, search) ||
+              includesSearch(definition.dataType, search) ||
+              includesSearch(definition.unit, search)
+            : true
+        );
+
+      const total = filtered.length;
+      const start = (effectivePage - 1) * effectiveLimit;
+      const pagedDefinitions = filtered.slice(start, start + effectiveLimit);
+      const hasMore = start + pagedDefinitions.length < total;
+
+      const definitions = pagedDefinitions.map((definition) => {
+        const enumValues = definition.restrictions?.enum?.values ?? [];
+        const enumValuesIncluded = Math.min(enumValues.length, effectiveMaxEnumValues);
+        return {
+          id: definition.id,
+          number: definition.number,
+          name: definition.name,
+          ...(definition.group && { group: definition.group }),
+          ...(definition.groupId && { groupId: definition.groupId }),
+          isCompound: definition.isCompound,
+          contextAware: definition.contextAware,
+          ...(definition.dataType && { dataType: definition.dataType }),
+          ...(definition.unit && { unit: definition.unit }),
+          ...(definition.contentType && { contentType: definition.contentType }),
+          ...(definition.charset && { charset: definition.charset }),
+          ...(definition.readOnly && { readOnly: true }),
+          ...(definition.internal && { internal: true }),
+          ...(definition.externalSource && { externalSource: true }),
+          ...(definition.restrictions?.range && { range: definition.restrictions.range }),
+          ...(definition.restrictions?.text && { textRestrictions: definition.restrictions.text }),
+          ...(definition.restrictions?.enum && {
+            enum: {
+              ...(definition.restrictions.enum.type && { type: definition.restrictions.enum.type }),
+              totalValues: enumValues.length,
+              values: enumValues.slice(0, effectiveMaxEnumValues).map((value) => ({
+                ...(value.valueId && { valueId: value.valueId }),
+                value: value.value,
+                ...(value.number && { number: value.number }),
+                ...(value.metadata && { metadata: value.metadata }),
+              })),
+              truncated: enumValues.length > enumValuesIncluded,
+            },
+          }),
+        };
+      });
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Found ${total} attribute definition${total === 1 ? "" : "s"} (working state). ` +
+              `Returned ${definitions.length} on page ${effectivePage}` +
+              (hasMore
+                ? `. Call again with page=${effectivePage + 1} to fetch more.`
+                : ".") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  filters: {
+                    search: search ?? null,
+                    group: group ?? null,
+                    dataType: dataType ?? null,
+                    includeReadOnly: includeReadOnly ?? false,
+                    includeRemoved: includeRemoved ?? false,
+                    includeCompound: shouldIncludeCompound,
+                    maxEnumValues: effectiveMaxEnumValues,
+                  },
+                  total,
+                  page: effectivePage,
+                  returned: definitions.length,
+                  hasMore,
+                  definitions,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
   // Tool: list_products_in_category
   server.registerTool(
     "list_products_in_category",
@@ -454,6 +888,11 @@ export function createMcpServer(creds: Credentials): McpServer {
         "After displaying the product list, ask the user if they would like to create a new product in this catalog. " +
         "If they say yes, call create_product and pass the same categoryId so the product is assigned automatically. " +
         "If 0 products are returned and the user expected some, the categoryId may be incorrect. Suggest calling list_catalogs to verify.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
       inputSchema: {
         categoryId: z
           .string()
@@ -614,6 +1053,11 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Returns only data that has been synced/published. Does not include unpublished changes. " +
         "Use list_catalogs instead when the user is working on enrichment or wants to see current working state. " +
         "Returns category IDs for use with list_published_products_in_category.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
       inputSchema: {},
     },
     async () => {
@@ -651,6 +1095,11 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Each product includes an imageUrl (preview) when a media asset is present. " +
         "When the user asks to see a product image, call get_product_image with that imageUrl. Do not search the web. " +
         "If the requested catalog is not found in the published results, call list_catalogs to check whether it exists in working state, and inform the user it has not been published yet.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
       inputSchema: {
         categoryId: z
           .string()
@@ -815,6 +1264,11 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Category assignment is a separate step: if it fails, the product still exists and the failure is reported separately. " +
         "If product creation itself fails, report the error to the user and do not retry without their confirmation. " +
         "After creating, tell the user the product was created and suggest they open Bluestone PIM to continue enriching it.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
       inputSchema: {
         name: z
           .string()

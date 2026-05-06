@@ -194,10 +194,10 @@ Bluestone is built API-first, with clean structured data. This is exactly what A
 
 ## Recent updates
 
+- <span class="badge-new">New</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
 - <span class="badge-new">New</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
 - <span class="badge-new">New</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
 - <span class="badge-note">Note</span> **April 2026:** Mobile support clarified. claude.ai in the browser works on phone. The native Claude app does not support remote MCP servers yet.
-- <span class="badge-note">Note</span> **April 2026:** Agents section added to Design notes. Covers why bulk operations don't fit the chat model but work well for an unattended agent connecting to this server.
 
 ---
 
@@ -209,10 +209,11 @@ Almost nothing, if I am being honest. A handful of tools, but the point is the f
 
 - **Browse your catalogs**: ask the AI to list all categories in your organisation
 - **Explore products**: list all products in a catalog, including sub-categories. You see working data: changes your team has made today that have not been published yet. Ask specifically for "published products" if you want to see only what is live.
+- **Plan product data onboarding**: map incoming fields to existing attribute definitions and category paths, with unclear matches called out before any writes happen
 - **Switch language**: ask to see data in a specific language and the AI finds the right context
 - **Create a product**: create a new product by name (the server instructs the AI to confirm the name before calling the tool, though this depends on the client)
 
-**What to expect for now:** Browsing and creating work. Product attribute detail and editing are not yet supported. If you ask the AI to show attributes on a specific product, or to update a field, it will tell you it cannot. This is a foundation to build on, not a replacement for the Bluestone PIM interface.
+**What to expect for now:** Browsing, onboarding planning, and creating products work. Product attribute detail and editing are not yet supported. If you ask the AI to show attributes on a specific product, or to update a field, it will tell you it cannot. This is a foundation to build on, not a replacement for the Bluestone PIM interface.
 
 A [Bluestone PIM Labs](https://labs.bluestonepim.com/) community project. Not an official Bluestone PIM product. No SLA, no support commitments. Contributions and forks welcome.
 
