@@ -199,11 +199,11 @@ Bluestone is built API-first, with clean structured data. This is exactly what A
 - <span class="badge-new">New</span> **May 2026:** Dictionary value creation added. Create missing values for dictionary attributes and use their IDs when setting product attributes.
 - <span class="badge-new">New</span> **May 2026:** Category node creation added. Create missing onboarding categories after checking the existing catalog tree.
 - <span class="badge-new">New</span> **May 2026:** Product attribute value writes added. Set mapped attribute values on products after the onboarding mapping is approved.
-- <span class="badge-new">New</span> **May 2026:** Attribute definition creation added. Create missing onboarding attributes, including select attributes with initial enum values, after confirmation.
-- <span class="badge-new">New</span> **May 2026:** Product placement and rename tools added. Assign existing products to catalog categories and update product names after confirmation.
-- <span class="badge-new">New</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
-- <span class="badge-new">New</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
-- <span class="badge-new">New</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
+- <span class="badge-note">Earlier</span> **May 2026:** Attribute definition creation added. Create missing onboarding attributes, including select attributes with initial enum values, after confirmation.
+- <span class="badge-note">Earlier</span> **May 2026:** Product placement and rename tools added. Assign existing products to catalog categories and update product names after confirmation.
+- <span class="badge-note">Earlier</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
+- <span class="badge-note">Earlier</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
+- <span class="badge-note">Earlier</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
 
 ---
 
@@ -716,6 +716,63 @@ The paper also notes that context window economics constrain how much a descript
 
     var EXAMPLES = [
       {
+        chatTitle: 'Supplier onboarding',
+        label: 'Map and onboard a supplier spreadsheet',
+        modelLabel: 'Opus 4.7',
+        turns: [
+          { type: 'user-with-file', fileName: 'test_import.xlsx', fileType: 'XLSX', text: 'I have received an Excel from a supplier, I need to onboard to Bluestone PIM' },
+          { type: 'reply', text: 'I\'ll help you onboard this supplier\'s Excel file to Bluestone PIM. Let me start by examining the file structure and understanding what we\'re working with.' },
+          { type: 'tool', name: 'inspect_file', display: 'Viewed a file, ran a command' },
+          { type: 'reply', text: 'Got it. The file is small and clean, one product:<br><br>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;">' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.15);"><th style="padding:5px 10px 5px 0;text-align:left;color:#aaa;font-weight:600;">EAN</th><th style="padding:5px 10px;text-align:left;color:#aaa;font-weight:600;">Name</th><th style="padding:5px 10px;text-align:left;color:#aaa;font-weight:600;">Composition</th><th style="padding:5px 0;text-align:left;color:#aaa;font-weight:600;">Supplier</th></tr>' +
+            '<tr><td style="padding:6px 10px 6px 0;">111222</td><td style="padding:6px 10px;">Orange Hoodie</td><td style="padding:6px 10px;">100% Cotton</td><td style="padding:6px 0;">Supplier A</td></tr>' +
+            '</table>' +
+            'Before I push anything to Bluestone PIM, I need to understand your target setup. Let me check what\'s in your Bluestone instance so we can map this correctly.' },
+          { type: 'tool', name: 'search_tools', display: 'Searched available tools' },
+          { type: 'reply', text: 'Let me check your catalogs and existing attribute definitions to plan the mapping properly.' },
+          { type: 'tool', name: 'list_catalogs', display: 'Loaded tools, used Bluestone PIM integration' },
+          { type: 'tool', name: 'list_attribute_definitions', display: 'Loaded tools, used Bluestone PIM integration' },
+          { type: 'reply', text: 'Now let me search for matching attribute definitions for the four columns. <strong>Name</strong> maps to the product name itself, so I need to find matches for EAN, Composition, and Supplier.' },
+          { type: 'tool', name: 'list_attribute_definitions', display: 'List attribute definitions' },
+          { type: 'reply', text: 'Found <strong>Ean</strong> as a decimal attribute. Now let me check Composition and Supplier.' },
+          { type: 'tool', name: 'list_attribute_definitions', display: 'Used Bluestone PIM integration' },
+          { type: 'reply', text: 'I have everything I need. Here\'s the proposed mapping for the supplier file before any writes happen:<br><br>' +
+            '<strong>Onboarding plan: test_import.xlsx</strong><br><br>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;">' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.15);"><th style="padding:5px 10px 5px 0;text-align:left;color:#aaa;font-weight:600;">Source column</th><th style="padding:5px 10px;text-align:left;color:#aaa;font-weight:600;">Bluestone target</th><th style="padding:5px 10px;text-align:left;color:#aaa;font-weight:600;">Type</th><th style="padding:5px 0;text-align:left;color:#aaa;font-weight:600;">Notes</th></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">Name</td><td style="padding:6px 10px;">Product name</td><td style="padding:6px 10px;">Core field</td><td style="padding:6px 0;">Used as the product name on creation</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">EAN</td><td style="padding:6px 10px;">Ean attribute</td><td style="padding:6px 10px;">decimal</td><td style="padding:6px 0;">Existing attribute, value 111222</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">Composition</td><td style="padding:6px 10px;">Material attribute</td><td style="padding:6px 10px;">text</td><td style="padding:6px 0;">Existing attribute, closest semantic match for 100% Cotton</td></tr>' +
+            '<tr><td style="padding:6px 10px 6px 0;">Supplier</td><td style="padding:6px 10px;">Supplier attribute</td><td style="padding:6px 10px;">text</td><td style="padding:6px 0;">Existing attribute, value Supplier A</td></tr>' +
+            '</table>' +
+            '<strong>Catalog target needs your input.</strong> The supplier row is a clothing item. The most likely target catalog is Clothes, but Intake - ERP could be used as a landing zone. I won\'t pick one for you.<br><br>' +
+            '<strong>Open questions before I write anything:</strong><br>Which catalog? Should EAN be used as product number? Are you happy folding Composition into Material?<br><br>' +
+            'Once you confirm, the write phase is four calls: create_product, then set_product_attribute for Ean, Material, and Supplier.' },
+          { type: 'user', text: 'Clothes<br>Yes, as number<br>Yes, fold into' },
+          { type: 'tool', name: 'create_product', display: 'Create product' },
+          { type: 'reply', text: 'Product created. Now setting the three attributes.' },
+          { type: 'tool', name: 'set_product_attribute', display: 'Used Bluestone PIM integration' },
+          { type: 'tool', name: 'set_product_attribute', display: 'Used Bluestone PIM integration' },
+          { type: 'tool', name: 'set_product_attribute', display: 'Used Bluestone PIM integration' },
+          { type: 'reply', text: 'Done. Onboarding complete:<br><br>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;">' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:5px 14px 5px 0;color:#888;">Product</td><td style="padding:5px 0;"><strong>Orange Hoodie</strong></td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:5px 14px 5px 0;color:#888;">Number</td><td style="padding:5px 0;">111222</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:5px 14px 5px 0;color:#888;">Catalog</td><td style="padding:5px 0;">Clothes</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:5px 14px 5px 0;color:#888;">Ean</td><td style="padding:5px 0;">111222</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:5px 14px 5px 0;color:#888;">Material</td><td style="padding:5px 0;">100% Cotton</td></tr>' +
+            '<tr><td style="padding:5px 14px 5px 0;color:#888;">Supplier</td><td style="padding:5px 0;">Supplier A</td></tr>' +
+            '</table>' +
+            'The product is in Draft state. Head into Bluestone PIM when you want to enrich further or move it toward publish.' },
+        ],
+        notes: [
+          '<strong>The file attachment matters.</strong> The first turn includes the spreadsheet, so Claude can inspect headers and sample values before asking mapping questions. The MCP then supplies the live Bluestone data model and catalog context.',
+          '<strong>The write phase is gated by mapping decisions.</strong> Claude does not create the product until the user confirms catalog, product number, and attribute mapping choices.',
+          '<strong>Product number is treated as identity.</strong> Using EAN as <code>number</code> gives Bluestone a unique key for duplicate detection in this create-only onboarding flow.',
+        ]
+      },
+      {
         chatTitle: 'Clothes catalog',
         label: 'Browse a catalog and create a product',
         turns: [
@@ -892,6 +949,17 @@ The paper also notes that context window economics constrain how much a descript
             '<div style="background:#3a3a3a;color:#efefef;font-size:13.5px;line-height:1.55;padding:9px 15px;border-radius:18px;border-bottom-right-radius:3px;max-width:75%;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' +
             turn.text + '</div></div>';
         }
+        if (turn.type === 'user-with-file') {
+          return '<div style="display:flex;justify-content:flex-end;margin:6px 0 10px 0;">' +
+            '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:78%;">' +
+            '<div style="width:150px;height:118px;background:#292929;border:1px solid rgba(255,255,255,0.14);border-radius:13px;box-shadow:0 8px 24px rgba(0,0,0,0.28);padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' +
+            '<div style="color:#f1f1f1;font-size:15px;line-height:1.3;word-break:break-word;">' + turn.fileName + '</div>' +
+            '<div style="align-self:flex-start;color:#cfcfcf;background:#3a3a3a;border:1px solid rgba(255,255,255,0.12);border-radius:7px;padding:2px 6px;font-size:12px;font-weight:600;letter-spacing:0.02em;">' + turn.fileType + '</div>' +
+            '</div>' +
+            '<div style="background:#141414;color:#efefef;font-size:13.5px;line-height:1.55;padding:10px 16px;border-radius:18px;border-bottom-right-radius:3px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' +
+            turn.text + '</div>' +
+            '</div></div>';
+        }
         if (turn.type === 'tool') {
           var label = turn.display || toolDisplayName(turn.name);
           return '<div style="color:#666;font-size:12px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;display:flex;align-items:center;gap:5px;padding:3px 0;margin:2px 0;">' +
@@ -987,7 +1055,7 @@ The paper also notes that context window economics constrain how much a descript
         '<div style="background:#2a2a2a;border-radius:10px;padding:9px 14px 9px 14px;display:flex;flex-direction:column;gap:10px;">' +
         '<span style="color:#555;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Reply&hellip;</span>' +
         '<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">' +
-        '<span style="display:inline-flex;align-items:center;gap:4px;background:#141414;border-radius:6px;padding:3px 8px;font-size:11.5px;font-weight:500;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Sonnet&nbsp;4.6<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;"><polyline points="6 9 12 15 18 9"/></svg></span>' +
+        '<span style="display:inline-flex;align-items:center;gap:4px;background:#141414;border-radius:6px;padding:3px 8px;font-size:11.5px;font-weight:500;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' + (example.modelLabel || 'Sonnet&nbsp;4.6') + '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;"><polyline points="6 9 12 15 18 9"/></svg></span>' +
         '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>' +
         '</div>' +
         '</div>' +
@@ -1111,23 +1179,30 @@ The paper also notes that context window economics constrain how much a descript
 
     (function setupRecentUpdatesToggle() {
       var heading = document.getElementById('recent-updates');
+      if (!heading) {
+        heading = Array.prototype.find.call(document.querySelectorAll('h2'), function(node) {
+          return node.textContent.trim().toLowerCase() === 'recent updates';
+        });
+      }
       if (!heading) return;
       var list = heading.nextElementSibling;
       if (!list || list.tagName !== 'UL') return;
-      var items = Array.prototype.slice.call(list.querySelectorAll(':scope > li'));
+      var items = Array.prototype.slice.call(list.children).filter(function(child) {
+        return child.tagName === 'LI';
+      });
       if (items.length <= 5) return;
 
       function setExpanded(expanded) {
         items.forEach(function(item, index) {
-          item.style.display = expanded || index < 5 ? '' : 'none';
+          item.hidden = !expanded && index >= 5;
         });
-        button.textContent = expanded ? 'Show less' : 'Show more';
+        button.textContent = expanded ? 'Collapse older updates' : 'Expand older updates';
         button.setAttribute('aria-expanded', String(expanded));
       }
 
       var button = document.createElement('button');
       button.type = 'button';
-      button.className = 'not-prose mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors';
+      button.className = 'not-prose mt-1 inline-flex items-center rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors';
       button.setAttribute('aria-controls', 'recent-updates-list');
       list.id = 'recent-updates-list';
       button.addEventListener('click', function() {
@@ -1164,6 +1239,8 @@ The paper also notes that context window economics constrain how much a descript
           ex.turns.forEach(function(t) {
             if (t.type === 'user') {
               lines.push('**User:** ' + t.text);
+            } else if (t.type === 'user-with-file') {
+              lines.push('**User:** [Attached file: ' + t.fileName + '] ' + t.text);
             } else if (t.type === 'reply') {
               lines.push('**Claude:** ' + stripHtml(t.text));
             } else if (t.type === 'tool' || t.type === 'tool-with-image') {
