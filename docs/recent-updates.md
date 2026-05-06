@@ -57,8 +57,8 @@ Exclude:
 ## Current entries (as of May 2026)
 
 ```
-- <span class="badge-new">New</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
-- <span class="badge-new">New</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
-- <span class="badge-new">New</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
-- <span class="badge-note">Note</span> **April 2026:** Mobile support clarified. claude.ai in the browser works on phone. The native Claude app does not support remote MCP servers yet.
+- <span class="badge-new">New</span> **May 2026:** Full product detail reads added. Inspect product attributes, categories, assets, and relations before writing updates.
+- <span class="badge-new">New</span> **May 2026:** Select enum value append added. Add missing single-select and multi-select values with a guarded read-merge-write flow.
+- <span class="badge-new">New</span> **May 2026:** Dictionary value creation added. Create missing values for dictionary attributes and use their IDs when setting product attributes.
+- <span class="badge-new">New</span> **May 2026:** Category node creation added. Create missing onboarding categories after checking the existing catalog tree.
 ```

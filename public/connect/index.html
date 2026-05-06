@@ -194,10 +194,10 @@ Bluestone is built API-first, with clean structured data. This is exactly what A
 
 ## Recent updates
 
-- <span class="badge-new">New</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
-- <span class="badge-new">New</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
-- <span class="badge-new">New</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
-- <span class="badge-note">Note</span> **April 2026:** Mobile support clarified. claude.ai in the browser works on phone. The native Claude app does not support remote MCP servers yet.
+- <span class="badge-new">New</span> **May 2026:** Full product detail reads added. Inspect product attributes, categories, assets, and relations before writing updates.
+- <span class="badge-new">New</span> **May 2026:** Select enum value append added. Add missing single-select and multi-select values with a guarded read-merge-write flow.
+- <span class="badge-new">New</span> **May 2026:** Dictionary value creation added. Create missing values for dictionary attributes and use their IDs when setting product attributes.
+- <span class="badge-new">New</span> **May 2026:** Category node creation added. Create missing onboarding categories after checking the existing catalog tree.
 
 ---
 
@@ -209,11 +209,18 @@ Almost nothing, if I am being honest. A handful of tools, but the point is the f
 
 - **Browse your catalogs**: ask the AI to list all categories in your organisation
 - **Explore products**: list all products in a catalog, including sub-categories. You see working data: changes your team has made today that have not been published yet. Ask specifically for "published products" if you want to see only what is live.
-- **Plan product data onboarding**: map incoming fields to existing attribute definitions and category paths, with unclear matches called out before any writes happen
+- **Inspect product detail**: fetch working-state product attributes, categories, assets, relations, and variant information
+- **Plan product data onboarding**: map incoming fields to product number, product name, existing attribute definitions, and category paths, with unclear matches called out before any writes happen
+- **Create missing attributes**: add simple attribute definitions with name, data type, and optional unit after confirmation
+- **Create dictionary values**: add missing values for dictionary attributes before setting product attributes
+- **Append select values**: add missing single-select and multi-select enum values while preserving existing values
+- **Create missing categories**: add category nodes after confirming they do not already exist in the catalog tree
+- **Set product attributes**: add mapped attribute values to products after the mapping is approved
 - **Switch language**: ask to see data in a specific language and the AI finds the right context
-- **Create a product**: create a new product by name (the server instructs the AI to confirm the name before calling the tool, though this depends on the client)
+- **Create a product**: create a new product by name and optional number (the server instructs the AI to confirm both before calling the tool, though this depends on the client)
+- **Place and rename products**: assign an existing product to a catalog category or update its name after confirmation
 
-**What to expect for now:** Browsing, onboarding planning, and creating products work. Product attribute detail and editing are not yet supported. If you ask the AI to show attributes on a specific product, or to update a field, it will tell you it cannot. This is a foundation to build on, not a replacement for the Bluestone PIM interface.
+**What to expect for now:** Browsing, product detail reads, onboarding planning, simple attribute creation, dictionary value creation, select enum append, category-node creation, product attribute value writes, creating products, category assignment, and product renaming work. Media, validation-rule creation, and advanced data-model configuration are not yet supported. This is a foundation to build on, not a replacement for the Bluestone PIM interface.
 
 A [Bluestone PIM Labs](https://labs.bluestonepim.com/) community project. Not an official Bluestone PIM product. No SLA, no support commitments. Contributions and forks welcome.
 
@@ -658,9 +665,9 @@ It is worth saying explicitly: MCP servers are not only for humans in a chat int
 
 An agent is not constrained by a chat session. It can run loops, manage state between calls, handle retries, chunk a large catalog into pages, and run unattended overnight. The sequential tool call constraint still applies (each call takes time), but there is no human waiting, no session timeout, and the agent can page through a 10,000-product catalog systematically in a way a chat session cannot.
 
-The pattern: an orchestration agent receives a task ("enrich all products in the Clothes catalog with a short description in English and Dutch"), calls `list_products_in_category` to get the full list, chunks it, then iterates: calling `get_product` for each, generating the content, writing it back via `update_product`. Each tool call is still individual, but the loop is automated.
+The pattern: an orchestration agent receives a task ("enrich all products in the Clothes catalog with a short description in English and Dutch"), calls `list_products_in_category` to get the full list, chunks it, then iterates: calling `get_product` for each, generating the content, writing it back via a future attribute update tool. Each tool call is still individual, but the loop is automated.
 
-The tools that unlock this (`get_product` and `update_product`) are not implemented yet. But the server is already built on standard MCP over HTTP with OAuth, which means any agent framework that supports MCP can connect to it today for the read and create operations that do exist.
+The tools that unlock this (`get_product` and attribute updates) are not implemented yet. But the server is already built on standard MCP over HTTP with OAuth, which means any agent framework that supports MCP can connect to it today for the read, create, category assignment, and rename operations that do exist.
 
 If you are building an agent workflow on top of this, the [GitHub repo](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp) is the starting point. The same codebase, the same tools.
 

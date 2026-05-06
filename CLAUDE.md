@@ -35,7 +35,15 @@ All MCP tools are registered inside a single `createMcpServer(creds: Credentials
 - `list_published_catalogs`: calls PAPI `/categories` via `papiGet()` (published/live data only)
 - `list_published_products_in_category`: calls PAPI `/categories/{id}/products` via `papiGet()` (published/live data only). Includes `imageUrl` (the `previewUri` for the "Main" media asset) on each product when present.
 - `get_product_image`: fetches a product image from Bluestone's CDN using the `imageUrl` from `list_published_products_in_category` and returns it as a base64 `image` content block for inline rendering in chat. Call only when the user explicitly asks to see an image, not automatically for every product in a list.
-- `create_product`: calls MAPI `/pim/products` via `mapiPost()`
+- `create_attribute_definition`: calls MAPI `/pim/definitions` via `mapiPost()` to create a simple attribute definition with `name`, `dataType`, and optional `unit`. Returns the `resource-id` header as the new definition ID. Does not create enum values, dictionary values, restrictions, groups, category nodes, or product attribute values.
+- `create_dictionary_value`: calls MAPI `/pim/definitions/dictionary/{dictionaryId}/values` via `mapiPost()` to create a value for a dictionary attribute. Returns the `resource-id` header as the value ID for later `set_product_attribute` calls.
+- `append_select_attribute_values`: calls MAPI `/pim/definitions/{definitionId}?validation=NAME` via `mapiPut()` after first reading the full definition. Preserves existing definition fields and enum values, then appends new `single_select` or `multi_select` values.
+- `create_category_node`: calls MAPI `/pim/catalogs/nodes?validation=NAME` via `mapiPost()` to create a root-level category node or child node under `parentId`. Returns the `resource-id` header as the new node ID.
+- `create_product`: calls MAPI `/pim/products` via `mapiPost()`. Supports `name` and optional `number`; number is the unique product key for create-only onboarding and duplicate number conflicts return the existing product ID when Bluestone provides it.
+- `set_product_attribute`: calls MAPI `/pim/products/{productId}/attributes` via `mapiPost()` to add an attribute value to a product. Values are always strings; select and multi-select values must be enum value IDs from `list_attribute_definitions`.
+- `get_product`: calls MAPI `/pim/products/{productId}` via `mapiGetFull()` with `accept: application/full+json`. Returns metadata, raw attribute IDs/values, category IDs, asset IDs, relations, bundles, and variant information.
+- `assign_product_to_category`: calls MAPI `/pim/catalogs/nodes/{categoryId}/products` via `mapiPost()` to assign an existing product to a catalog category.
+- `update_product_name`: calls MAPI `/pim/products/{productId}` via `mapiPatch()` to rename an existing product.
 
 Version is defined in `src/version.ts` and imported by both `src/tools.ts` and `api/mcp.ts`. Update it there when bumping.
 

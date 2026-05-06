@@ -100,6 +100,7 @@ interface MapiAttributeDefinition {
   number: string;
   groupId?: string;
   group?: string;
+  description?: string;
   externalSource: boolean;
   internal: boolean;
   isCompound: boolean;
@@ -148,11 +149,42 @@ interface MapiProductViewsResponse {
   data: MapiProductView[];
 }
 
+interface MapiRelatedProduct {
+  relationId: string;
+  relatedId: string;
+  reverse?: boolean;
+}
+
 interface MapiAttribute {
   definitionId: string;
   values?: string[];
   dictionary?: string[];
   readOnly: boolean;
+}
+
+interface MapiProductDetail {
+  id: string;
+  number?: string;
+  name?: string;
+  description?: string | null;
+  state?: string;
+  contextStates?: Record<string, unknown>;
+  archived?: boolean;
+  lastUpdate?: number;
+  createDate?: number;
+  dataSynced?: boolean;
+  readOnly?: boolean;
+  relatedProducts?: MapiRelatedProduct[];
+  relatedCategories?: string[];
+  attributes?: MapiAttribute[];
+  labels?: string[];
+  categories?: string[];
+  assets?: string[];
+  productBundles?: unknown[];
+  productVariants?: unknown[];
+  variantParentId?: string;
+  quantity?: number | null;
+  type?: string;
 }
 
 interface MapiAttributeGroup {
@@ -200,6 +232,25 @@ const MAX_DEFINITION_LIMIT = 500;
 const DEFAULT_CATEGORY_LIMIT = 200;
 const MAX_CATEGORY_LIMIT = 500;
 const DEFAULT_PAGE = 1;
+
+const ATTRIBUTE_DATA_TYPES = [
+  "boolean",
+  "integer",
+  "decimal",
+  "date",
+  "time",
+  "date_time",
+  "location",
+  "single_select",
+  "multi_select",
+  "text",
+  "formatted_text",
+  "pattern",
+  "multiline",
+  "column",
+  "matrix",
+  "dictionary",
+] as const;
 
 // ─── Token cache (per clientId for multi-tenant) ──────────────────────────────
 //
@@ -312,6 +363,56 @@ async function mapiPost<T>(
   return { data, resourceId };
 }
 
+async function mapiPatch(
+  path: string,
+  body: unknown,
+  creds: Credentials
+): Promise<void> {
+  const token = await getBearerToken(creds);
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PATCH",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(mapiErrorMessage(res.status, text));
+  }
+}
+
+async function mapiPut<T>(
+  path: string,
+  body: unknown,
+  creds: Credentials,
+  options?: { context?: string }
+): Promise<T> {
+  const token = await getBearerToken(creds);
+  const headers: Record<string, string> = {
+    accept: "application/json",
+    "content-type": "application/json",
+    authorization: `Bearer ${token}`,
+    "context-fallback": "true",
+  };
+  if (options?.context) {
+    headers["context"] = options.context;
+  }
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(mapiErrorMessage(res.status, text));
+  }
+  const text = await res.text();
+  return (text ? JSON.parse(text) : {}) as T;
+}
+
 // mapiPostBody: POST that returns a JSON response body (not a mutation with resource-id).
 async function mapiPostBody<T>(
   url: string,
@@ -365,6 +466,28 @@ async function mapiGet<T>(
   return res.json() as Promise<T>;
 }
 
+async function mapiGetFull<T>(
+  url: string,
+  creds: Credentials,
+  options?: { context?: string }
+): Promise<T> {
+  const token = await getBearerToken(creds);
+  const headers: Record<string, string> = {
+    accept: "application/full+json",
+    authorization: `Bearer ${token}`,
+    "context-fallback": "true",
+  };
+  if (options?.context) {
+    headers["context"] = options.context;
+  }
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(mapiErrorMessage(res.status, body));
+  }
+  return res.json() as Promise<T>;
+}
+
 // ─── Mappers ──────────────────────────────────────────────────────────────────
 
 // Map raw API state values to the labels shown in the Bluestone PIM UI.
@@ -373,6 +496,33 @@ function mapProductState(state: string): string {
     PLAYGROUND_ONLY: "Draft",
   };
   return states[state] ?? state;
+}
+
+function productNumberConflictMessage(error: unknown, number: string): string | null {
+  if (!(error instanceof Error)) {
+    return null;
+  }
+  const match = error.message.match(/Bluestone MAPI error 409:\s*(\{[\s\S]*\})/);
+  if (!match) {
+    return null;
+  }
+  try {
+    const body = JSON.parse(match[1]) as {
+      error?: string;
+      conflictingEntities?: Array<{ entityId?: string }>;
+    };
+    if (!body.error?.includes(`Product with number '${number}' already defined`)) {
+      return null;
+    }
+    const existingProductId = body.conflictingEntities?.[0]?.entityId;
+    return (
+      `Cannot create product with number "${number}" because that number already exists in Bluestone PIM` +
+      (existingProductId ? ` on product ${existingProductId}` : "") +
+      ". This onboarding flow is currently create-only, not update or upsert. Review the existing product before deciding whether to skip it or handle it in a future update flow."
+    );
+  } catch {
+    return null;
+  }
 }
 
 function includesSearch(value: string | undefined, search: string): boolean {
@@ -452,30 +602,44 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- List category trees within a catalog for onboarding and placement decisions (list_category_tree)\n" +
         "- List attribute definitions for product data onboarding and field mapping (list_attribute_definitions)\n" +
         "- List products in a catalog including all sub-categories, working state (list_products_in_category)\n" +
+        "- Fetch full product detail including attributes, categories, assets, and relations (get_product)\n" +
         "- List published catalogs only (list_published_catalogs)\n" +
         "- List published products in a category, includes image URL per product (list_published_products_in_category)\n" +
         "- Fetch and display a product image inline (get_product_image)\n" +
-        "- Create a new product by name, optionally assigned to a catalog category (create_product)\n\n" +
+        "- Create a simple attribute definition with name, data type, and optional unit (create_attribute_definition)\n" +
+        "- Create a dictionary value for a dictionary attribute definition (create_dictionary_value)\n" +
+        "- Append values to single_select and multi_select attribute definitions (append_select_attribute_values)\n" +
+        "- Create a catalog category node with optional parent category (create_category_node)\n" +
+        "- Create a new product by name, optionally assigned to a catalog category (create_product)\n" +
+        "- Add an attribute value to a product (set_product_attribute)\n" +
+        "- Assign an existing product to a catalog category (assign_product_to_category)\n" +
+        "- Rename an existing product (update_product_name)\n\n" +
         "What it cannot do yet:\n" +
-        "- Fetch full product detail or attributes\n" +
-        "- Set product attributes or media\n" +
-        "- Update or delete products\n\n" +
+        "- Set product media\n" +
+        "- Create validation restrictions or attribute groups\n" +
+        "- Delete products\n\n" +
         "Working state vs published: the default read tools return working state data, " +
         "which includes unpublished changes and is what enrichment teams work with. " +
         "Use the list_published_* tools when the user specifically asks about live/published data.\n\n" +
         "Context (language/market): read tools accept an optional context parameter. " +
         "If the user asks to see data in a specific language, call list_contexts first to find the right context ID, " +
         "then pass it to subsequent tool calls. The default context is 'en' (English).\n\n" +
-        "Always confirm the product name with the user before calling create_product.\n\n" +
+        "Always confirm the product name and product number with the user before calling create_product. " +
+        "Always confirm the exact product, attribute definition, and values before calling set_product_attribute. " +
+        "Always confirm the exact product and target value before calling assign_product_to_category or update_product_name.\n\n" +
         "For any request about product data onboarding, supplier onboarding, importing, bulk import, one-time bulk import, Excel import, CSV import, import planning, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, preparing products before creation, or misspelled Bluestone references such as Blueston, do not answer from generic onboarding knowledge first. Immediately call list_attribute_definitions, list_catalogs, and list_contexts before responding. " +
         "If the user needs category placement beyond the catalog root, call list_category_tree for the relevant catalog. " +
         "Do not ask the user whether you should pull the current catalogs or data model: use these tools proactively because that is the purpose of this server. " +
-        "Use those read-only results to present a suggested mapping with confident matches, uncertain matches, missing attributes, category suggestions, and validation notes. " +
-        "If the mapping shows that important source fields have no suitable existing attributes or categories, recommend a data-model update or draft a model specification for the user. Do not offer to create partial sample products as a workaround for missing model structure during phase 1 onboarding. " +
+        "Use those read-only results to present a suggested mapping with a dedicated product identity section, confident matches, uncertain matches, missing attributes, category suggestions, and validation notes. " +
+        "The product identity section must propose the source column to use as product number, the source column to use as product name, confidence for each, and offer the user a chance to choose a different number column. Product number is the unique key used by Bluestone PIM to detect whether a product already exists. " +
+        "If the mapping shows that important source fields have no suitable existing attributes or categories, recommend a data-model update or draft a model specification for the user. Only use create_attribute_definition for an onboarding field after list_attribute_definitions has been checked and no suitable existing attribute can be mapped. Do not create duplicate attributes when a suitable existing attribute exists. After the user approves specific missing simple attributes, use create_attribute_definition to create them. Do not offer to create partial sample products as a workaround for missing model structure during phase 1 onboarding. " +
+        "Only use create_category_node after list_catalogs and list_category_tree have been checked and the needed category path does not already exist. Do not create duplicate categories when a suitable existing category exists. " +
+        "Only use create_dictionary_value after list_attribute_definitions has shown the target attribute is dataType dictionary and the needed dictionary value does not already exist. Do not create duplicate dictionary values when a suitable existing value exists. " +
+        "Only use append_select_attribute_values after list_attribute_definitions has shown the target attribute is dataType single_select or multi_select and the needed enum value does not already exist. This tool performs a guarded read-merge-PUT internally to preserve existing definition fields and enum values. Do not use generic PUT updates for select definitions. " +
         "Keep onboarding replies concise and action-oriented. If the user has not provided source data yet, ask them to upload or paste source data such as .xlsx, .xls, .csv, .tsv, spreadsheet columns, sample rows, JSON, XML, or product fields next. " +
         "Do not produce a long generic onboarding playbook or list import mechanics unless the user explicitly asks for a process, workshop plan, or detailed onboarding guide. " +
         "Do not suggest creating sample products during phase 1 onboarding. Do not create products or change attributes during onboarding unless the user explicitly moves beyond planning and confirms a write action. " +
-        "This MCP server cannot create attribute definitions or category nodes yet. If those are needed, say they must be created outside the current MCP tools, for example in Bluestone PIM by a model administrator or by a separate management API workflow. Do not suggest PAPI for model changes.\n\n" +
+        "This MCP server can create simple attribute definitions, dictionary values, select enum values, category nodes, and set product attribute values. It cannot create validation restrictions, attribute groups, or media yet. If those are needed, say they must be created outside the current MCP tools, for example in Bluestone PIM by a model administrator or by a separate management API workflow. Do not suggest PAPI for model changes.\n\n" +
         "IMPORTANT: All Bluestone PIM data must come from the tools in this server. " +
         "Do not attempt to fetch Bluestone data using HTTP requests, bash commands, code artifacts, or any other method. " +
         "The tools handle authentication and API access internally. " +
@@ -696,6 +860,69 @@ export function createMcpServer(creds: Credentials): McpServer {
     }
   );
 
+  // Tool: create_category_node
+  server.registerTool(
+    "create_category_node",
+    {
+      description:
+        "Create a new Bluestone PIM catalog category node in working state. " +
+        "Use this only after list_catalogs and list_category_tree have shown that the needed category path does not already exist. " +
+        "Do not use this to create a duplicate of a suitable existing category. " +
+        "Omit parentId to create a root-level catalog/category node. Pass parentId to create a child category under an existing node. " +
+        "Always present the proposed category name and parent category to the user and get explicit confirmation before calling this tool. " +
+        "The API uses name validation, so duplicate names under the same parent may be rejected.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
+      inputSchema: {
+        name: z
+          .string()
+          .min(1)
+          .describe("The category node name. Must be confirmed by the user before calling."),
+        parentId: z
+          .string()
+          .optional()
+          .describe(
+            "Optional parent category node ID. Get this from list_catalogs or list_category_tree. Omit to create a root-level node."
+          ),
+        parentName: z
+          .string()
+          .optional()
+          .describe("Human-readable parent category name or path for confirmation context. Pass it when available."),
+      },
+    },
+    async ({ name, parentId, parentName }) => {
+      const { resourceId } = await mapiPost<Record<string, unknown>>(
+        "/pim/catalogs/nodes?validation=NAME",
+        {
+          name,
+          ...(parentId && { parentId }),
+        },
+        creds
+      );
+      if (!resourceId) {
+        throw new Error(
+          "Category node was created but no resource-id was returned in the response headers."
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Category node "${name}" created successfully. ID: ${resourceId}` +
+              (parentId
+                ? ` Parent: ${parentName ? `"${parentName}" ` : ""}(${parentId}).`
+                : " Created as a root-level node."),
+          },
+        ],
+      };
+    }
+  );
+
   // Tool: list_attribute_definitions
   server.registerTool(
     "list_attribute_definitions",
@@ -881,6 +1108,333 @@ export function createMcpServer(creds: Credentials): McpServer {
     }
   );
 
+  // Tool: create_attribute_definition
+  server.registerTool(
+    "create_attribute_definition",
+    {
+      description:
+        "Create a new attribute definition in the Bluestone PIM working-state data model. " +
+        "Use this only after list_attribute_definitions has shown that an onboarding source field has no suitable existing attribute. " +
+        "Do not use this to create an alternative to a suitable existing attribute. " +
+        "Always present the proposed attribute name, data type, and unit to the user and get explicit confirmation before calling this tool. " +
+        "This first version creates the definition with name, dataType, and optional unit only. " +
+        "It does not create enum values, dictionary values, validation restrictions, groups, category nodes, or product attribute values. " +
+        "After creating the attribute definition, return the new ID and tell the user it can be used with set_product_attribute.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
+      inputSchema: {
+        name: z
+          .string()
+          .min(1)
+          .describe("The attribute definition name. Must be confirmed by the user before calling."),
+        dataType: z
+          .enum(ATTRIBUTE_DATA_TYPES)
+          .describe(
+            "The attribute data type. Supported values: " +
+            ATTRIBUTE_DATA_TYPES.join(", ") +
+            ". Must be confirmed by the user before calling."
+          ),
+        unit: z
+          .string()
+          .optional()
+          .describe("Optional unit, for example kg, mm, kW, m3/h, or years. Omit when the attribute has no unit."),
+      },
+    },
+    async ({ name, dataType, unit }) => {
+      const body = {
+        dataType,
+        name,
+        ...(unit && { unit }),
+      };
+      const { resourceId } = await mapiPost<Record<string, unknown>>(
+        "/pim/definitions",
+        body,
+        creds
+      );
+      if (!resourceId) {
+        throw new Error(
+          "Attribute definition was created but no resource-id was returned in the response headers."
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Attribute definition "${name}" created successfully. ID: ${resourceId}. ` +
+              `Data type: ${dataType}${unit ? `, unit: ${unit}` : ""}.`,
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: create_dictionary_value
+  server.registerTool(
+    "create_dictionary_value",
+    {
+      description:
+        "Create a new value for a dictionary attribute definition in Bluestone PIM. " +
+        "Use list_attribute_definitions first to verify the target definition exists and has dataType dictionary. " +
+        "Use this only when an onboarding value cannot be mapped to an existing dictionary value. " +
+        "Do not use this to create a duplicate of a suitable existing dictionary value. " +
+        "Always present the dictionary attribute and new value to the user and get explicit confirmation before calling this tool. " +
+        "After creating the dictionary value, use the returned ID as the value when calling set_product_attribute for that dictionary attribute.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
+      inputSchema: {
+        dictionaryId: z
+          .string()
+          .describe("The dictionary attribute definition ID. Get this from list_attribute_definitions for an attribute with dataType dictionary."),
+        value: z
+          .string()
+          .min(1)
+          .describe("The dictionary value label to create. Must be confirmed by the user before calling."),
+        dictionaryName: z
+          .string()
+          .optional()
+          .describe("Human-readable dictionary attribute name for confirmation context. Pass it when available."),
+      },
+    },
+    async ({ dictionaryId, value, dictionaryName }) => {
+      const { resourceId } = await mapiPost<Record<string, unknown>>(
+        `/pim/definitions/dictionary/${dictionaryId}/values`,
+        { value },
+        creds
+      );
+      if (!resourceId) {
+        throw new Error(
+          "Dictionary value was created but no resource-id was returned in the response headers."
+        );
+      }
+
+      const dictionaryLabel = dictionaryName ? `"${dictionaryName}" (${dictionaryId})` : dictionaryId;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Dictionary value "${value}" created successfully for ${dictionaryLabel}. ` +
+              `ID: ${resourceId}`,
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: append_select_attribute_values
+  server.registerTool(
+    "append_select_attribute_values",
+    {
+      description:
+        "Append new enum values to a single_select or multi_select attribute definition. " +
+        "Use list_attribute_definitions first to verify the target definition exists, has dataType single_select or multi_select, and does not already contain the needed values. " +
+        "Always present the existing attribute, existing values, and proposed new values to the user and get explicit confirmation before calling this tool. " +
+        "This tool is intentionally append-only: it fetches the full current definition, preserves all updateable fields and existing enum values, appends the new values, then sends the merged object with PUT. " +
+        "Do not use this to rename, remove, or replace enum values. Do not create duplicates. Do not use generic PUT updates for select definitions.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
+      inputSchema: {
+        definitionId: z
+          .string()
+          .describe("The single_select or multi_select attribute definition ID. Get this from list_attribute_definitions."),
+        values: z
+          .array(
+            z.object({
+              value: z
+                .string()
+                .min(1)
+                .describe("The display value to append."),
+              metadata: z
+                .string()
+                .optional()
+                .describe("Optional metadata, for example a color hex code for color select values."),
+              number: z
+                .string()
+                .optional()
+                .describe("Optional select value number. Omit to let Bluestone generate or default it."),
+            })
+          )
+          .min(1)
+          .max(50)
+          .describe("New enum values to append. Existing enum values are preserved automatically."),
+        attributeName: z
+          .string()
+          .optional()
+          .describe("Human-readable attribute name for confirmation context. Pass it when available."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID (e.g. \"en\", \"l3600\"). " +
+            "Call list_contexts to see available values. Defaults to English if omitted."
+          ),
+      },
+    },
+    async ({ definitionId, values, attributeName, context }) => {
+      const definition = await mapiGet<MapiAttributeDefinition>(
+        `${MAPI_PIM_BASE}/definitions/${definitionId}`,
+        creds,
+        { context }
+      );
+
+      if (definition.dataType !== "single_select" && definition.dataType !== "multi_select") {
+        throw new Error(
+          `Attribute definition ${definitionId} is ${definition.dataType ?? "missing a data type"}, not single_select or multi_select.`
+        );
+      }
+
+      const existingValues = definition.restrictions?.enum?.values ?? [];
+      const existingValueNames = new Set(
+        existingValues.map((value) => value.value.trim().toLowerCase())
+      );
+      const incomingValueNames = new Set<string>();
+
+      for (const value of values) {
+        const normalized = value.value.trim().toLowerCase();
+        if (existingValueNames.has(normalized)) {
+          throw new Error(
+            `Enum value "${value.value}" already exists on "${definition.name}". Use the existing value instead of creating a duplicate.`
+          );
+        }
+        if (incomingValueNames.has(normalized)) {
+          throw new Error(
+            `Enum value "${value.value}" is duplicated in the request. Remove duplicates and try again.`
+          );
+        }
+        incomingValueNames.add(normalized);
+      }
+
+      const restrictions: MapiAttributeDefinitionRestrictions = JSON.parse(
+        JSON.stringify(definition.restrictions ?? {})
+      );
+      restrictions.enum = {
+        ...(restrictions.enum?.type && { type: restrictions.enum.type }),
+        values: [
+          ...existingValues.map((value) => ({
+            ...(value.valueId && { valueId: value.valueId }),
+            value: value.value,
+            ...(value.number && { number: value.number }),
+            ...(value.metadata && { metadata: value.metadata }),
+          })),
+          ...values.map((value) => ({
+            value: value.value,
+            ...(value.number && { number: value.number }),
+            ...(value.metadata && { metadata: value.metadata }),
+          })),
+        ],
+      };
+
+      const body = {
+        ...(definition.charset !== undefined && { charset: definition.charset }),
+        ...(definition.contentType !== undefined && { contentType: definition.contentType }),
+        ...(definition.contextAware !== undefined && { contextAware: definition.contextAware }),
+        dataType: definition.dataType,
+        ...(definition.description !== undefined && { description: definition.description }),
+        ...(definition.externalSource !== undefined && { externalSource: definition.externalSource }),
+        ...(definition.groupId !== undefined && { groupId: definition.groupId }),
+        ...(definition.internal !== undefined && { internal: definition.internal }),
+        name: definition.name,
+        ...(definition.number !== undefined && { number: definition.number }),
+        restrictions,
+        ...(definition.unit !== undefined && { unit: definition.unit }),
+      };
+
+      await mapiPut<Record<string, unknown>>(
+        `/pim/definitions/${definitionId}?validation=NAME`,
+        body,
+        creds,
+        { context }
+      );
+
+      const label = attributeName ?? definition.name;
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Appended ${values.length} enum value${values.length === 1 ? "" : "s"} to "${label}" (${definitionId}). ` +
+              `Total enum values: ${existingValues.length + values.length}.`,
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: set_product_attribute
+  server.registerTool(
+    "set_product_attribute",
+    {
+      description:
+        "Add an attribute value to an existing Bluestone PIM product. " +
+        "Use list_attribute_definitions first to get the definitionId and understand the data type, unit, enum values, and restrictions. " +
+        "Use list_products_in_category or create_product to get the productId. " +
+        "Always confirm the product, attribute definition, data type, and exact values with the user before calling this tool. " +
+        "Values must be strings: decimal values like \"1.5\", boolean values like \"true\" or \"false\", and select values as enum value IDs from the attribute definition. " +
+        "For multi_select, pass one string per selected enum value ID. " +
+        "Do not call this during phase 1 onboarding mapping. Only call it after the user has approved the mapping and moved to a confirmed write phase.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        productId: z
+          .string()
+          .describe("The product ID to enrich. Get this from list_products_in_category or create_product."),
+        definitionId: z
+          .string()
+          .describe("The attribute definition ID. Get this from list_attribute_definitions or create_attribute_definition."),
+        values: z
+          .array(z.string())
+          .min(1)
+          .describe(
+            "Attribute value strings. Examples: decimal [\"1.5\"], boolean [\"true\"], single_select [\"enumValueId\"], multi_select [\"enumValueId1\", \"enumValueId2\"]."
+          ),
+        productName: z
+          .string()
+          .optional()
+          .describe("Human-readable product name for confirmation context. Pass it when available."),
+        attributeName: z
+          .string()
+          .optional()
+          .describe("Human-readable attribute name for confirmation context. Pass it when available."),
+      },
+    },
+    async ({ productId, definitionId, values, productName, attributeName }) => {
+      await mapiPost<Record<string, unknown>>(
+        `/pim/products/${productId}/attributes`,
+        { definitionId, values },
+        creds
+      );
+
+      const productLabel = productName ? `"${productName}" (${productId})` : productId;
+      const attributeLabel = attributeName ? `"${attributeName}" (${definitionId})` : definitionId;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Set attribute ${attributeLabel} on product ${productLabel}. ` +
+              `Values: ${values.join(", ")}`,
+          },
+        ],
+      };
+    }
+  );
+
   // Tool: list_products_in_category
   server.registerTool(
     "list_products_in_category",
@@ -1040,6 +1594,98 @@ export function createMcpServer(creds: Credentials): McpServer {
                   returned,
                   hasMore,
                   products,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: get_product
+  server.registerTool(
+    "get_product",
+    {
+      description:
+        "Fetch full working-state details for a Bluestone PIM product, including metadata, attributes, category IDs, asset IDs, relations, bundles, and variant information. " +
+        "Use list_products_in_category first to get the productId, or use the ID returned by create_product. " +
+        "Call this before writing product attributes or category changes when you need to inspect current values. " +
+        "Attribute values are returned by definitionId only. Call list_attribute_definitions if you need to resolve attribute names, data types, enum values, or dictionary context. " +
+        "Suppress raw IDs in user-facing replies unless the user asks for implementation detail or a write action needs exact IDs.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        productId: z
+          .string()
+          .describe("The product ID. Get this from list_products_in_category or create_product."),
+        productName: z
+          .string()
+          .optional()
+          .describe("Human-readable product name for the response summary. Pass it when available."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID (e.g. \"en\", \"l3600\"). " +
+            "Call list_contexts to see available values. Defaults to English if omitted."
+          ),
+      },
+    },
+    async ({ productId, productName, context }) => {
+      const effectiveContext = context ?? "en";
+      const product = await mapiGetFull<MapiProductDetail>(
+        `${MAPI_PIM_BASE}/products/${productId}`,
+        creds,
+        { context }
+      );
+
+      const attributes = (product.attributes ?? []).map((attribute) => ({
+        definitionId: attribute.definitionId,
+        ...(attribute.values && { values: attribute.values }),
+        ...(attribute.dictionary && { dictionary: attribute.dictionary }),
+        ...(attribute.readOnly && { readOnly: true }),
+      }));
+
+      const label = productName ?? product.name ?? productId;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Fetched product "${label}" (working state, context: ${effectiveContext}). ` +
+              `Found ${attributes.length} attribute${attributes.length === 1 ? "" : "s"}, ` +
+              `${product.categories?.length ?? 0} categor${(product.categories?.length ?? 0) === 1 ? "y" : "ies"}, ` +
+              `and ${product.assets?.length ?? 0} asset${(product.assets?.length ?? 0) === 1 ? "" : "s"}.\n\n` +
+              JSON.stringify(
+                {
+                  id: product.id,
+                  context: effectiveContext,
+                  ...(product.name && { name: product.name }),
+                  ...(product.number && { number: product.number }),
+                  ...(product.description && { description: product.description }),
+                  ...(product.state && { state: mapProductState(product.state) }),
+                  ...(product.type && { type: product.type }),
+                  ...(product.variantParentId && { variantParentId: product.variantParentId }),
+                  ...(product.quantity !== undefined && { quantity: product.quantity }),
+                  ...(product.archived !== undefined && { archived: product.archived }),
+                  ...(product.dataSynced !== undefined && { dataSynced: product.dataSynced }),
+                  ...(product.readOnly !== undefined && { readOnly: product.readOnly }),
+                  ...(product.lastUpdate && { lastUpdate: product.lastUpdate }),
+                  ...(product.createDate && { createDate: product.createDate }),
+                  attributes,
+                  categories: product.categories ?? [],
+                  relatedCategories: product.relatedCategories ?? [],
+                  assets: product.assets ?? [],
+                  relatedProducts: product.relatedProducts ?? [],
+                  labels: product.labels ?? [],
+                  productBundles: product.productBundles ?? [],
+                  productVariants: product.productVariants ?? [],
                 },
                 null,
                 2
@@ -1264,11 +1910,12 @@ export function createMcpServer(creds: Credentials): McpServer {
     {
       description:
         "Create a new product in Bluestone PIM. " +
-        "The product name is required. Always confirm the name with the user before calling this tool. " +
+        "The product name is required. Product number is optional but strongly recommended for onboarding because it is the unique product key Bluestone uses to detect existing products. " +
+        "Always confirm the name and product number with the user before calling this tool. " +
         "Returns the name and ID of the newly created product. " +
         "If categoryId is provided, the product will also be assigned to that catalog category after creation. " +
         "Category assignment is a separate step: if it fails, the product still exists and the failure is reported separately. " +
-        "If product creation itself fails, report the error to the user and do not retry without their confirmation. " +
+        "If product creation itself fails, report the error to the user and do not retry without their confirmation. If a product number already exists, tell the user this create-only flow will not update or upsert the existing product. " +
         "Do not call this during phase 1 onboarding, supplier data mapping, import planning, or bulk import planning. In those flows, stop at read-only mapping and validation unless the user explicitly moves to a confirmed write phase. " +
         "After creating, tell the user the product was created and suggest they open Bluestone PIM to continue enriching it.",
       annotations: {
@@ -1281,6 +1928,12 @@ export function createMcpServer(creds: Credentials): McpServer {
           .string()
           .min(1)
           .describe("The product name. Must be confirmed by the user before calling."),
+        number: z
+          .string()
+          .optional()
+          .describe(
+            "Optional product number. Strongly recommended for onboarding because it is the unique product key used to detect existing products. Must be confirmed by the user before calling."
+          ),
         categoryId: z
           .string()
           .optional()
@@ -1290,12 +1943,32 @@ export function createMcpServer(creds: Credentials): McpServer {
           ),
       },
     },
-    async ({ name, categoryId }) => {
-      const { resourceId } = await mapiPost<Record<string, unknown>>(
-        "/pim/products",
-        { name },
-        creds
-      );
+    async ({ name, number, categoryId }) => {
+      let resourceId: string | null;
+      try {
+        const result = await mapiPost<Record<string, unknown>>(
+          "/pim/products",
+          {
+            name,
+            ...(number && { number }),
+          },
+          creds
+        );
+        resourceId = result.resourceId;
+      } catch (err) {
+        const conflictMessage = number ? productNumberConflictMessage(err, number) : null;
+        if (conflictMessage) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: conflictMessage,
+              },
+            ],
+          };
+        }
+        throw err;
+      }
       if (!resourceId) {
         throw new Error(
           "Product was created but no resource-id was returned in the response headers."
@@ -1313,7 +1986,9 @@ export function createMcpServer(creds: Credentials): McpServer {
             content: [
               {
                 type: "text" as const,
-                text: `Product "${name}" created and assigned to catalog category ${categoryId}. ID: ${resourceId}`,
+                text:
+                  `Product "${name}" created and assigned to catalog category ${categoryId}. ID: ${resourceId}` +
+                  (number ? ` Number: ${number}` : ""),
               },
             ],
           };
@@ -1326,6 +2001,7 @@ export function createMcpServer(creds: Credentials): McpServer {
                 type: "text" as const,
                 text:
                   `Product "${name}" created successfully. ID: ${resourceId}\n\n` +
+                  (number ? `Number: ${number}\n\n` : "") +
                   `Note: category assignment to ${categoryId} failed. You can assign it manually in Bluestone PIM. Error: ${message}`,
               },
             ],
@@ -1337,7 +2013,106 @@ export function createMcpServer(creds: Credentials): McpServer {
         content: [
           {
             type: "text" as const,
-            text: `Product "${name}" created successfully. ID: ${resourceId}`,
+            text:
+              `Product "${name}" created successfully. ID: ${resourceId}` +
+              (number ? ` Number: ${number}` : ""),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: assign_product_to_category
+  server.registerTool(
+    "assign_product_to_category",
+    {
+      description:
+        "Assign an existing product to a Bluestone PIM catalog category. " +
+        "Call list_catalogs and, when needed, list_category_tree first to get the categoryId. " +
+        "Use list_products_in_category or a prior create_product result to get the productId. " +
+        "Always confirm the product and target category with the user before calling this tool. " +
+        "This only assigns category placement. It does not set product attributes, media, or publication status.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        productId: z
+          .string()
+          .describe("The product ID to assign. Get this from list_products_in_category or create_product."),
+        categoryId: z
+          .string()
+          .describe("The catalog category ID to assign the product to. Get this from list_catalogs or list_category_tree."),
+        productName: z
+          .string()
+          .optional()
+          .describe("Human-readable product name for the confirmation message. Pass it when available."),
+        categoryName: z
+          .string()
+          .optional()
+          .describe("Human-readable category name or path for the confirmation message. Pass it when available."),
+      },
+    },
+    async ({ productId, categoryId, productName, categoryName }) => {
+      await mapiPost<Record<string, unknown>>(
+        `/pim/catalogs/nodes/${categoryId}/products`,
+        { productId },
+        creds
+      );
+
+      const productLabel = productName ? `"${productName}" (${productId})` : productId;
+      const categoryLabel = categoryName ? `"${categoryName}" (${categoryId})` : categoryId;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Assigned product ${productLabel} to catalog category ${categoryLabel}.`,
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: update_product_name
+  server.registerTool(
+    "update_product_name",
+    {
+      description:
+        "Rename an existing product in Bluestone PIM. " +
+        "Use list_products_in_category or a prior create_product result to get the productId. " +
+        "Always confirm the exact old product and new name with the user before calling this tool. " +
+        "This only updates the product name. It does not set attributes, category placement, media, or publication status.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        productId: z
+          .string()
+          .describe("The product ID to rename. Get this from list_products_in_category or create_product."),
+        newName: z
+          .string()
+          .min(1)
+          .describe("The new product name. Must be confirmed by the user before calling."),
+        currentName: z
+          .string()
+          .optional()
+          .describe("Current product name for confirmation context. Pass it when available."),
+      },
+    },
+    async ({ productId, newName, currentName }) => {
+      await mapiPatch(`/pim/products/${productId}`, { name: newName }, creds);
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: currentName
+              ? `Renamed product "${currentName}" to "${newName}". ID: ${productId}`
+              : `Renamed product ${productId} to "${newName}".`,
           },
         ],
       };
