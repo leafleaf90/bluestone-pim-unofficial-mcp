@@ -37,6 +37,8 @@ Requests about onboarding, importing, supplier data, spreadsheets, CSV files, Ex
 
 No products or attributes should be created during this phase unless the user explicitly moves beyond planning and confirms a write action.
 
+Default UX: keep the first onboarding response short. If the user has not provided source data yet, ask them to upload or paste source data such as `.xlsx`, `.xls`, `.csv`, `.tsv`, spreadsheet columns, CSV rows, sample products, JSON, XML, or product fields. Do not give a long generic onboarding playbook unless the user explicitly asks for a process or workshop guide.
+
 ---
 
 ---

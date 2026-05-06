@@ -470,6 +470,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "For any request about product data onboarding, importing, import planning, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, or preparing products before creation, first call list_attribute_definitions and list_catalogs. " +
         "If the user needs category placement beyond the catalog root, call list_category_tree for the relevant catalog. " +
         "Use those read-only results to present a suggested mapping with confident matches, uncertain matches, missing attributes, category suggestions, and validation notes. " +
+        "Keep onboarding replies concise and action-oriented. If the user has not provided source data yet, ask them to upload or paste source data such as .xlsx, .xls, .csv, .tsv, spreadsheet columns, sample rows, JSON, XML, or product fields next. " +
+        "Do not produce a long generic onboarding playbook unless the user explicitly asks for a process, workshop plan, or detailed onboarding guide. " +
         "Do not create products or change attributes during onboarding unless the user explicitly moves beyond planning and confirms a write action.\n\n" +
         "IMPORTANT: All Bluestone PIM data must come from the tools in this server. " +
         "Do not attempt to fetch Bluestone data using HTTP requests, bash commands, code artifacts, or any other method. " +
@@ -700,7 +702,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Use this before product data onboarding, importing, import planning, supplier data review, spreadsheet mapping, CSV mapping, Excel mapping, field mapping, attribute mapping, or deciding whether an incoming field already has a matching attribute. " +
         "Returns shaped definition metadata: id, number, name, group, type, unit, context awareness, enum values, and validation restrictions. " +
         "Suppress raw IDs and full enum lists in user-facing replies unless the user asks for implementation detail. " +
-        "When mapping incoming data, present confident matches, uncertain matches, fields with no good match, and validation issues such as enum or range mismatches.",
+        "When mapping incoming data, present confident matches, uncertain matches, fields with no good match, and validation issues such as enum or range mismatches. " +
+        "If no incoming source fields are available yet, ask the user to upload or paste .xlsx, .xls, .csv, .tsv, spreadsheet columns, sample rows, JSON, XML, or product fields instead of giving a generic onboarding playbook.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
