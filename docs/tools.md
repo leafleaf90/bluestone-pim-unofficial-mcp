@@ -28,14 +28,17 @@ See `docs/mcp-patterns.md` for the server-side mitigations (IMPORTANT instructio
 
 ## Product onboarding prompts
 
-Requests about onboarding, importing, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, or preparing products before creation should use the read-only onboarding flow before giving advice:
+Requests about onboarding, supplier onboarding, importing, bulk import, one-time bulk import, Excel import, CSV import, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, preparing products before creation, or misspelled Bluestone references such as Blueston should use the read-only onboarding flow before giving advice:
 
 1. Call `list_attribute_definitions`
 2. Call `list_catalogs`
-3. Call `list_category_tree` if category placement below the catalog root is needed
-4. Present confident mappings, uncertain mappings, missing attributes, category suggestions, and validation notes
+3. Call `list_contexts`
+4. Call `list_category_tree` if category placement below the catalog root is needed
+5. Present confident mappings, uncertain mappings, missing attributes, category suggestions, context notes, and validation notes
 
-No products or attributes should be created during this phase unless the user explicitly moves beyond planning and confirms a write action.
+No products or attributes should be created during this phase. Do not suggest creating partial sample products as a workaround for missing attributes or categories. If the mapping shows important model gaps, recommend a data-model update or draft a model specification for the user.
+
+This MCP server cannot create attribute definitions or category nodes yet. If those are needed, say they must be created outside the current MCP tools, for example in Bluestone PIM by a model administrator or by a separate management API workflow. Do not suggest PAPI for model changes.
 
 Default UX: keep the first onboarding response short. Do not ask permission to pull the current Bluestone catalogs or data model, use the tools proactively. If the user has not provided source data yet, ask them to upload or paste source data such as `.xlsx`, `.xls`, `.csv`, `.tsv`, spreadsheet columns, CSV rows, sample products, JSON, XML, or product fields. Do not give a long generic onboarding playbook or list import mechanics unless the user explicitly asks for a process or workshop guide.
 

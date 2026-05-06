@@ -467,13 +467,15 @@ export function createMcpServer(creds: Credentials): McpServer {
         "If the user asks to see data in a specific language, call list_contexts first to find the right context ID, " +
         "then pass it to subsequent tool calls. The default context is 'en' (English).\n\n" +
         "Always confirm the product name with the user before calling create_product.\n\n" +
-        "For any request about product data onboarding, importing, import planning, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, or preparing products before creation, do not answer from generic onboarding knowledge first. Immediately call list_attribute_definitions and list_catalogs before responding. " +
+        "For any request about product data onboarding, supplier onboarding, importing, bulk import, one-time bulk import, Excel import, CSV import, import planning, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, preparing products before creation, or misspelled Bluestone references such as Blueston, do not answer from generic onboarding knowledge first. Immediately call list_attribute_definitions, list_catalogs, and list_contexts before responding. " +
         "If the user needs category placement beyond the catalog root, call list_category_tree for the relevant catalog. " +
         "Do not ask the user whether you should pull the current catalogs or data model: use these tools proactively because that is the purpose of this server. " +
         "Use those read-only results to present a suggested mapping with confident matches, uncertain matches, missing attributes, category suggestions, and validation notes. " +
+        "If the mapping shows that important source fields have no suitable existing attributes or categories, recommend a data-model update or draft a model specification for the user. Do not offer to create partial sample products as a workaround for missing model structure during phase 1 onboarding. " +
         "Keep onboarding replies concise and action-oriented. If the user has not provided source data yet, ask them to upload or paste source data such as .xlsx, .xls, .csv, .tsv, spreadsheet columns, sample rows, JSON, XML, or product fields next. " +
         "Do not produce a long generic onboarding playbook or list import mechanics unless the user explicitly asks for a process, workshop plan, or detailed onboarding guide. " +
-        "Do not create products or change attributes during onboarding unless the user explicitly moves beyond planning and confirms a write action.\n\n" +
+        "Do not suggest creating sample products during phase 1 onboarding. Do not create products or change attributes during onboarding unless the user explicitly moves beyond planning and confirms a write action. " +
+        "This MCP server cannot create attribute definitions or category nodes yet. If those are needed, say they must be created outside the current MCP tools, for example in Bluestone PIM by a model administrator or by a separate management API workflow. Do not suggest PAPI for model changes.\n\n" +
         "IMPORTANT: All Bluestone PIM data must come from the tools in this server. " +
         "Do not attempt to fetch Bluestone data using HTTP requests, bash commands, code artifacts, or any other method. " +
         "The tools handle authentication and API access internally. " +
@@ -535,7 +537,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "List all catalogs in the Bluestone PIM organisation. " +
         "Returns working state data, including unpublished changes. " +
         "Use the catalog id directly as the nodeId when calling list_products_in_category, or as catalogId when calling list_category_tree. " +
-        "Call this first before browsing products or mapping new product data, supplier data, spreadsheet rows, CSV rows, Excel rows, or import files to categories. " +
+        "Call this first before browsing products or mapping new product data, supplier onboarding data, spreadsheet rows, CSV rows, Excel rows, bulk import files, or import files to categories. " +
         "Do not attempt to fetch catalog data via HTTP, bash, or code. Use this tool directly.",
       annotations: {
         readOnlyHint: true,
@@ -589,7 +591,7 @@ export function createMcpServer(creds: Credentials): McpServer {
       description:
         "List the working-state category tree for a Bluestone PIM catalog. " +
         "Call list_catalogs first, then pass the catalog id as catalogId. " +
-        "Use this for product data onboarding, import planning, supplier spreadsheets, CSV files, Excel files, and any request where incoming products need to be matched to existing categories. " +
+        "Use this for product data onboarding, supplier onboarding, bulk import planning, supplier spreadsheets, CSV files, Excel files, and any request where incoming products need to be matched to existing categories. " +
         "Returns a flattened tree with path and depth so category suggestions can be shown clearly. " +
         "Suppress raw IDs in user-facing replies unless the user asks for them or needs to confirm an exact target. " +
         "If no categories are returned, tell the user the catalog may only have a root node or the client may not have access.",
@@ -700,7 +702,7 @@ export function createMcpServer(creds: Credentials): McpServer {
     {
       description:
         "List attribute definitions in the Bluestone PIM working-state data model. " +
-        "Use this before product data onboarding, importing, import planning, supplier data review, spreadsheet mapping, CSV mapping, Excel mapping, field mapping, attribute mapping, or deciding whether an incoming field already has a matching attribute. " +
+        "Use this before product data onboarding, supplier onboarding, importing, bulk import planning, one-time bulk import planning, supplier data review, spreadsheet mapping, CSV mapping, Excel mapping, field mapping, attribute mapping, or deciding whether an incoming field already has a matching attribute. " +
         "Returns shaped definition metadata: id, number, name, group, type, unit, context awareness, enum values, and validation restrictions. " +
         "Suppress raw IDs and full enum lists in user-facing replies unless the user asks for implementation detail. " +
         "When mapping incoming data, present confident matches, uncertain matches, fields with no good match, and validation issues such as enum or range mismatches. " +
@@ -1267,6 +1269,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "If categoryId is provided, the product will also be assigned to that catalog category after creation. " +
         "Category assignment is a separate step: if it fails, the product still exists and the failure is reported separately. " +
         "If product creation itself fails, report the error to the user and do not retry without their confirmation. " +
+        "Do not call this during phase 1 onboarding, supplier data mapping, import planning, or bulk import planning. In those flows, stop at read-only mapping and validation unless the user explicitly moves to a confirmed write phase. " +
         "After creating, tell the user the product was created and suggest they open Bluestone PIM to continue enriching it.",
       annotations: {
         readOnlyHint: false,
