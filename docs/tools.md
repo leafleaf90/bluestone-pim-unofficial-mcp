@@ -38,9 +38,13 @@ Requests about onboarding, supplier onboarding, importing, bulk import, one-time
 
 The product identity section should propose the source column to use as product `number`, the source column to use as product `name`, confidence for each, and a prompt asking whether the user wants to choose another number column. Product `number` is the unique key Bluestone PIM uses to detect existing products. This MCP onboarding flow is create-only for products, so a duplicate number should be reported as an existing product conflict rather than treated as an update or upsert.
 
-No products or attributes should be created during this phase. Do not suggest creating partial sample products as a workaround for missing attributes or categories. If the mapping shows important model gaps, recommend a data-model update or draft a model specification for the user. After the user approves specific missing simple attributes, call `create_attribute_definition` to create them. Only create an attribute definition when the source field was not mapped to a suitable existing PIM attribute. After the user approves missing dictionary values, call `create_dictionary_value` to create them. Only create a dictionary value when the source value was not mapped to a suitable existing PIM dictionary value. After the user approves missing select values, call `append_select_attribute_values` to add them. Only append a select value when the source value was not mapped to a suitable existing enum value. After the user approves missing category paths, call `create_category_node` to create them. Only create a category when the source category was not mapped to a suitable existing PIM category.
+No products or attributes should be created during this phase. Do not suggest creating partial sample products as a workaround for missing attributes or categories. If the mapping shows important model gaps, recommend a data-model update or draft a model specification for the user.
 
-This MCP server can create simple attribute definitions with name, data type, and optional unit, create dictionary values, append select enum values, create category nodes, and set product attribute values after a mapping is approved. It cannot create validation restrictions, attribute groups, or media yet. If those are needed, say they must be created outside the current MCP tools, for example in Bluestone PIM by a model administrator or by a separate management API workflow. Do not suggest PAPI for model changes.
+When the user approves supported missing pieces, move into the confirmed write phase instead of sending them to the Bluestone UI. After the user approves specific missing simple attributes, call `create_attribute_definition` to create them. Only create an attribute definition when the source field was not mapped to a suitable existing PIM attribute. After the user approves missing dictionary values, call `create_dictionary_value` to create them. Only create a dictionary value when the source value was not mapped to a suitable existing PIM dictionary value. After the user approves missing select values, call `append_select_attribute_values` to add them. Only append a select value when the source value was not mapped to a suitable existing enum value. After the user approves missing category paths, call `create_category_node` to create them. Only create a category when the source category was not mapped to a suitable existing PIM category.
+
+If the user answers mapping decisions such as target catalog, product number column, existing attribute mappings, missing attribute creation, or missing category placement, summarize the exact supported writes and ask for confirmation. Do not restart the planning discussion.
+
+This MCP server can create simple attribute definitions with name, data type, and optional unit, create dictionary values, append select enum values, create category nodes, and set product attribute values after a mapping is approved. It cannot create validation restrictions, attribute groups, advanced model configuration, or media yet. If those are needed, say they must be created outside the current MCP tools, for example in Bluestone PIM by a model administrator or by a separate management API workflow. Do not suggest PAPI for model changes.
 
 Default UX: keep the first onboarding response short. Do not ask permission to pull the current Bluestone catalogs or data model, use the tools proactively. If the user has not provided source data yet, ask them to upload or paste source data such as `.xlsx`, `.xls`, `.csv`, `.tsv`, spreadsheet columns, CSV rows, sample products, JSON, XML, or product fields. Do not give a long generic onboarding playbook or list import mechanics unless the user explicitly asks for a process or workshop guide.
 
@@ -160,6 +164,7 @@ Body: { "name": "CATEGORY_NAME", "parentId": "PARENT_ID_IF_NOT_ROOT" }
 - Calls `list_catalogs` and `list_category_tree` first to avoid duplicate categories
 - Uses this only when a source category path was not mapped to a suitable existing PIM category
 - Presents the proposed category name and parent category to the user for explicit confirmation
+- Creates approved missing onboarding categories through MCP instead of telling the user to create them in the Bluestone UI
 - Omits `parentId` for root-level nodes and passes `parentId` for child categories
 - Returns the new category node ID from the `resource-id` header
 
@@ -229,6 +234,7 @@ Supported `dataType` values: `boolean`, `integer`, `decimal`, `date`, `time`, `d
 - Calls `list_attribute_definitions` first to avoid duplicate attributes
 - Uses this only when a source field was not mapped to a suitable existing PIM attribute
 - Presents the proposed name, data type, and unit to the user for explicit confirmation
+- Creates approved missing simple onboarding attributes through MCP instead of telling the user to create them in the Bluestone UI
 - Uses this only for simple definitions. It does not create enum values, dictionary values, validation restrictions, groups, category nodes, or product attribute values
 - Returns the new definition ID from the `resource-id` header
 

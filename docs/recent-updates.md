@@ -1,6 +1,6 @@
 # Recent Updates
 
-The connect page has a "Recent updates" section near the top. It shows the last 2-3 meaningful changes, newest first. Keep it to things an end user or evaluator would care about. Drop the oldest entry when adding a new one.
+The connect page has a "Recent updates" section near the top. Keep the 10 latest meaningful changes, newest first. The page shows the first 5 by default and reveals the rest with a Show more button. Keep entries to things an end user or evaluator would care about. Drop the oldest entry when adding a new one after there are already 10.
 
 ---
 
@@ -61,4 +61,10 @@ Exclude:
 - <span class="badge-new">New</span> **May 2026:** Select enum value append added. Add missing single-select and multi-select values with a guarded read-merge-write flow.
 - <span class="badge-new">New</span> **May 2026:** Dictionary value creation added. Create missing values for dictionary attributes and use their IDs when setting product attributes.
 - <span class="badge-new">New</span> **May 2026:** Category node creation added. Create missing onboarding categories after checking the existing catalog tree.
+- <span class="badge-new">New</span> **May 2026:** Product attribute value writes added. Set mapped attribute values on products after the onboarding mapping is approved.
+- <span class="badge-new">New</span> **May 2026:** Simple attribute definition creation added. Create missing onboarding attributes with name, data type, and optional unit after confirmation.
+- <span class="badge-new">New</span> **May 2026:** Product placement and rename tools added. Assign existing products to catalog categories and update product names after confirmation.
+- <span class="badge-new">New</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
+- <span class="badge-new">New</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
+- <span class="badge-new">New</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
 ```

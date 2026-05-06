@@ -198,6 +198,12 @@ Bluestone is built API-first, with clean structured data. This is exactly what A
 - <span class="badge-new">New</span> **May 2026:** Select enum value append added. Add missing single-select and multi-select values with a guarded read-merge-write flow.
 - <span class="badge-new">New</span> **May 2026:** Dictionary value creation added. Create missing values for dictionary attributes and use their IDs when setting product attributes.
 - <span class="badge-new">New</span> **May 2026:** Category node creation added. Create missing onboarding categories after checking the existing catalog tree.
+- <span class="badge-new">New</span> **May 2026:** Product attribute value writes added. Set mapped attribute values on products after the onboarding mapping is approved.
+- <span class="badge-new">New</span> **May 2026:** Simple attribute definition creation added. Create missing onboarding attributes with name, data type, and optional unit after confirmation.
+- <span class="badge-new">New</span> **May 2026:** Product placement and rename tools added. Assign existing products to catalog categories and update product names after confirmation.
+- <span class="badge-new">New</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
+- <span class="badge-new">New</span> **April 2026:** "Copy page as Markdown" added. Copy the full documentation including example conversations, view it as plain text, or open it in Claude directly from the page.
+- <span class="badge-new">New</span> **April 2026:** `get_product_image` added. Ask Claude to show a product image directly in chat and it fetches it from the Bluestone CDN and provides a direct link.
 
 ---
 
@@ -1102,6 +1108,34 @@ The paper also notes that context window economics constrain how much a descript
     marked.use({ breaks: false, gfm: true });
     const parsedHtml = marked.parse(processed).replace(new RegExp(PLACEHOLDER, 'g'), serverUrlHtml);
     document.getElementById('content').innerHTML = parsedHtml;
+
+    (function setupRecentUpdatesToggle() {
+      var heading = document.getElementById('recent-updates');
+      if (!heading) return;
+      var list = heading.nextElementSibling;
+      if (!list || list.tagName !== 'UL') return;
+      var items = Array.prototype.slice.call(list.querySelectorAll(':scope > li'));
+      if (items.length <= 5) return;
+
+      function setExpanded(expanded) {
+        items.forEach(function(item, index) {
+          item.style.display = expanded || index < 5 ? '' : 'none';
+        });
+        button.textContent = expanded ? 'Show less' : 'Show more';
+        button.setAttribute('aria-expanded', String(expanded));
+      }
+
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'not-prose mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors';
+      button.setAttribute('aria-controls', 'recent-updates-list');
+      list.id = 'recent-updates-list';
+      button.addEventListener('click', function() {
+        setExpanded(button.getAttribute('aria-expanded') !== 'true');
+      });
+      list.insertAdjacentElement('afterend', button);
+      setExpanded(false);
+    })();
 
     // Copy-page dropdown component
     (function() {
