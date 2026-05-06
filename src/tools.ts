@@ -467,11 +467,12 @@ export function createMcpServer(creds: Credentials): McpServer {
         "If the user asks to see data in a specific language, call list_contexts first to find the right context ID, " +
         "then pass it to subsequent tool calls. The default context is 'en' (English).\n\n" +
         "Always confirm the product name with the user before calling create_product.\n\n" +
-        "For any request about product data onboarding, importing, import planning, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, or preparing products before creation, first call list_attribute_definitions and list_catalogs. " +
+        "For any request about product data onboarding, importing, import planning, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, or preparing products before creation, do not answer from generic onboarding knowledge first. Immediately call list_attribute_definitions and list_catalogs before responding. " +
         "If the user needs category placement beyond the catalog root, call list_category_tree for the relevant catalog. " +
+        "Do not ask the user whether you should pull the current catalogs or data model: use these tools proactively because that is the purpose of this server. " +
         "Use those read-only results to present a suggested mapping with confident matches, uncertain matches, missing attributes, category suggestions, and validation notes. " +
         "Keep onboarding replies concise and action-oriented. If the user has not provided source data yet, ask them to upload or paste source data such as .xlsx, .xls, .csv, .tsv, spreadsheet columns, sample rows, JSON, XML, or product fields next. " +
-        "Do not produce a long generic onboarding playbook unless the user explicitly asks for a process, workshop plan, or detailed onboarding guide. " +
+        "Do not produce a long generic onboarding playbook or list import mechanics unless the user explicitly asks for a process, workshop plan, or detailed onboarding guide. " +
         "Do not create products or change attributes during onboarding unless the user explicitly moves beyond planning and confirms a write action.\n\n" +
         "IMPORTANT: All Bluestone PIM data must come from the tools in this server. " +
         "Do not attempt to fetch Bluestone data using HTTP requests, bash commands, code artifacts, or any other method. " +

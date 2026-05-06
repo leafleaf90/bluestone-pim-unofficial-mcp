@@ -28,7 +28,7 @@ See `docs/mcp-patterns.md` for the server-side mitigations (IMPORTANT instructio
 
 ## Product onboarding prompts
 
-Requests about onboarding, importing, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, or preparing products before creation should use the read-only onboarding flow first:
+Requests about onboarding, importing, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, or preparing products before creation should use the read-only onboarding flow before giving advice:
 
 1. Call `list_attribute_definitions`
 2. Call `list_catalogs`
@@ -37,7 +37,7 @@ Requests about onboarding, importing, supplier data, spreadsheets, CSV files, Ex
 
 No products or attributes should be created during this phase unless the user explicitly moves beyond planning and confirms a write action.
 
-Default UX: keep the first onboarding response short. If the user has not provided source data yet, ask them to upload or paste source data such as `.xlsx`, `.xls`, `.csv`, `.tsv`, spreadsheet columns, CSV rows, sample products, JSON, XML, or product fields. Do not give a long generic onboarding playbook unless the user explicitly asks for a process or workshop guide.
+Default UX: keep the first onboarding response short. Do not ask permission to pull the current Bluestone catalogs or data model, use the tools proactively. If the user has not provided source data yet, ask them to upload or paste source data such as `.xlsx`, `.xls`, `.csv`, `.tsv`, spreadsheet columns, CSV rows, sample products, JSON, XML, or product fields. Do not give a long generic onboarding playbook or list import mechanics unless the user explicitly asks for a process or workshop guide.
 
 ---
 
