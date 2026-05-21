@@ -243,7 +243,7 @@ If it does go wrong mid-conversation, redirect with: "Don't write code. Use the 
 
 The same applies to image requests. If Claude has web search available, "show the image" can match a web search before it matches the MCP tool. Say "show me the product image from Bluestone PIM" to make the intent unambiguous.
 
-A few conversations showing what is possible. Each window is a mockup of how the exchange looks in Claude Desktop.
+A few conversations showing what is possible. Each window is a mockup of how the exchange looks in Claude Desktop. Completeness examples use inline card mockups that mirror the Cursor Canvas layout: summary stats, filter pills, progress bars, and requirement breakdown cards.
 
 ---
 
@@ -777,6 +777,58 @@ The paper also notes that context window economics constrain how much a descript
         ]
       },
       {
+        chatTitle: 'Shoes completeness',
+        label: 'Find incomplete products and drill into gaps',
+        turns: [
+          { type: 'user', text: 'In my Bluestone PIM, list all products with completeness score below 100% in the Shoes category.' },
+          { type: 'tool', name: 'search_tools', display: 'Searched available tools' },
+          { type: 'reply', text: 'I need to find the Shoes category ID first, then search for incomplete products within it.' },
+          { type: 'tool', name: 'list_category_tree', display: 'List category tree' },
+          { type: 'reply', text: 'Found it. Now let me search for all products in Shoes (including subcategories) with a completeness score below 100%.' },
+          { type: 'tool', name: 'search_products', display: 'Search products' },
+          {
+            type: 'completeness-dashboard',
+            title: 'Incomplete shoe product listings in Bluestone PIM',
+            subtitle: 'Shoes category including subcategories · English context · working state',
+            stats: { incomplete: 12, average: '71%', complete: 0 },
+            activeFilter: 'All',
+            products: [
+              { name: 'Heritage Brogue - Cognac Tan', type: 'VARIANT', score: 50, number: 'BRG-22-TN-CT' },
+              { name: 'Heritage Brogue - Espresso Brown', type: 'VARIANT', score: 50, number: 'BRG-22-TN-EB' },
+              { name: 'Heritage Brogue - Onyx', type: 'VARIANT', score: 50, number: 'BRG-22-TN-O' },
+              { name: 'Urban Cloud Slide - Sage Green', type: 'VARIANT', score: 63, number: 'CLD-44-SG-GR' },
+            ],
+          },
+          { type: 'reply', text: 'Here are all <strong>12 products</strong> in the Shoes category (including subcategories) with a completeness score below 100%. Use the filter buttons to narrow by score band. The Heritage Brogue variants are the weakest at 50%. Urban Cloud Slide sits around 63 to 75%. Bata Avenger and Stride-X Runner variants range from 83 to 89%.' },
+          { type: 'user', text: 'Show what\'s missing for the Heritage Brogue' },
+          { type: 'tool', name: 'get_product_completeness_detail', display: 'Get product completeness detail' },
+          { type: 'reply', text: 'Since all three Heritage Brogue variants are at 50%, they almost certainly share the same gaps. The detail confirms the pattern:' },
+          {
+            type: 'completeness-detail',
+            score: 50,
+            variants: 'Cognac Tan · Espresso Brown · Onyx',
+            missing: [
+              { name: 'Ecom Description', kind: 'Attribute', detail: 'missing value' },
+              { name: 'GEO Optimized Description', kind: 'Attribute', detail: 'missing value' },
+              { name: 'Season', kind: 'Attribute', detail: 'missing value' },
+              { name: 'Media asset (secondary label)', kind: 'Media', detail: 'at least 1 asset required' },
+            ],
+            passing: [
+              { name: 'Target Activity', kind: 'Attribute', detail: 'passing' },
+              { name: 'Color Family', kind: 'Attribute', detail: 'passing' },
+              { name: 'Style', kind: 'Attribute', detail: 'passing' },
+              { name: 'Media asset (primary label)', kind: 'Media', detail: 'passing' },
+            ],
+          },
+          { type: 'reply', text: 'All three variants share the same four gaps: three missing attributes (Ecom Description, GEO Optimized Description, Season) and one missing secondary-label media asset. The primary image is already in place. Want me to draft the missing descriptions or drill into another product?' },
+        ],
+        notes: [
+          '<strong>The rich layout is a Cursor Canvas, not a markdown table.</strong> When <code>search_products</code> returns multiple products with scores, the MCP response includes <code>completenessSummary</code> and <code>presentationHint</code> fields that steer the model toward a canvas with summary stat cards, filter pills, type badges, and completeness progress bars. The mockup above shows the target layout inline for documentation.',
+          '<strong>Score colors follow a simple banding rule.</strong> Below 70% uses red, 70 to 89% uses orange, 90% and above uses green. This matches how completeness bars are rendered in the reference canvas at <code>canvases/bluestone-completeness-search.canvas.tsx</code>.',
+          '<strong>Requirement names resolve automatically.</strong> <code>get_product_completeness_detail</code> resolves failed attribute requirements to human-readable names, so the model can explain gaps without sending the user to the Bluestone UI.',
+        ]
+      },
+      {
         chatTitle: 'Clothes catalog',
         label: 'Browse a catalog and create a product',
         turns: [
@@ -946,6 +998,115 @@ The paper also notes that context window economics constrain how much a descript
       return s.charAt(0).toUpperCase() + s.slice(1);
     }
 
+    function completenessBarColor(score) {
+      if (score < 70) return '#ef4444';
+      if (score < 90) return '#f97316';
+      return '#22c55e';
+    }
+
+    function completenessBadgeStyle(score) {
+      var color = completenessBarColor(score);
+      return 'background:' + color + '22;color:' + color + ';font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;';
+    }
+
+    function renderTypeBadge(type) {
+      var label = (type || 'SINGLE').toUpperCase();
+      var style = 'font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;letter-spacing:0.04em;';
+      if (label === 'VARIANT') {
+        return '<span style="' + style + 'background:rgba(168,85,247,0.18);color:#c084fc;">VARIANT</span>';
+      }
+      if (label === 'GROUP') {
+        return '<span style="' + style + 'background:rgba(59,130,246,0.18);color:#93c5fd;">GROUP</span>';
+      }
+      return '<span style="' + style + 'background:rgba(148,163,184,0.18);color:#cbd5e1;">SINGLE</span>';
+    }
+
+    function renderCompletenessBar(score) {
+      var color = completenessBarColor(score);
+      return '<div style="height:6px;background:#333;border-radius:999px;overflow:hidden;margin-top:10px;">' +
+        '<div style="height:100%;width:' + score + '%;background:' + color + ';border-radius:999px;"></div>' +
+        '</div>';
+    }
+
+    function renderProductCard(product) {
+      return '<div style="background:#252525;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px 16px;margin-bottom:8px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;">' +
+        '<span style="color:#f1f1f1;font-size:14px;font-weight:500;">' + product.name + '</span>' +
+        renderTypeBadge(product.type) +
+        '</div>' +
+        '<span style="' + completenessBadgeStyle(product.score) + '">' + product.score + '%</span>' +
+        '</div>' +
+        renderCompletenessBar(product.score) +
+        '<div style="text-align:right;margin-top:6px;"><span style="color:#666;font-size:11px;">' + product.number + '</span></div>' +
+        '</div>';
+    }
+
+    function renderCompletenessDashboard(turn) {
+      var stats = turn.stats || {};
+      var products = turn.products || [];
+      var activeFilter = turn.activeFilter || 'All';
+      var filters = turn.filters || ['All', 'Below 70%', '70-89%', '90-99%'];
+      var statCards = [
+        { value: stats.incomplete != null ? stats.incomplete : '12', label: stats.incompleteLabel || 'Incomplete products' },
+        { value: stats.average != null ? stats.average : '71%', label: stats.averageLabel || 'Average score' },
+        { value: stats.complete != null ? stats.complete : '0', label: stats.completeLabel || 'Fully complete' },
+      ];
+      var statHtml = statCards.map(function(card) {
+        return '<div style="background:#252525;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:14px 16px;">' +
+          '<div style="font-size:28px;font-weight:600;color:#f1f1f1;line-height:1;">' + card.value + '</div>' +
+          '<div style="font-size:12px;color:#888;margin-top:6px;">' + card.label + '</div>' +
+          '</div>';
+      }).join('');
+      var filterHtml = filters.map(function(filter) {
+        var active = filter === activeFilter;
+        return '<span style="font-size:12px;padding:5px 12px;border-radius:999px;' +
+          (active ? 'background:#3a3a3a;color:#f1f1f1;border:1px solid rgba(255,255,255,0.12);' : 'background:transparent;color:#888;border:1px solid rgba(255,255,255,0.08);') +
+          '">' + filter + '</span>';
+      }).join('');
+      var productHtml = products.map(renderProductCard).join('');
+      return '<div style="margin:8px 0 14px 0;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' +
+        (turn.title ? '<div style="color:#f1f1f1;font-size:15px;font-weight:600;margin-bottom:4px;">' + turn.title + '</div>' : '') +
+        (turn.subtitle ? '<div style="color:#888;font-size:12px;margin-bottom:12px;">' + turn.subtitle + '</div>' : '') +
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">' + statHtml + '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' +
+        '<span style="color:#888;font-size:12px;">Filter:</span>' + filterHtml +
+        '</div>' +
+        productHtml +
+        '</div>';
+    }
+
+    function renderRequirementCard(item, status) {
+      var bg = status === 'missing' ? 'rgba(127,29,29,0.35)' : 'rgba(20,83,45,0.35)';
+      var border = status === 'missing' ? 'rgba(248,113,113,0.25)' : 'rgba(74,222,128,0.25)';
+      var icon = status === 'missing'
+        ? '<span style="color:#f87171;font-size:13px;margin-right:8px;">&#9679;</span>'
+        : '<span style="color:#4ade80;font-size:13px;margin-right:8px;">&#10003;</span>';
+      return '<div style="background:' + bg + ';border:1px solid ' + border + ';border-radius:10px;padding:12px 14px;margin-bottom:8px;">' +
+        '<div style="display:flex;align-items:flex-start;">' + icon +
+        '<div><div style="color:#f1f1f1;font-size:13px;font-weight:500;">' + item.name + '</div>' +
+        '<div style="color:#aaa;font-size:11.5px;margin-top:3px;">' + item.kind + ' &middot; ' + item.detail + '</div></div></div></div>';
+    }
+
+    function renderCompletenessDetail(turn) {
+      var missing = turn.missing || [];
+      var passing = turn.passing || [];
+      var score = turn.score != null ? turn.score : 50;
+      var missingHtml = missing.map(function(item) { return renderRequirementCard(item, 'missing'); }).join('');
+      var passingHtml = passing.map(function(item) { return renderRequirementCard(item, 'passing'); }).join('');
+      return '<div style="margin:8px 0 14px 0;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">' +
+        (turn.variants ? '<div style="color:#888;font-size:12px;margin-bottom:10px;">Applies to all 3 variants: ' + turn.variants + '</div>' : '') +
+        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">' +
+        '<div style="flex:1;height:8px;background:#333;border-radius:999px;overflow:hidden;">' +
+        '<div style="height:100%;width:' + score + '%;background:' + completenessBarColor(score) + ';border-radius:999px;"></div></div>' +
+        '<span style="color:#f1f1f1;font-size:14px;font-weight:600;">' + score + '%</span></div>' +
+        '<div style="color:#f87171;font-size:11px;font-weight:600;letter-spacing:0.05em;margin-bottom:8px;">MISSING (' + missing.length + ')</div>' +
+        missingHtml +
+        '<div style="color:#4ade80;font-size:11px;font-weight:600;letter-spacing:0.05em;margin:12px 0 8px;">PASSING (' + passing.length + ')</div>' +
+        passingHtml +
+        '</div>';
+    }
+
     function renderTurns(turns) {
       return turns.map(function(turn) {
         if (turn.type === 'user') {
@@ -1010,6 +1171,12 @@ The paper also notes that context window economics constrain how much a descript
             '<div style="color:#666;font-size:10.5px;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">Form responses</div>' +
             rows +
             '</div></div>';
+        }
+        if (turn.type === 'completeness-dashboard') {
+          return renderCompletenessDashboard(turn);
+        }
+        if (turn.type === 'completeness-detail') {
+          return renderCompletenessDetail(turn);
         }
         return '';
       }).join('');
