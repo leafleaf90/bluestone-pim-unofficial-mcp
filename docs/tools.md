@@ -405,6 +405,47 @@ Add new mappings in `mapProductState()` in `src/tools.ts` as they are discovered
 
 ---
 
+## `search_products`
+
+**Purpose:** Search and filter products using the query builder. Use for catalog-wide or organisation-wide completeness searches, category-scoped filters, and products failing specific completeness requirements.
+
+**Do not use for:** a single known product's score (`list_product_completeness_scores`) or requirement breakdown (`get_product_completeness_detail`).
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `categoryId` | string | No | Catalog or category ID from `list_catalogs` or `list_category_tree` |
+| `categoryName` | string | No | Human-readable name for the response summary |
+| `categoryScope` | string | No | `catalog_with_subcategories` (default), `exact_category`, or `uncategorized` |
+| `completenessContext` | string | Conditional | Required when score or requirement filters are set |
+| `completenessScoreMin` | number | No | Minimum score inclusive (0 to 100) |
+| `completenessScoreMax` | number | No | Maximum score inclusive (0 to 100) |
+| `failingRequirementIds` | string[] | No | Requirement IDs from `get_product_completeness_detail` |
+| `includeCompletenessScores` | boolean | No | Include scores in results (default false) |
+| `limit` | number | No | Products per page (default 50, max 200) |
+| `page` | number | No | Page number, 1-indexed (default 1) |
+| `context` | string | No | Context for product names in the response. Defaults to `"en"` |
+
+**API calls:**
+
+The tool compiles semantic filters into a query-builder tree, then runs search and count in parallel:
+
+```
+POST /query-builder/products/search?archiveState=ACTIVE
+POST /query-builder/products/count?archiveState=ACTIVE
+Body: { query: { matchRule: "all", children: [...], contextFallback: true }, paging: { page, pageSize } }
+```
+
+Then resolves IDs via `POST /pim/products/list/views/by-ids`.
+
+**Example prompts:**
+- "Show all products below 50% complete in English"
+- "List fully complete products in the Products catalog"
+- "Find incomplete products in this catalog"
+
+---
+
 ## `get_product`
 
 **Purpose:** Fetch full working-state product details, including raw attribute values, category IDs, asset IDs, relations, bundles, and variant information.
@@ -431,6 +472,74 @@ Header: context-fallback: true
 - Shows a concise product summary to the user
 - Uses `list_attribute_definitions` to resolve attribute names, data types, enum values, and dictionary context when needed
 - Suppresses raw IDs unless the user asks for implementation detail or a write action needs exact IDs
+
+---
+
+## `list_product_completeness_scores`
+
+**Purpose:** Fetch completeness scores for one or more known products. Use when the user asks whether a product is complete, what its score is, or wants scores for specific product IDs.
+
+**Do not use for:** listing or filtering products by score across a catalog (e.g. all products above 80%, all incomplete products in a category). That search capability is not available yet.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `productIds` | string[] | Yes | Product IDs from `list_products_in_category`, `get_product`, or `create_product`. Max 100 per call |
+| `contexts` | string[] | No | Language/market context IDs to filter by. Omit to return scores for all contexts |
+| `limit` | number | No | Scores per page (default 100, max 500) |
+| `page` | number | No | Page number, 1-indexed (default 1) |
+
+**API call:**
+```
+POST /completeness-score/scores/list
+Header: authorization: Bearer <token>
+Body: { "pageSize": 100, "page": 0, "entityIds": ["..."], "contexts": ["en"] }
+```
+
+The `contexts` field is optional. When omitted, the API returns one score row per product per context.
+
+**What Claude does:**
+- Resolves product IDs with `list_products_in_category` or `get_product` when the user names a product
+- Presents scores as a concise table or summary grouped by product and context
+- Calls `get_product_completeness_detail` when the user then asks what is missing or wants a requirement breakdown
+- Calls `search_products` when the user then asks for catalog-wide completeness filtering
+
+**Example prompts:**
+- "Is this product complete?"
+- "What is the completeness score for product X?"
+- "Show completeness scores for these products in English"
+
+---
+
+## `get_product_completeness_detail`
+
+**Purpose:** Fetch the completeness requirement breakdown for one product in one context. Use when the user asks what is missing, which requirements failed, or why a score is below 100%.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `productId` | string | Yes | Product ID from `list_products_in_category`, `get_product`, or `list_product_completeness_scores` |
+| `productName` | string | No | Human-readable product name (shown in response summary) |
+| `context` | string | No | Language/market context ID. Defaults to `"en"` |
+
+**API call:**
+```
+GET /completeness-score/scores/{productId}/{context}
+Header: authorization: Bearer <token>
+```
+
+**What Claude does:**
+- Calls `list_product_completeness_scores` first if the score is not yet known
+- Explains failed requirements in plain language
+- Uses `get_product` and `list_attribute_definitions` if the user needs to inspect underlying product data
+- Requirement names are not resolved by this server yet; results are keyed by `requirementId`
+
+**Example prompts:**
+- "What is missing for this product to be complete?"
+- "Why is the completeness score only 50%?"
+- "Which requirements failed for product X in English?"
 
 ---
 

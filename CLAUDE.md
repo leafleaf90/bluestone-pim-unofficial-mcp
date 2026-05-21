@@ -32,6 +32,7 @@ All MCP tools are registered inside a single `createMcpServer(creds: Credentials
 - `list_category_tree`: calls MAPI `/pim/catalogs/{catalogId}/nodes` via `mapiGet()`. Returns a flattened working-state category tree with `path`, `depth`, and IDs for onboarding and product placement decisions.
 - `list_attribute_definitions`: calls MAPI `/pim/definitions` via `mapiGet()`. Returns shaped attribute definition metadata for product data onboarding: IDs, numbers, names, groups, data types, units, context awareness, enum values, and restrictions. Supports local filtering and pagination.
 - `list_products_in_category`: three-step recursive listing. Steps 1+2 run in parallel: `POST /search/products/search?archiveState=ACTIVE` with `categoryFilters: [{categoryId, type: "IN_ANY_CHILD"}]` returns `{ data: [{id: string}] }` (objects, not strings: no total field); `POST /search/products/count` with the same filter body returns `{ count: int }` for the accurate total. Step 3: `POST /pim/products/list/views/by-ids?archiveState=ACTIVE` with `views: [{type: "METADATA"}]` resolves IDs to product data. Name is context-keyed (`metadata.name.value[context]`), not a plain string. Also returns `type` and `state` from metadata. Note: the UI uses `POST /pim/products/list/by-ids` (simpler flat response) but that endpoint is not in the official PIM spec: we use `list/views/by-ids` instead.
+- `search_products`: compiles semantic filters to query-builder `MainQueryGroup` terms, then `POST /query-builder/products/search?archiveState=ACTIVE` and `/products/count` in parallel, then resolves IDs via `list/views/by-ids`. Supports category scope, completeness score range, and failing requirement IDs. Phase 1 only: no attribute, label, relation, or asset filters yet.
 - `list_published_catalogs`: calls PAPI `/categories` via `papiGet()` (published/live data only)
 - `list_published_products_in_category`: calls PAPI `/categories/{id}/products` via `papiGet()` (published/live data only). Includes `imageUrl` (the `previewUri` for the "Main" media asset) on each product when present.
 - `get_product_image`: fetches a product image from Bluestone's CDN using the `imageUrl` from `list_published_products_in_category` and returns it as a base64 `image` content block for inline rendering in chat. Call only when the user explicitly asks to see an image, not automatically for every product in a list.
@@ -42,6 +43,8 @@ All MCP tools are registered inside a single `createMcpServer(creds: Credentials
 - `create_product`: calls MAPI `/pim/products` via `mapiPost()`. Supports `name` and optional `number`; number is the unique product key for create-only onboarding and duplicate number conflicts return the existing product ID when Bluestone provides it.
 - `set_product_attribute`: calls MAPI `/pim/products/{productId}/attributes` via `mapiPost()` to add an attribute value to a product. Values are always strings; select and multi-select values must be enum value IDs from `list_attribute_definitions`.
 - `get_product`: calls MAPI `/pim/products/{productId}` via `mapiGetFull()` with `accept: application/full+json`. Returns metadata, raw attribute IDs/values, category IDs, asset IDs, relations, bundles, and variant information.
+- `list_product_completeness_scores`: calls MAPI `/completeness-score/scores/list` via `mapiPostBody()`. Returns completeness scores (0 to 100) per product and context for known product IDs. Optional context filter; omit to return all contexts. Not for catalog-wide score filtering.
+- `get_product_completeness_detail`: calls MAPI `GET /completeness-score/scores/{productId}/{context}` via `mapiGet()`. Returns score plus per-requirement PASSED/FAILED breakdown for one product in one context.
 - `assign_product_to_category`: calls MAPI `/pim/catalogs/nodes/{categoryId}/products` via `mapiPost()` to assign an existing product to a catalog category.
 - `update_product_name`: calls MAPI `/pim/products/{productId}` via `mapiPatch()` to rename an existing product.
 
@@ -57,6 +60,8 @@ Three MAPI API families share the same Bearer token and base domain (test: `api.
 - **`/pim`** (`MAPI_PIM_BASE`): products, catalogs, attributes, categories
 - **`/search`** (`MAPI_SEARCH_BASE`): full-text and structured product search
 - **`/global-settings`** (`MAPI_GLOBAL_SETTINGS_BASE`): contexts (languages/markets)
+- **`/completeness-score`** (`MAPI_COMPLETENESS_SCORE_BASE`): product completeness scores
+- **`/query-builder`** (`MAPI_QUERY_BUILDER_BASE`): structured product search with filter trees
 
 Two auth methods:
 - **PAPI** (`papiGet`): `x-api-key` header (static). Pagination: `itemsOnPage` + `pageNo` (0-indexed doubles).
@@ -133,6 +138,7 @@ Use when adding a new example conversation to the Examples section of `public/co
 2. **Read the existing examples** in the `EXAMPLES` array in `index.html` to understand the data structure before writing anything.
 3. **Turn types** available in `renderTurns()`:
    - `{ type: 'user', text }`: user message bubble
+   - `{ type: 'user-with-file', text, fileName, fileType }`: user message bubble with an attached file card above it
    - `{ type: 'reply', text }`: Claude reply (supports inline HTML)
    - `{ type: 'tool', name, display }`: tool call row
    - `{ type: 'tool-with-image', name, display, imageSrc, imageAlt }`: tool call with image preview (use for `get_product_image`)

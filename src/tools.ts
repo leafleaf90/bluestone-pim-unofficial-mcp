@@ -1,5 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import {
+  compileProductSearchQuery,
+  describeSearchFilters,
+  type CategoryScope,
+  type ProductSearchFilters,
+} from "./query-builder/compile.js";
 import { VERSION } from "./version.js";
 
 // ─── Credentials ──────────────────────────────────────────────────────────────
@@ -211,6 +217,49 @@ interface MapiContextsResponse {
   data: MapiContext[];
 }
 
+interface MapiCompletenessScore {
+  entityId: string;
+  score: number;
+  context: string;
+  date: number;
+  sourceEventId: string | null;
+  validationStatus: string;
+  entityLastUpdate: number;
+}
+
+interface MapiCompletenessScoresResponse {
+  data: MapiCompletenessScore[];
+}
+
+interface MapiCompletenessRequirementResult {
+  requirementId: string;
+  weight: number;
+  requirementStatus: string;
+}
+
+interface MapiCompletenessScoreDetail {
+  entityId: string;
+  score: number;
+  context: string;
+  date: number;
+  sourceEventId: string | null;
+  requirementsResults: MapiCompletenessRequirementResult[];
+  pimLastUpdate: number;
+}
+
+interface QueryBuilderSearchResponse {
+  data: Array<{ id: string }>;
+  errors?: Array<{
+    errorType: string;
+    message: string;
+    location?: string;
+  }>;
+}
+
+interface QueryBuilderCountResponse {
+  count: number;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const IS_PRODUCTION = process.env.ENVIRONMENT === "production";
@@ -221,6 +270,8 @@ const PAPI_BASE = `${API_BASE}/v1`;
 const MAPI_PIM_BASE = `${API_BASE}/pim`;
 const MAPI_SEARCH_BASE = `${API_BASE}/search`;
 const MAPI_GLOBAL_SETTINGS_BASE = `${API_BASE}/global-settings`;
+const MAPI_COMPLETENESS_SCORE_BASE = `${API_BASE}/completeness-score`;
+const MAPI_QUERY_BUILDER_BASE = `${API_BASE}/query-builder`;
 const MAPI_TOKEN_URL = IS_PRODUCTION
   ? "https://idp.bluestonepim.com/op/token"
   : "https://idp.test.bluestonepim.com/op/token";
@@ -232,6 +283,9 @@ const MAX_DEFINITION_LIMIT = 500;
 const DEFAULT_CATEGORY_LIMIT = 200;
 const MAX_CATEGORY_LIMIT = 500;
 const DEFAULT_PAGE = 1;
+const DEFAULT_COMPLETENESS_LIMIT = 100;
+const MAX_COMPLETENESS_LIMIT = 500;
+const MAX_COMPLETENESS_PRODUCT_IDS = 100;
 
 const ATTRIBUTE_DATA_TYPES = [
   "boolean",
@@ -602,7 +656,10 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- List category trees within a catalog for onboarding and placement decisions (list_category_tree)\n" +
         "- List attribute definitions for product data onboarding and field mapping (list_attribute_definitions)\n" +
         "- List products in a catalog including all sub-categories, working state (list_products_in_category)\n" +
+        "- Search and filter products by completeness score, category scope, or failing requirements (search_products)\n" +
         "- Fetch full product detail including attributes, categories, assets, and relations (get_product)\n" +
+        "- Read product completeness scores by context (list_product_completeness_scores)\n" +
+        "- Fetch completeness requirement breakdown for one product and context (get_product_completeness_detail)\n" +
         "- List published catalogs only (list_published_catalogs)\n" +
         "- List published products in a category, includes image URL per product (list_published_products_in_category)\n" +
         "- Fetch and display a product image inline (get_product_image)\n" +
@@ -615,9 +672,14 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- Assign an existing product to a catalog category (assign_product_to_category)\n" +
         "- Rename an existing product (update_product_name)\n\n" +
         "What it cannot do yet:\n" +
+        "- Search products by attribute values, labels, relations, assets, or other advanced query-builder filters\n" +
         "- Set product media\n" +
         "- Create validation restrictions or attribute groups\n" +
         "- Delete products\n\n" +
+        "Completeness scores: when the user asks whether a specific product is complete, what its completeness score is, or wants scores for known product IDs, call list_product_completeness_scores. " +
+        "When the user wants to list or filter products by completeness score across a catalog or the whole organisation, for example all products below 80%, all complete products, or products in a category under a threshold, call search_products. " +
+        "When the user then asks what is missing, which requirements failed, or wants a requirement breakdown for one product in one context, call get_product_completeness_detail. " +
+        "Do not use list_products_in_category followed by manual score filtering as a workaround for completeness searches.\n\n" +
         "Working state vs published: the default read tools return working state data, " +
         "which includes unpublished changes and is what enrichment teams work with. " +
         "Use the list_published_* tools when the user specifically asks about live/published data.\n\n" +
@@ -1659,6 +1721,325 @@ export function createMcpServer(creds: Credentials): McpServer {
     }
   );
 
+  // Tool: search_products
+  server.registerTool(
+    "search_products",
+    {
+      description:
+        "Search and filter Bluestone PIM products using the query builder. " +
+        "Call this when the user wants to list products matching filters across a catalog or the whole organisation, " +
+        "for example all products below 80% complete, all fully complete products, incomplete products in a catalog, or products failing specific completeness requirements. " +
+        "Do NOT use this for a single known product's score: use list_product_completeness_scores instead. " +
+        "Do NOT use list_products_in_category and filter scores manually. " +
+        "Call list_catalogs to get categoryId when the user names a catalog. " +
+        "Call list_contexts when the user asks about a specific language or market. " +
+        "Completeness score filters require completenessContext. " +
+        "Requirement ID filters require failingRequirementIds from get_product_completeness_detail or admin knowledge; this server does not resolve requirement names yet. " +
+        "Set includeCompletenessScores when the user wants scores shown alongside each result. " +
+        "This tool does not support attribute, label, relation, or asset filters yet. " +
+        "Surface results as a concise list or table. Suppress raw IDs unless the user asks for implementation detail.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        categoryId: z
+          .string()
+          .optional()
+          .describe(
+            "Catalog or category ID from list_catalogs or list_category_tree. " +
+            "Required unless categoryScope is uncategorized or the search is organisation-wide with only completeness filters."
+          ),
+        categoryName: z
+          .string()
+          .optional()
+          .describe("Human-readable catalog or category name for the response summary."),
+        categoryScope: z
+          .enum(["catalog_with_subcategories", "exact_category", "uncategorized"])
+          .optional()
+          .describe(
+            "How to apply categoryId. catalog_with_subcategories includes all sub-categories (default when categoryId is set). " +
+            "exact_category matches only that node. uncategorized finds products with no category and ignores categoryId."
+          ),
+        completenessContext: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context for completeness score or requirement filters (e.g. \"en\"). " +
+            "Required when completenessScoreMin, completenessScoreMax, or failingRequirementIds is set. " +
+            "Call list_contexts to see available values."
+          ),
+        completenessScoreMin: z
+          .number()
+          .min(0)
+          .max(100)
+          .optional()
+          .describe(
+            "Minimum completeness score inclusive (0 to 100). Use with completenessScoreMax. " +
+            "Example: min 0 and max 49 finds products below 50%."
+          ),
+        completenessScoreMax: z
+          .number()
+          .min(0)
+          .max(100)
+          .optional()
+          .describe(
+            "Maximum completeness score inclusive (0 to 100). Use with completenessScoreMin. " +
+            "Example: min 100 and max 100 finds fully complete products."
+          ),
+        failingRequirementIds: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Completeness requirement IDs where products do not meet all listed requirements. " +
+            "Get IDs from get_product_completeness_detail failedRequirements. Requires completenessContext."
+          ),
+        includeCompletenessScores: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, fetch and include completeness scores for returned products in completenessContext. Default false."
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_PRODUCT_LIMIT)
+          .optional()
+          .describe(
+            `Products per page (default ${DEFAULT_PRODUCT_LIMIT}, max ${MAX_PRODUCT_LIMIT}). ` +
+            "If hasMore is true in the response, call again with page incremented by 1."
+          ),
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Page number to fetch, 1-indexed (default 1)."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context for product names in the response (e.g. \"en\"). " +
+            "Defaults to English if omitted. Separate from completenessContext."
+          ),
+      },
+    },
+    async ({
+      categoryId,
+      categoryName,
+      categoryScope,
+      completenessContext,
+      completenessScoreMin,
+      completenessScoreMax,
+      failingRequirementIds,
+      includeCompletenessScores,
+      limit,
+      page,
+      context,
+    }) => {
+      const effectiveLimit = limit ?? DEFAULT_PRODUCT_LIMIT;
+      const effectivePage = page ?? DEFAULT_PAGE;
+      const effectiveContext = context ?? "en";
+
+      const hasCompletenessScoreFilter =
+        completenessScoreMin !== undefined || completenessScoreMax !== undefined;
+      const hasFailingRequirements =
+        failingRequirementIds !== undefined && failingRequirementIds.length > 0;
+
+      if (
+        !categoryId &&
+        categoryScope !== "uncategorized" &&
+        !hasCompletenessScoreFilter &&
+        !hasFailingRequirements
+      ) {
+        throw new Error(
+          "At least one search filter is required: categoryId, categoryScope uncategorized, a completeness score range, or failingRequirementIds."
+        );
+      }
+
+      if (hasCompletenessScoreFilter && !completenessContext) {
+        throw new Error(
+          "completenessContext is required when completenessScoreMin or completenessScoreMax is set."
+        );
+      }
+
+      if (hasFailingRequirements && !completenessContext) {
+        throw new Error(
+          "completenessContext is required when failingRequirementIds is set."
+        );
+      }
+
+      const filters: ProductSearchFilters = {};
+
+      if (categoryId || categoryScope === "uncategorized") {
+        filters.categoryId = categoryId;
+        filters.categoryScope = categoryScope as CategoryScope | undefined;
+      }
+
+      if (hasCompletenessScoreFilter) {
+        filters.completenessScore = {
+          context: completenessContext!,
+          ...(completenessScoreMin !== undefined && { min: completenessScoreMin }),
+          ...(completenessScoreMax !== undefined && { max: completenessScoreMax }),
+        };
+      }
+
+      if (hasFailingRequirements) {
+        filters.failingRequirements = {
+          context: completenessContext!,
+          requirementIds: failingRequirementIds!,
+        };
+      }
+
+      const query = compileProductSearchQuery(filters);
+      const searchBody = {
+        query,
+        paging: {
+          page: effectivePage - 1,
+          pageSize: effectiveLimit,
+        },
+      };
+      const countBody = { query };
+
+      const [searchResponse, countResponse] = await Promise.all([
+        mapiPostBody<QueryBuilderSearchResponse>(
+          `${MAPI_QUERY_BUILDER_BASE}/products/search?archiveState=ACTIVE`,
+          searchBody,
+          creds,
+          { context }
+        ),
+        mapiPostBody<QueryBuilderCountResponse>(
+          `${MAPI_QUERY_BUILDER_BASE}/products/count?archiveState=ACTIVE`,
+          countBody,
+          creds,
+          { context }
+        ),
+      ]);
+
+      if (searchResponse.errors && searchResponse.errors.length > 0) {
+        const details = searchResponse.errors
+          .map((error) => error.message)
+          .join("; ");
+        throw new Error(`Product search query error: ${details}`);
+      }
+
+      const productIds = (searchResponse.data ?? []).map((product) => product.id);
+      const total = countResponse.count ?? 0;
+      const filterDescription = describeSearchFilters(filters);
+      const scopeLabel = categoryName ?? categoryId;
+
+      if (productIds.length === 0) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                `No products matched the search (${filterDescription}) (working state, context: ${effectiveContext}).\n\n` +
+                JSON.stringify(
+                  {
+                    filters: filterDescription,
+                    ...(scopeLabel && { category: scopeLabel }),
+                    context: effectiveContext,
+                    total: 0,
+                    page: effectivePage,
+                    returned: 0,
+                    hasMore: false,
+                    products: [],
+                  },
+                  null,
+                  2
+                ),
+            },
+          ],
+        };
+      }
+
+      const viewsResponse = await mapiPostBody<MapiProductViewsResponse>(
+        `${MAPI_PIM_BASE}/products/list/views/by-ids?archiveState=ACTIVE`,
+        {
+          ids: productIds,
+          views: [{ type: "METADATA" }],
+        },
+        creds,
+        { context }
+      );
+
+      let scoreByProductId = new Map<string, number>();
+      if (includeCompletenessScores && completenessContext) {
+        const scoresResponse = await mapiPostBody<MapiCompletenessScoresResponse>(
+          `${MAPI_COMPLETENESS_SCORE_BASE}/scores/list`,
+          {
+            pageSize: productIds.length,
+            page: 0,
+            entityIds: productIds,
+            contexts: [completenessContext],
+          },
+          creds
+        );
+        scoreByProductId = new Map(
+          (scoresResponse.data ?? [])
+            .filter((row) => row.context === completenessContext)
+            .map((row) => [row.entityId, row.score])
+        );
+      }
+
+      const products = (viewsResponse.data ?? []).map((product) => {
+        const nameValues = product.metadata?.name?.value ?? {};
+        const name =
+          nameValues[effectiveContext] ??
+          nameValues["en"] ??
+          Object.values(nameValues)[0] ??
+          "";
+        const score = scoreByProductId.get(product.id);
+        return {
+          id: product.id,
+          name,
+          ...(product.metadata?.number && { number: product.metadata.number }),
+          ...(product.metadata?.type && { type: product.metadata.type }),
+          ...(product.metadata?.state && { state: mapProductState(product.metadata.state) }),
+          ...(score !== undefined && { completenessScore: score }),
+        };
+      });
+
+      const returned = products.length;
+      const hasMore = total > effectivePage * effectiveLimit;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Found ${total} product${total === 1 ? "" : "s"} matching ${filterDescription}` +
+              (scopeLabel ? ` in "${scopeLabel}"` : "") +
+              ` (working state, context: ${effectiveContext}). ` +
+              `Returned ${returned} on page ${effectivePage}` +
+              (hasMore
+                ? `. Call again with page=${effectivePage + 1} to fetch more.`
+                : ".") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  filters: filterDescription,
+                  ...(scopeLabel && { category: scopeLabel }),
+                  context: effectiveContext,
+                  ...(completenessContext && { completenessContext }),
+                  total,
+                  page: effectivePage,
+                  returned,
+                  hasMore,
+                  products,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
   // Tool: get_product
   server.registerTool(
     "get_product",
@@ -1741,6 +2122,217 @@ export function createMcpServer(creds: Credentials): McpServer {
                   labels: product.labels ?? [],
                   productBundles: product.productBundles ?? [],
                   productVariants: product.productVariants ?? [],
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: list_product_completeness_scores
+  server.registerTool(
+    "list_product_completeness_scores",
+    {
+      description:
+        "Fetch Bluestone PIM completeness scores for one or more known products. " +
+        "Call this when the user asks whether a product is complete, what a product's completeness score is, or wants scores for specific product IDs they already have or can identify by name. " +
+        "Scores are percentages (0 to 100) against configured completeness rules for a language/market context. " +
+        "Use list_products_in_category or get_product to resolve product IDs when the user names a product but has not given an ID. " +
+        "Call list_contexts when the user asks about a specific language or market, then pass those context IDs to filter results. " +
+        "Omit contexts to return scores for every context. " +
+        "When the user asks what is missing or wants a requirement breakdown for one product in one context, call get_product_completeness_detail instead. " +
+        "Do NOT use this tool when the user wants to list or filter products by score across a catalog, for example all products above 80%, all incomplete products in a category, or every product under a threshold. " +
+        "Use search_products for those catalog-wide completeness searches. " +
+        "Surface scores in user-facing replies as a concise table or summary. " +
+        "Suppress raw product IDs, timestamps, and validationStatus unless the user asks for implementation detail.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        productIds: z
+          .array(z.string())
+          .min(1)
+          .max(MAX_COMPLETENESS_PRODUCT_IDS)
+          .describe(
+            "Product IDs to fetch scores for. Get these from list_products_in_category, get_product, or create_product. " +
+            `Max ${MAX_COMPLETENESS_PRODUCT_IDS} IDs per call.`
+          ),
+        contexts: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Optional language/market context IDs to filter by (e.g. \"en\", \"l3600\"). " +
+            "Call list_contexts to see available values. Omit to return scores for all contexts."
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_COMPLETENESS_LIMIT)
+          .optional()
+          .describe(
+            `Scores per page (default ${DEFAULT_COMPLETENESS_LIMIT}, max ${MAX_COMPLETENESS_LIMIT}). ` +
+            "If hasMore is true in the response, call again with page incremented by 1."
+          ),
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Page number to fetch, 1-indexed (default 1)."),
+      },
+    },
+    async ({ productIds, contexts, limit, page }) => {
+      const effectiveLimit = limit ?? DEFAULT_COMPLETENESS_LIMIT;
+      const effectivePage = page ?? DEFAULT_PAGE;
+
+      const body: {
+        pageSize: number;
+        page: number;
+        entityIds: string[];
+        contexts?: string[];
+      } = {
+        pageSize: effectiveLimit,
+        page: effectivePage - 1,
+        entityIds: productIds,
+      };
+      if (contexts && contexts.length > 0) {
+        body.contexts = contexts;
+      }
+
+      const response = await mapiPostBody<MapiCompletenessScoresResponse>(
+        `${MAPI_COMPLETENESS_SCORE_BASE}/scores/list`,
+        body,
+        creds
+      );
+
+      const scores = (response.data ?? []).map((row) => ({
+        productId: row.entityId,
+        context: row.context,
+        score: row.score,
+        validationStatus: row.validationStatus,
+        scoredAt: row.date,
+        productLastUpdate: row.entityLastUpdate,
+      }));
+
+      const uniqueProducts = new Set(scores.map((row) => row.productId)).size;
+      const uniqueContexts = new Set(scores.map((row) => row.context)).size;
+      const hasMore = scores.length === effectiveLimit;
+      const contextLabel =
+        contexts && contexts.length > 0
+          ? ` in ${contexts.length === 1 ? `context "${contexts[0]}"` : `${contexts.length} contexts`}`
+          : uniqueContexts > 0
+            ? ` across ${uniqueContexts} context${uniqueContexts === 1 ? "" : "s"}`
+            : "";
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Found completeness scores for ${productIds.length} requested product${productIds.length === 1 ? "" : "s"}${contextLabel} (working state). ` +
+              `Returned ${scores.length} score${scores.length === 1 ? "" : "s"} covering ${uniqueProducts} product${uniqueProducts === 1 ? "" : "s"}` +
+              (hasMore
+                ? ` on page ${effectivePage}. Call again with page=${effectivePage + 1} to fetch more.`
+                : ".") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  requestedProductIds: productIds,
+                  ...(contexts && contexts.length > 0 && { contexts }),
+                  page: effectivePage,
+                  returned: scores.length,
+                  hasMore,
+                  scores,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: get_product_completeness_detail
+  server.registerTool(
+    "get_product_completeness_detail",
+    {
+      description:
+        "Fetch the completeness requirement breakdown for one product in one language/market context. " +
+        "Call this when the user asks what is missing, which requirements failed, or wants detail on why a product's completeness score is below 100%. " +
+        "Call list_product_completeness_scores first when you do not yet know the score, or when the user asks about multiple products or contexts. " +
+        "Use list_products_in_category or get_product to resolve the productId when the user names a product but has not given an ID. " +
+        "Call list_contexts when the user asks about a specific language or market. Defaults to English if context is omitted. " +
+        "Requirement results are returned by requirementId with PASSED or FAILED status. " +
+        "This server does not resolve requirement names yet. Explain failed requirements clearly and use get_product plus list_attribute_definitions if the user needs to inspect the underlying product data. " +
+        "Suppress raw requirement IDs unless the user asks for implementation detail.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        productId: z
+          .string()
+          .describe(
+            "The product ID. Get this from list_products_in_category, get_product, create_product, or list_product_completeness_scores."
+          ),
+        productName: z
+          .string()
+          .optional()
+          .describe("Human-readable product name for the response summary. Pass it when available."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID (e.g. \"en\", \"l3600\"). " +
+            "Call list_contexts to see available values. Defaults to English if omitted."
+          ),
+      },
+    },
+    async ({ productId, productName, context }) => {
+      const effectiveContext = context ?? "en";
+      const detail = await mapiGet<MapiCompletenessScoreDetail>(
+        `${MAPI_COMPLETENESS_SCORE_BASE}/scores/${productId}/${effectiveContext}`,
+        creds
+      );
+
+      const requirements = (detail.requirementsResults ?? []).map((requirement) => ({
+        requirementId: requirement.requirementId,
+        weight: requirement.weight,
+        status: requirement.requirementStatus,
+      }));
+      const failedRequirements = requirements.filter((requirement) => requirement.status === "FAILED");
+      const passedRequirements = requirements.filter((requirement) => requirement.status === "PASSED");
+      const label = productName ?? productId;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Fetched completeness detail for "${label}" (working state, context: ${effectiveContext}). ` +
+              `Score: ${detail.score}%. ` +
+              `${passedRequirements.length} requirement${passedRequirements.length === 1 ? "" : "s"} passed, ` +
+              `${failedRequirements.length} failed.\n\n` +
+              JSON.stringify(
+                {
+                  productId: detail.entityId,
+                  context: detail.context,
+                  score: detail.score,
+                  scoredAt: detail.date,
+                  productLastUpdate: detail.pimLastUpdate,
+                  passedCount: passedRequirements.length,
+                  failedCount: failedRequirements.length,
+                  failedRequirements,
+                  passedRequirements,
+                  requirements,
                 },
                 null,
                 2
