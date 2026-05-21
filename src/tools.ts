@@ -6,6 +6,7 @@ import {
   type CategoryScope,
   type ProductSearchFilters,
 } from "./query-builder/compile.js";
+import { resolveRequirementResults } from "./completeness/resolve-requirements.js";
 import { VERSION } from "./version.js";
 
 // ─── Credentials ──────────────────────────────────────────────────────────────
@@ -98,6 +99,10 @@ interface MapiAttributeDefinitionRestrictions {
     step?: string;
   };
   text?: Record<string, unknown>;
+  matrix?: {
+    columns?: Array<{ id: string; value: string }>;
+    rows?: Array<{ id: string; value: string }>;
+  };
 }
 
 interface MapiAttributeDefinition {
@@ -118,6 +123,8 @@ interface MapiAttributeDefinition {
   unit?: string;
   contentType?: string;
   readOnly: boolean;
+  selectedValuesLimit?: number;
+  filterParentDefinitionId?: string;
 }
 
 interface MapiAttributeDefinitionsResponse {
@@ -280,6 +287,7 @@ const DEFAULT_PRODUCT_LIMIT = 50;
 const MAX_PRODUCT_LIMIT = 200;
 const DEFAULT_DEFINITION_LIMIT = 100;
 const MAX_DEFINITION_LIMIT = 500;
+const MAX_DEFINITION_ENUM_DETAIL = 500;
 const DEFAULT_CATEGORY_LIMIT = 200;
 const MAX_CATEGORY_LIMIT = 500;
 const DEFAULT_PAGE = 1;
@@ -583,6 +591,68 @@ function includesSearch(value: string | undefined, search: string): boolean {
   return (value ?? "").toLowerCase().includes(search.toLowerCase());
 }
 
+function shapeAttributeDefinition(
+  definition: MapiAttributeDefinition,
+  maxEnumValues?: number
+): Record<string, unknown> {
+  const enumRestrictions = definition.restrictions?.enum;
+  const includeEnum = enumRestrictions && maxEnumValues !== 0;
+  const enumValues = enumRestrictions?.values ?? [];
+  const enumLimit =
+    maxEnumValues === undefined ? enumValues.length : Math.min(enumValues.length, maxEnumValues);
+  const matrix = definition.restrictions?.matrix;
+
+  return {
+    id: definition.id,
+    number: definition.number,
+    name: definition.name,
+    ...(definition.description && { description: definition.description }),
+    ...(definition.group && { group: definition.group }),
+    ...(definition.groupId && { groupId: definition.groupId }),
+    isCompound: definition.isCompound,
+    contextAware: definition.contextAware,
+    ...(definition.dataType && { dataType: definition.dataType }),
+    ...(definition.unit && { unit: definition.unit }),
+    ...(definition.contentType && { contentType: definition.contentType }),
+    ...(definition.charset && { charset: definition.charset }),
+    ...(definition.selectedValuesLimit !== undefined && {
+      selectedValuesLimit: definition.selectedValuesLimit,
+    }),
+    ...(definition.filterParentDefinitionId && {
+      filterParentDefinitionId: definition.filterParentDefinitionId,
+    }),
+    ...(definition.readOnly && { readOnly: true }),
+    ...(definition.internal && { internal: true }),
+    ...(definition.externalSource && { externalSource: true }),
+    ...(definition.toBeRemoved && { toBeRemoved: true }),
+    ...(definition.restrictions?.range && { range: definition.restrictions.range }),
+    ...(definition.restrictions?.text && { textRestrictions: definition.restrictions.text }),
+    ...(matrix && {
+      matrix: {
+        columns: matrix.columns ?? [],
+        rows: matrix.rows ?? [],
+      },
+    }),
+    ...(includeEnum && enumRestrictions && {
+      enum: {
+        ...(enumRestrictions.type && { type: enumRestrictions.type }),
+        totalValues: enumValues.length,
+        values: enumValues.slice(0, enumLimit).map((value) => ({
+          ...(value.valueId && { valueId: value.valueId }),
+          value: value.value,
+          ...(value.number && { number: value.number }),
+          ...(value.metadata && { metadata: value.metadata }),
+        })),
+        ...(enumValues.length > enumLimit && { truncated: true }),
+      },
+    }),
+    ...(definition.dataType === "dictionary" && {
+      dictionaryValuesNote:
+        "Dictionary allowed values are not included in this response. Use dictionary value APIs or create_dictionary_value when you need value IDs.",
+    }),
+  };
+}
+
 function extractCatalogNodes(
   response: MapiCatalogNodesResponse | MapiCatalogNode[] | MapiCatalogNode
 ): MapiCatalogNode[] {
@@ -655,6 +725,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- List all catalogs, working state (list_catalogs)\n" +
         "- List category trees within a catalog for onboarding and placement decisions (list_category_tree)\n" +
         "- List attribute definitions for product data onboarding and field mapping (list_attribute_definitions)\n" +
+        "- Fetch full detail for one attribute definition (get_attribute_definition)\n" +
         "- List products in a catalog including all sub-categories, working state (list_products_in_category)\n" +
         "- Search and filter products by completeness score, category scope, or failing requirements (search_products)\n" +
         "- Fetch full product detail including attributes, categories, assets, and relations (get_product)\n" +
@@ -997,8 +1068,9 @@ export function createMcpServer(creds: Credentials): McpServer {
     {
       description:
         "List attribute definitions in the Bluestone PIM working-state data model. " +
-        "Use this before product data onboarding, supplier onboarding, importing, bulk import planning, one-time bulk import planning, supplier data review, spreadsheet mapping, CSV mapping, Excel mapping, field mapping, attribute mapping, or deciding whether an incoming field already has a matching attribute. " +
-        "Returns shaped definition metadata: id, number, name, group, type, unit, context awareness, enum values, and validation restrictions. " +
+        "Use this to browse or search the attribute model, map incoming fields during onboarding, or find a definitionId. " +
+        "Returns shaped definition metadata with truncated enum values by default. " +
+        "For full detail on one attribute, including all enum values and restrictions, call get_attribute_definition instead. " +
         "Suppress raw IDs and full enum lists in user-facing replies unless the user asks for implementation detail. " +
         "When mapping incoming data, present confident matches, uncertain matches, fields with no good match, and validation issues such as enum or range mismatches. " +
         "If no incoming source fields are available yet, ask the user to upload or paste .xlsx, .xls, .csv, .tsv, spreadsheet columns, sample rows, JSON, XML, or product fields instead of giving a generic onboarding playbook.",
@@ -1103,41 +1175,9 @@ export function createMcpServer(creds: Credentials): McpServer {
       const pagedDefinitions = filtered.slice(start, start + effectiveLimit);
       const hasMore = start + pagedDefinitions.length < total;
 
-      const definitions = pagedDefinitions.map((definition) => {
-        const enumValues = definition.restrictions?.enum?.values ?? [];
-        const enumValuesIncluded = Math.min(enumValues.length, effectiveMaxEnumValues);
-        return {
-          id: definition.id,
-          number: definition.number,
-          name: definition.name,
-          ...(definition.group && { group: definition.group }),
-          ...(definition.groupId && { groupId: definition.groupId }),
-          isCompound: definition.isCompound,
-          contextAware: definition.contextAware,
-          ...(definition.dataType && { dataType: definition.dataType }),
-          ...(definition.unit && { unit: definition.unit }),
-          ...(definition.contentType && { contentType: definition.contentType }),
-          ...(definition.charset && { charset: definition.charset }),
-          ...(definition.readOnly && { readOnly: true }),
-          ...(definition.internal && { internal: true }),
-          ...(definition.externalSource && { externalSource: true }),
-          ...(definition.restrictions?.range && { range: definition.restrictions.range }),
-          ...(definition.restrictions?.text && { textRestrictions: definition.restrictions.text }),
-          ...(definition.restrictions?.enum && {
-            enum: {
-              ...(definition.restrictions.enum.type && { type: definition.restrictions.enum.type }),
-              totalValues: enumValues.length,
-              values: enumValues.slice(0, effectiveMaxEnumValues).map((value) => ({
-                ...(value.valueId && { valueId: value.valueId }),
-                value: value.value,
-                ...(value.number && { number: value.number }),
-                ...(value.metadata && { metadata: value.metadata }),
-              })),
-              truncated: enumValues.length > enumValuesIncluded,
-            },
-          }),
-        };
-      });
+      const definitions = pagedDefinitions.map((definition) =>
+        shapeAttributeDefinition(definition, effectiveMaxEnumValues)
+      );
 
       return {
         content: [
@@ -1166,6 +1206,95 @@ export function createMcpServer(creds: Credentials): McpServer {
                   returned: definitions.length,
                   hasMore,
                   definitions,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: get_attribute_definition
+  server.registerTool(
+    "get_attribute_definition",
+    {
+      description:
+        "Fetch full working-state detail for one attribute definition. " +
+        "Use this when the user asks about a specific attribute, needs all enum values, or wants restrictions for one field. " +
+        "Call list_attribute_definitions first to find the definitionId when the user names an attribute but has not given an ID. " +
+        "Also use this after get_product or get_product_completeness_detail when you need to resolve one definitionId to its name, data type, unit, or enum values. " +
+        "Dictionary attributes do not include allowed values here. Dictionary value IDs require dictionary value APIs or create_dictionary_value. " +
+        "Suppress raw IDs in user-facing replies unless the user asks for implementation detail or a write action needs exact IDs.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        definitionId: z
+          .string()
+          .describe(
+            "The attribute definition ID. Get this from list_attribute_definitions, get_product, get_product_completeness_detail, or create_attribute_definition."
+          ),
+        attributeName: z
+          .string()
+          .optional()
+          .describe("Human-readable attribute name for the response summary. Pass it when available."),
+        maxEnumValues: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_DEFINITION_ENUM_DETAIL)
+          .optional()
+          .describe(
+            `Maximum enum values to return for select attributes (default all, max ${MAX_DEFINITION_ENUM_DETAIL}). Use 0 to omit enum values.`
+          ),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID (e.g. \"en\", \"l3600\"). " +
+            "Call list_contexts to see available values. Defaults to English if omitted."
+          ),
+      },
+    },
+    async ({ definitionId, attributeName, maxEnumValues, context }) => {
+      const effectiveContext = context ?? "en";
+      const definition = await mapiGet<MapiAttributeDefinition>(
+        `${MAPI_PIM_BASE}/definitions/${definitionId}`,
+        creds,
+        { context }
+      );
+
+      const shaped = shapeAttributeDefinition(
+        definition,
+        maxEnumValues === 0 ? 0 : maxEnumValues
+      );
+      const label = attributeName ?? definition.name ?? definitionId;
+      const enumTotal =
+        typeof shaped.enum === "object" &&
+        shaped.enum !== null &&
+        "totalValues" in shaped.enum &&
+        typeof shaped.enum.totalValues === "number"
+          ? shaped.enum.totalValues
+          : 0;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Fetched attribute definition "${label}" (working state, context: ${effectiveContext}). ` +
+              `Type: ${definition.dataType ?? "unknown"}` +
+              (definition.unit ? `, unit: ${definition.unit}` : "") +
+              (enumTotal > 0 ? `, ${enumTotal} enum value${enumTotal === 1 ? "" : "s"}` : "") +
+              ".\n\n" +
+              JSON.stringify(
+                {
+                  context: effectiveContext,
+                  definition: shaped,
                 },
                 null,
                 2
@@ -1734,7 +1863,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Call list_catalogs to get categoryId when the user names a catalog. " +
         "Call list_contexts when the user asks about a specific language or market. " +
         "Completeness score filters require completenessContext. " +
-        "Requirement ID filters require failingRequirementIds from get_product_completeness_detail or admin knowledge; this server does not resolve requirement names yet. " +
+        "Requirement ID filters require failingRequirementIds from get_product_completeness_detail. " +
         "Set includeCompletenessScores when the user wants scores shown alongside each result. " +
         "This tool does not support attribute, label, relation, or asset filters yet. " +
         "Surface results as a concise list or table. Suppress raw IDs unless the user asks for implementation detail.",
@@ -2048,7 +2177,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Fetch full working-state details for a Bluestone PIM product, including metadata, attributes, category IDs, asset IDs, relations, bundles, and variant information. " +
         "Use list_products_in_category first to get the productId, or use the ID returned by create_product. " +
         "Call this before writing product attributes or category changes when you need to inspect current values. " +
-        "Attribute values are returned by definitionId only. Call list_attribute_definitions if you need to resolve attribute names, data types, enum values, or dictionary context. " +
+        "Attribute values are returned by definitionId only. Call get_attribute_definition or list_attribute_definitions if you need to resolve attribute names, data types, enum values, or dictionary context. " +
         "Suppress raw IDs in user-facing replies unless the user asks for implementation detail or a write action needs exact IDs.",
       annotations: {
         readOnlyHint: true,
@@ -2269,9 +2398,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Call list_product_completeness_scores first when you do not yet know the score, or when the user asks about multiple products or contexts. " +
         "Use list_products_in_category or get_product to resolve the productId when the user names a product but has not given an ID. " +
         "Call list_contexts when the user asks about a specific language or market. Defaults to English if context is omitted. " +
-        "Requirement results are returned by requirementId with PASSED or FAILED status. " +
-        "This server does not resolve requirement names yet. Explain failed requirements clearly and use get_product plus list_attribute_definitions if the user needs to inspect the underlying product data. " +
-        "Suppress raw requirement IDs unless the user asks for implementation detail.",
+        "Requirement results include resolved names where available. Attribute-based requirements are resolved via completeness requirements and attribute definitions. " +
+        "Surface failed requirement names clearly in user-facing replies. Suppress raw requirement IDs unless the user asks for implementation detail.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -2303,14 +2431,21 @@ export function createMcpServer(creds: Credentials): McpServer {
         creds
       );
 
-      const requirements = (detail.requirementsResults ?? []).map((requirement) => ({
+      const rawRequirements = (detail.requirementsResults ?? []).map((requirement) => ({
         requirementId: requirement.requirementId,
         weight: requirement.weight,
         status: requirement.requirementStatus,
       }));
+      const requirements = await resolveRequirementResults(rawRequirements, creds, {
+        completenessScoreBase: MAPI_COMPLETENESS_SCORE_BASE,
+        pimBase: MAPI_PIM_BASE,
+        mapiGet,
+        mapiPostBody,
+      });
       const failedRequirements = requirements.filter((requirement) => requirement.status === "FAILED");
       const passedRequirements = requirements.filter((requirement) => requirement.status === "PASSED");
       const label = productName ?? productId;
+      const failedNames = failedRequirements.map((requirement) => requirement.name);
 
       return {
         content: [
@@ -2320,7 +2455,9 @@ export function createMcpServer(creds: Credentials): McpServer {
               `Fetched completeness detail for "${label}" (working state, context: ${effectiveContext}). ` +
               `Score: ${detail.score}%. ` +
               `${passedRequirements.length} requirement${passedRequirements.length === 1 ? "" : "s"} passed, ` +
-              `${failedRequirements.length} failed.\n\n` +
+              `${failedRequirements.length} failed` +
+              (failedNames.length > 0 ? `: ${failedNames.join("; ")}` : ".") +
+              "\n\n" +
               JSON.stringify(
                 {
                   productId: detail.entityId,

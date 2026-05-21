@@ -199,12 +199,45 @@ Header: context-fallback: true
 - Maps incoming spreadsheet columns or user-provided product fields to existing attributes
 - Presents confident matches, uncertain matches, fields with no good match, and suggested new attributes
 - Flags validation issues such as enum mismatches, range mismatches, unit ambiguity, context-aware fields, and read-only fields
-- Suppresses raw IDs and full enum lists unless the user asks for implementation detail
+- Calls `get_attribute_definition` when full enum values or restrictions for one attribute are needed
 
 **Example prompts:**
 - "Map this spreadsheet to our Bluestone PIM attributes"
 - "Do we already have attributes for these supplier fields?"
 - "Which attributes should I create for this product data?"
+
+---
+
+## `get_attribute_definition`
+
+**Purpose:** Fetch full working-state detail for one attribute definition. Use when the user asks about a specific attribute or needs all enum values and restrictions for one field.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `definitionId` | string | Yes | Attribute definition ID from `list_attribute_definitions`, `get_product`, or `create_attribute_definition` |
+| `attributeName` | string | No | Human-readable attribute name (shown in response summary) |
+| `maxEnumValues` | number | No | Max enum values to return (default all, max 500). Use 0 to omit |
+| `context` | string | No | Language/market context ID. Defaults to `"en"` |
+
+**API call:**
+```
+GET /pim/definitions/{definitionId}
+Header: authorization: Bearer <token>
+Header: context: <context>
+Header: context-fallback: true
+```
+
+**What Claude does:**
+- Calls `list_attribute_definitions` first when the user names an attribute but has not given an ID
+- Uses this after `get_product` or `get_product_completeness_detail` to resolve one definitionId
+- Dictionary attributes do not include allowed values in this response
+
+**Example prompts:**
+- "What are the allowed values for the Color attribute?"
+- "Show me the full definition for attribute X"
+- "What data type and unit does this attribute use?"
 
 ---
 
@@ -532,9 +565,9 @@ Header: authorization: Bearer <token>
 
 **What Claude does:**
 - Calls `list_product_completeness_scores` first if the score is not yet known
-- Explains failed requirements in plain language
-- Uses `get_product` and `list_attribute_definitions` if the user needs to inspect underlying product data
-- Requirement names are not resolved by this server yet; results are keyed by `requirementId`
+- Explains failed requirements by name in plain language
+- Uses `get_product` if the user needs to inspect underlying product attribute values
+- Attribute-based requirements are resolved to attribute names automatically
 
 **Example prompts:**
 - "What is missing for this product to be complete?"
