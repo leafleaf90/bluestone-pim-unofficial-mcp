@@ -131,6 +131,25 @@ interface MapiAttributeDefinitionsResponse {
   data: MapiAttributeDefinition[];
 }
 
+interface MapiDictionaryValue {
+  id: string;
+  definitionId: string;
+  number?: string;
+  metadata?: string;
+  toBeRemoved?: boolean;
+  value?: { value: Record<string, string> };
+  createdDate?: number;
+  lastUpdate?: number;
+}
+
+interface MapiDictionaryValuesResponse {
+  data: MapiDictionaryValue[];
+}
+
+interface MapiDictionaryValueCountResponse {
+  count: number;
+}
+
 
 interface SearchProductsResponse {
   // data is an array of objects, not plain strings.
@@ -294,6 +313,9 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_COMPLETENESS_LIMIT = 100;
 const MAX_COMPLETENESS_LIMIT = 500;
 const MAX_COMPLETENESS_PRODUCT_IDS = 100;
+const MAPI_DEFINITIONS_FETCH_PAGE_SIZE = 1000;
+const DEFAULT_DICTIONARY_VALUE_LIMIT = 100;
+const MAX_DICTIONARY_VALUE_LIMIT = 500;
 
 const ATTRIBUTE_DATA_TYPES = [
   "boolean",
@@ -509,7 +531,10 @@ async function mapiPostBody<T>(
 async function mapiGet<T>(
   url: string,
   creds: Credentials,
-  options?: { context?: string }
+  options?: {
+    context?: string;
+    query?: Record<string, string | number | boolean | undefined>;
+  }
 ): Promise<T> {
   const token = await getBearerToken(creds);
   const headers: Record<string, string> = {
@@ -520,7 +545,20 @@ async function mapiGet<T>(
   if (options?.context) {
     headers["context"] = options.context;
   }
-  const res = await fetch(url, { headers });
+  let requestUrl = url;
+  if (options?.query) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(options.query)) {
+      if (value !== undefined) {
+        params.set(key, String(value));
+      }
+    }
+    const queryString = params.toString();
+    if (queryString) {
+      requestUrl += `${url.includes("?") ? "&" : "?"}${queryString}`;
+    }
+  }
+  const res = await fetch(requestUrl, { headers });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(mapiErrorMessage(res.status, body));
@@ -558,6 +596,47 @@ function mapProductState(state: string): string {
     PLAYGROUND_ONLY: "Draft",
   };
   return states[state] ?? state;
+}
+
+function computeCompletenessSummary(
+  scores: number[],
+  options?: { filterMin?: number; filterMax?: number }
+): {
+  totalWithScores: number;
+  atZero: number;
+  partial: number;
+  fullyComplete: number;
+  averageScore: number | null;
+  filterMin: number | null;
+  filterMax: number | null;
+} {
+  const filterMin = options?.filterMin ?? null;
+  const filterMax = options?.filterMax ?? null;
+  let atZero = 0;
+  let partial = 0;
+  let fullyComplete = 0;
+  let scoreSum = 0;
+
+  for (const score of scores) {
+    scoreSum += score;
+    if (score === 0) {
+      atZero += 1;
+    } else if (score === 100) {
+      fullyComplete += 1;
+    } else {
+      partial += 1;
+    }
+  }
+
+  return {
+    totalWithScores: scores.length,
+    atZero,
+    partial,
+    fullyComplete,
+    averageScore: scores.length > 0 ? Math.round(scoreSum / scores.length) : null,
+    filterMin,
+    filterMax,
+  };
 }
 
 function productNumberConflictMessage(error: unknown, number: string): string | null {
@@ -648,8 +727,97 @@ function shapeAttributeDefinition(
     }),
     ...(definition.dataType === "dictionary" && {
       dictionaryValuesNote:
-        "Dictionary allowed values are not included in this response. Use dictionary value APIs or create_dictionary_value when you need value IDs.",
+        "Dictionary allowed values are not included in this response. Call list_dictionary_values to browse values or get_dictionary_value for one value.",
     }),
+  };
+}
+
+function applyAttributeDefinitionClientFilters(
+  definitions: MapiAttributeDefinition[],
+  options: {
+    search?: string;
+    group?: string;
+    dataType?: string;
+    includeReadOnly?: boolean;
+    includeRemoved?: boolean;
+    includeCompound?: boolean;
+  }
+): MapiAttributeDefinition[] {
+  const shouldIncludeCompound = options.includeCompound ?? true;
+
+  return definitions
+    .filter((definition) => options.includeReadOnly || !definition.readOnly)
+    .filter((definition) => options.includeRemoved || !definition.toBeRemoved)
+    .filter((definition) => shouldIncludeCompound || !definition.isCompound)
+    .filter((definition) =>
+      options.group ? includesSearch(definition.group, options.group) : true
+    )
+    .filter((definition) =>
+      options.dataType ? definition.dataType === options.dataType : true
+    )
+    .filter((definition) =>
+      options.search
+        ? includesSearch(definition.name, options.search) ||
+          includesSearch(definition.number, options.search) ||
+          includesSearch(definition.group, options.search) ||
+          includesSearch(definition.dataType, options.search) ||
+          includesSearch(definition.unit, options.search)
+        : true
+    );
+}
+
+async function fetchAllAttributeDefinitions(
+  creds: Credentials,
+  options?: { includeRemoved?: boolean; context?: string }
+): Promise<MapiAttributeDefinition[]> {
+  const allDefinitions: MapiAttributeDefinition[] = [];
+  let page = 0;
+
+  while (true) {
+    const response = await mapiGet<MapiAttributeDefinitionsResponse>(
+      `${MAPI_PIM_BASE}/definitions`,
+      creds,
+      {
+        context: options?.context,
+        query: {
+          page,
+          pageSize: MAPI_DEFINITIONS_FETCH_PAGE_SIZE,
+          ...(options?.includeRemoved ? {} : { excludeToBeRemoved: true }),
+        },
+      }
+    );
+    const batch = response.data ?? [];
+    allDefinitions.push(...batch);
+    if (batch.length < MAPI_DEFINITIONS_FETCH_PAGE_SIZE) {
+      break;
+    }
+    page += 1;
+  }
+
+  return allDefinitions;
+}
+
+function resolveMultiLanguageValue(
+  value: { value?: Record<string, string> } | undefined,
+  context: string
+): string {
+  const values = value?.value ?? {};
+  return values[context] ?? values.en ?? Object.values(values)[0] ?? "";
+}
+
+function shapeDictionaryValue(
+  value: MapiDictionaryValue,
+  context: string
+): Record<string, unknown> {
+  const label = resolveMultiLanguageValue(value.value, context);
+  return {
+    id: value.id,
+    value: label,
+    ...(value.number && { number: value.number }),
+    ...(value.metadata && { metadata: value.metadata }),
+    ...(value.toBeRemoved && { toBeRemoved: true }),
+    ...(value.lastUpdate && { lastUpdate: value.lastUpdate }),
+    ...(value.createdDate && { createdDate: value.createdDate }),
   };
 }
 
@@ -726,6 +894,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- List category trees within a catalog for onboarding and placement decisions (list_category_tree)\n" +
         "- List attribute definitions for product data onboarding and field mapping (list_attribute_definitions)\n" +
         "- Fetch full detail for one attribute definition (get_attribute_definition)\n" +
+        "- List dictionary values for a dictionary attribute (list_dictionary_values)\n" +
+        "- Fetch one dictionary value by ID (get_dictionary_value)\n" +
         "- List products in a catalog including all sub-categories, working state (list_products_in_category)\n" +
         "- Search and filter products by completeness score, category scope, or failing requirements (search_products)\n" +
         "- Fetch full product detail including attributes, categories, assets, and relations (get_product)\n" +
@@ -751,6 +921,12 @@ export function createMcpServer(creds: Credentials): McpServer {
         "When the user wants to list or filter products by completeness score across a catalog or the whole organisation, for example all products below 80%, all complete products, or products in a category under a threshold, call search_products. " +
         "When the user then asks what is missing, which requirements failed, or wants a requirement breakdown for one product in one context, call get_product_completeness_detail. " +
         "Do not use list_products_in_category followed by manual score filtering as a workaround for completeness searches.\n\n" +
+        "Completeness search presentation: when search_products returns multiple products with completeness scores, " +
+        "do NOT reply with a plain markdown table in chat. " +
+        "In Cursor, open a Canvas beside the chat with summary stat cards (total matching, count at 0%, count partially filled in the filtered range), " +
+        "a filterable product table, color-coded type badges (single, variant, group), and horizontal completeness progress bars with percentages. " +
+        "Keep chat to a short intro and point the user to the canvas. " +
+        "For one to three products, a concise inline summary is fine.\n\n" +
         "Working state vs published: the default read tools return working state data, " +
         "which includes unpublished changes and is what enrichment teams work with. " +
         "Use the list_published_* tools when the user specifically asks about live/published data.\n\n" +
@@ -1144,48 +1320,64 @@ export function createMcpServer(creds: Credentials): McpServer {
       const effectivePage = page ?? DEFAULT_PAGE;
       const effectiveMaxEnumValues = maxEnumValues ?? 25;
       const shouldIncludeCompound = includeCompound ?? true;
+      const hasLocalTextFilters = Boolean(search || group || dataType);
 
-      const data = await mapiGet<MapiAttributeDefinitionsResponse>(
-        `${MAPI_PIM_BASE}/definitions`,
-        creds
-      );
+      let definitionsSource: MapiAttributeDefinition[];
+      let total: number;
+      let pagedDefinitions: MapiAttributeDefinition[];
+      let hasMore: boolean;
 
-      const filtered = (data.data ?? [])
-        .filter((definition) => includeReadOnly || !definition.readOnly)
-        .filter((definition) => includeRemoved || !definition.toBeRemoved)
-        .filter((definition) => shouldIncludeCompound || !definition.isCompound)
-        .filter((definition) =>
-          group ? includesSearch(definition.group, group) : true
-        )
-        .filter((definition) =>
-          dataType ? definition.dataType === dataType : true
-        )
-        .filter((definition) =>
-          search
-            ? includesSearch(definition.name, search) ||
-              includesSearch(definition.number, search) ||
-              includesSearch(definition.group, search) ||
-              includesSearch(definition.dataType, search) ||
-              includesSearch(definition.unit, search)
-            : true
+      if (hasLocalTextFilters) {
+        const allDefinitions = await fetchAllAttributeDefinitions(creds, { includeRemoved });
+        const filtered = applyAttributeDefinitionClientFilters(allDefinitions, {
+          search,
+          group,
+          dataType,
+          includeReadOnly,
+          includeRemoved,
+          includeCompound: shouldIncludeCompound,
+        });
+        total = filtered.length;
+        const start = (effectivePage - 1) * effectiveLimit;
+        pagedDefinitions = filtered.slice(start, start + effectiveLimit);
+        hasMore = start + pagedDefinitions.length < total;
+        definitionsSource = pagedDefinitions;
+      } else {
+        const response = await mapiGet<MapiAttributeDefinitionsResponse>(
+          `${MAPI_PIM_BASE}/definitions`,
+          creds,
+          {
+            query: {
+              page: effectivePage - 1,
+              pageSize: effectiveLimit,
+              ...(includeRemoved ? {} : { excludeToBeRemoved: true }),
+            },
+          }
         );
+        const filtered = applyAttributeDefinitionClientFilters(response.data ?? [], {
+          includeReadOnly,
+          includeRemoved,
+          includeCompound: shouldIncludeCompound,
+        });
+        definitionsSource = filtered;
+        total = filtered.length;
+        hasMore = (response.data ?? []).length === effectiveLimit;
+      }
 
-      const total = filtered.length;
-      const start = (effectivePage - 1) * effectiveLimit;
-      const pagedDefinitions = filtered.slice(start, start + effectiveLimit);
-      const hasMore = start + pagedDefinitions.length < total;
-
-      const definitions = pagedDefinitions.map((definition) =>
+      const definitions = definitionsSource.map((definition) =>
         shapeAttributeDefinition(definition, effectiveMaxEnumValues)
       );
+
+      const summaryText = hasLocalTextFilters
+        ? `Found ${total} attribute definition${total === 1 ? "" : "s"} (working state). Returned ${definitions.length} on page ${effectivePage}`
+        : `Returned ${definitions.length} attribute definition${definitions.length === 1 ? "" : "s"} on page ${effectivePage} (working state)`;
 
       return {
         content: [
           {
             type: "text" as const,
             text:
-              `Found ${total} attribute definition${total === 1 ? "" : "s"} (working state). ` +
-              `Returned ${definitions.length} on page ${effectivePage}` +
+              summaryText +
               (hasMore
                 ? `. Call again with page=${effectivePage + 1} to fetch more.`
                 : ".") +
@@ -1201,7 +1393,7 @@ export function createMcpServer(creds: Credentials): McpServer {
                     includeCompound: shouldIncludeCompound,
                     maxEnumValues: effectiveMaxEnumValues,
                   },
-                  total,
+                  ...(hasLocalTextFilters && { total }),
                   page: effectivePage,
                   returned: definitions.length,
                   hasMore,
@@ -1225,7 +1417,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Use this when the user asks about a specific attribute, needs all enum values, or wants restrictions for one field. " +
         "Call list_attribute_definitions first to find the definitionId when the user names an attribute but has not given an ID. " +
         "Also use this after get_product or get_product_completeness_detail when you need to resolve one definitionId to its name, data type, unit, or enum values. " +
-        "Dictionary attributes do not include allowed values here. Dictionary value IDs require dictionary value APIs or create_dictionary_value. " +
+        "Dictionary attributes do not include allowed values here. Call list_dictionary_values to browse values or get_dictionary_value for one value. " +
         "Suppress raw IDs in user-facing replies unless the user asks for implementation detail or a write action needs exact IDs.",
       annotations: {
         readOnlyHint: true,
@@ -1295,6 +1487,246 @@ export function createMcpServer(creds: Credentials): McpServer {
                 {
                   context: effectiveContext,
                   definition: shaped,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: list_dictionary_values
+  server.registerTool(
+    "list_dictionary_values",
+    {
+      description:
+        "List allowed values for a dictionary attribute definition. " +
+        "Use this before create_dictionary_value to check whether a value already exists, during onboarding mapping, or when the user asks for dictionary options. " +
+        "Call list_attribute_definitions or get_attribute_definition first to verify the attribute has dataType dictionary and to get dictionaryId. " +
+        "For one known valueId from get_product, call get_dictionary_value instead. " +
+        "Suppress raw value IDs in user-facing replies unless the user asks for implementation detail or a write action needs exact IDs.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        dictionaryId: z
+          .string()
+          .describe(
+            "The dictionary attribute definition ID from list_attribute_definitions or get_attribute_definition for an attribute with dataType dictionary."
+          ),
+        dictionaryName: z
+          .string()
+          .optional()
+          .describe("Human-readable dictionary attribute name for the response summary."),
+        search: z
+          .string()
+          .optional()
+          .describe("Optional case-insensitive search across dictionary value label and number."),
+        includeRemoved: z
+          .boolean()
+          .optional()
+          .describe("Whether to include values marked to be removed (default false)."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_DICTIONARY_VALUE_LIMIT)
+          .optional()
+          .describe(
+            `Dictionary values per page (default ${DEFAULT_DICTIONARY_VALUE_LIMIT}, max ${MAX_DICTIONARY_VALUE_LIMIT}). ` +
+            "If hasMore is true in the response, call again with page incremented by 1."
+          ),
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Page number to fetch, 1-indexed (default 1)."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID for value labels (e.g. \"en\"). " +
+            "Call list_contexts to see available values. Defaults to English if omitted."
+          ),
+      },
+    },
+    async ({ dictionaryId, dictionaryName, search, includeRemoved, limit, page, context }) => {
+      const effectiveLimit = limit ?? DEFAULT_DICTIONARY_VALUE_LIMIT;
+      const effectivePage = page ?? DEFAULT_PAGE;
+      const effectiveContext = context ?? "en";
+      const dictionaryLabel = dictionaryName ?? dictionaryId;
+      const excludeToBeRemoved = includeRemoved ? false : true;
+      const listQuery = excludeToBeRemoved ? "?excludeToBeRemoved=true" : "";
+      const listUrl = `${MAPI_PIM_BASE}/definitions/dictionary/${dictionaryId}/values/list${listQuery}`;
+      const countUrl = `${MAPI_PIM_BASE}/definitions/dictionary/${dictionaryId}/values/count${listQuery}`;
+
+      if (search) {
+        const allValues: MapiDictionaryValue[] = [];
+        let apiPage = 0;
+
+        while (true) {
+          const response = await mapiPostBody<MapiDictionaryValuesResponse>(
+            listUrl,
+            { page: apiPage, pageSize: MAPI_DEFINITIONS_FETCH_PAGE_SIZE },
+            creds,
+            { context }
+          );
+          const batch = response.data ?? [];
+          allValues.push(...batch);
+          if (batch.length < MAPI_DEFINITIONS_FETCH_PAGE_SIZE) {
+            break;
+          }
+          apiPage += 1;
+        }
+
+        const filtered = allValues.filter((entry) => {
+          const label = resolveMultiLanguageValue(entry.value, effectiveContext);
+          return (
+            includesSearch(label, search) ||
+            includesSearch(entry.number, search)
+          );
+        });
+        const total = filtered.length;
+        const start = (effectivePage - 1) * effectiveLimit;
+        const pagedValues = filtered.slice(start, start + effectiveLimit);
+        const values = pagedValues.map((entry) => shapeDictionaryValue(entry, effectiveContext));
+        const hasMore = start + pagedValues.length < total;
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                `Found ${total} dictionary value${total === 1 ? "" : "s"} for "${dictionaryLabel}" matching "${search}" (working state, context: ${effectiveContext}). ` +
+                `Returned ${values.length} on page ${effectivePage}` +
+                (hasMore
+                  ? `. Call again with page=${effectivePage + 1} to fetch more.`
+                  : ".") +
+                "\n\n" +
+                JSON.stringify(
+                  {
+                    dictionary: dictionaryLabel,
+                    context: effectiveContext,
+                    search,
+                    total,
+                    page: effectivePage,
+                    returned: values.length,
+                    hasMore,
+                    values,
+                  },
+                  null,
+                  2
+                ),
+            },
+          ],
+        };
+      }
+
+      const listBody = { page: effectivePage - 1, pageSize: effectiveLimit };
+      const countBody = { page: 0, pageSize: 1 };
+
+      const [listResponse, countResponse] = await Promise.all([
+        mapiPostBody<MapiDictionaryValuesResponse>(listUrl, listBody, creds, { context }),
+        mapiPostBody<MapiDictionaryValueCountResponse>(countUrl, countBody, creds, { context }),
+      ]);
+
+      const total = countResponse.count ?? 0;
+      const values = (listResponse.data ?? []).map((entry) =>
+        shapeDictionaryValue(entry, effectiveContext)
+      );
+      const hasMore = effectivePage * effectiveLimit < total;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Found ${total} dictionary value${total === 1 ? "" : "s"} for "${dictionaryLabel}" (working state, context: ${effectiveContext}). ` +
+              `Returned ${values.length} on page ${effectivePage}` +
+              (hasMore
+                ? `. Call again with page=${effectivePage + 1} to fetch more.`
+                : ".") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  dictionary: dictionaryLabel,
+                  context: effectiveContext,
+                  total,
+                  page: effectivePage,
+                  returned: values.length,
+                  hasMore,
+                  values,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: get_dictionary_value
+  server.registerTool(
+    "get_dictionary_value",
+    {
+      description:
+        "Fetch one dictionary value for a dictionary attribute definition. " +
+        "Use this when get_product returns a dictionary valueId and you need the human-readable label. " +
+        "Call list_dictionary_values to browse all values or check whether a label already exists before create_dictionary_value. " +
+        "Suppress raw IDs in user-facing replies unless the user asks for implementation detail.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        dictionaryId: z
+          .string()
+          .describe(
+            "The dictionary attribute definition ID from list_attribute_definitions or get_attribute_definition."
+          ),
+        valueId: z
+          .string()
+          .describe("The dictionary value ID from get_product, list_dictionary_values, or create_dictionary_value."),
+        dictionaryName: z
+          .string()
+          .optional()
+          .describe("Human-readable dictionary attribute name for the response summary."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID for the value label (e.g. \"en\"). Defaults to English if omitted."
+          ),
+      },
+    },
+    async ({ dictionaryId, valueId, dictionaryName, context }) => {
+      const effectiveContext = context ?? "en";
+      const value = await mapiGet<MapiDictionaryValue>(
+        `${MAPI_PIM_BASE}/definitions/dictionary/${dictionaryId}/values/${valueId}`,
+        creds,
+        { context }
+      );
+      const shaped = shapeDictionaryValue(value, effectiveContext);
+      const dictionaryLabel = dictionaryName ?? dictionaryId;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Fetched dictionary value "${shaped.value}" for "${dictionaryLabel}" (working state, context: ${effectiveContext}).\n\n` +
+              JSON.stringify(
+                {
+                  dictionary: dictionaryLabel,
+                  context: effectiveContext,
+                  value: shaped,
                 },
                 null,
                 2
@@ -1425,7 +1857,8 @@ export function createMcpServer(creds: Credentials): McpServer {
     {
       description:
         "Create a new value for a dictionary attribute definition in Bluestone PIM. " +
-        "Use list_attribute_definitions first to verify the target definition exists and has dataType dictionary. " +
+        "Use list_attribute_definitions or get_attribute_definition first to verify the target definition exists and has dataType dictionary. " +
+        "Use list_dictionary_values to check whether the value already exists before creating a duplicate. " +
         "Use this only when an onboarding value cannot be mapped to an existing dictionary value. " +
         "Do not use this to create a duplicate of a suitable existing dictionary value. " +
         "Always present the dictionary attribute and new value to the user and get explicit confirmation before calling this tool. " +
@@ -1864,9 +2297,13 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Call list_contexts when the user asks about a specific language or market. " +
         "Completeness score filters require completenessContext. " +
         "Requirement ID filters require failingRequirementIds from get_product_completeness_detail. " +
-        "Set includeCompletenessScores when the user wants scores shown alongside each result. " +
+        "Set includeCompletenessScores when the user wants scores shown alongside each result. Scores are included automatically when filtering by completeness score or failing requirements. " +
         "This tool does not support attribute, label, relation, or asset filters yet. " +
-        "Surface results as a concise list or table. Suppress raw IDs unless the user asks for implementation detail.",
+        "When the response includes completeness scores for more than three products, do NOT use a plain markdown table in chat. " +
+        "In Cursor, present results in a Canvas with summary stat cards, a filterable table, type badges, and completeness progress bars. " +
+        "Use the completenessSummary and presentationHint fields in the response. " +
+        "For one to three products, a concise inline summary is fine. " +
+        "Suppress raw IDs unless the user asks for implementation detail.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -1928,7 +2365,8 @@ export function createMcpServer(creds: Credentials): McpServer {
           .boolean()
           .optional()
           .describe(
-            "When true, fetch and include completeness scores for returned products in completenessContext. Default false."
+            "When true, fetch and include completeness scores for returned products in completenessContext. " +
+            "Defaults to true when filtering by completeness score or failing requirements."
           ),
         limit: z
           .number()
@@ -1976,6 +2414,9 @@ export function createMcpServer(creds: Credentials): McpServer {
         completenessScoreMin !== undefined || completenessScoreMax !== undefined;
       const hasFailingRequirements =
         failingRequirementIds !== undefined && failingRequirementIds.length > 0;
+      const shouldIncludeScores =
+        includeCompletenessScores ??
+        (hasCompletenessScoreFilter || hasFailingRequirements);
 
       if (
         !categoryId &&
@@ -2096,7 +2537,7 @@ export function createMcpServer(creds: Credentials): McpServer {
       );
 
       let scoreByProductId = new Map<string, number>();
-      if (includeCompletenessScores && completenessContext) {
+      if (shouldIncludeScores && completenessContext) {
         const scoresResponse = await mapiPostBody<MapiCompletenessScoresResponse>(
           `${MAPI_COMPLETENESS_SCORE_BASE}/scores/list`,
           {
@@ -2134,6 +2575,17 @@ export function createMcpServer(creds: Credentials): McpServer {
 
       const returned = products.length;
       const hasMore = total > effectivePage * effectiveLimit;
+      const scores = products
+        .map((product) => product.completenessScore)
+        .filter((score): score is number => score !== undefined);
+      const completenessSummary =
+        scores.length > 0
+          ? computeCompletenessSummary(scores, {
+              filterMin: completenessScoreMin,
+              filterMax: completenessScoreMax,
+            })
+          : undefined;
+      const preferCanvas = scores.length > 3;
 
       return {
         content: [
@@ -2147,6 +2599,9 @@ export function createMcpServer(creds: Credentials): McpServer {
               (hasMore
                 ? `. Call again with page=${effectivePage + 1} to fetch more.`
                 : ".") +
+              (preferCanvas
+                ? " Present these results in a Cursor Canvas with summary cards and a filterable table, not a plain markdown table."
+                : "") +
               "\n\n" +
               JSON.stringify(
                 {
@@ -2158,6 +2613,21 @@ export function createMcpServer(creds: Credentials): McpServer {
                   page: effectivePage,
                   returned,
                   hasMore,
+                  ...(completenessSummary && { completenessSummary }),
+                  ...(preferCanvas && {
+                    presentationHint: {
+                      preferCanvas: true,
+                      layout: "completeness-product-list",
+                      summaryCards: ["totalMatching", "atZero", "partial"],
+                      tableColumns: ["name", "number", "type", "completenessScore"],
+                      typeBadgeStyle: {
+                        single: "neutral",
+                        variant: "purple",
+                        group: "blue",
+                      },
+                      completenessBar: true,
+                    },
+                  }),
                   products,
                 },
                 null,

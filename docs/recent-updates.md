@@ -57,6 +57,8 @@ Exclude:
 ## Current entries (as of May 2026)
 
 ```
+- <span class="badge-new">New</span> **May 2026:** Dictionary value reads added. Browse dictionary options and resolve value IDs to labels without opening the Bluestone UI.
+- <span class="badge-improved">Improved</span> **May 2026:** Attribute definition listing now paginates correctly for large attribute models.
 - <span class="badge-new">New</span> **May 2026:** Product completeness search added. Find products above or below a completeness threshold across a catalog or organisation.
 - <span class="badge-new">New</span> **May 2026:** Product completeness score reads added. Check how complete products are per language or market context.
 - <span class="badge-new">New</span> **May 2026:** Full product detail reads added. Inspect product attributes, categories, assets, and relations before writing updates.
@@ -65,6 +67,4 @@ Exclude:
 - <span class="badge-new">New</span> **May 2026:** Category node creation added. Create missing onboarding categories after checking the existing catalog tree.
 - <span class="badge-new">New</span> **May 2026:** Product attribute value writes added. Set mapped attribute values on products after the onboarding mapping is approved.
 - <span class="badge-note">Earlier</span> **May 2026:** Attribute definition creation added. Create missing onboarding attributes, including select attributes with initial enum values, after confirmation.
-- <span class="badge-note">Earlier</span> **May 2026:** Product placement and rename tools added. Assign existing products to catalog categories and update product names after confirmation.
-- <span class="badge-note">Earlier</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
 ```

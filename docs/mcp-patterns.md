@@ -257,6 +257,21 @@ The same applies when a tool's scope is intentionally narrow. If `create_product
 
 ---
 
+## Rich presentation for list results
+
+When a tool returns tabular data that is the main deliverable (for example completeness search results), plain markdown tables in chat are a weak default. The model may still choose them unless the tool description and response steer it elsewhere.
+
+For `search_products` with completeness scores:
+
+- Include pre-computed summary stats in the JSON (`completenessSummary`) so the model does not have to derive counts.
+- Include an explicit `presentationHint` object when the result set is large enough to benefit from a canvas.
+- State in the tool description and server instructions: for more than three rows with scores, use a Cursor Canvas with summary cards, type badges, and progress bars. Do not use a plain markdown table.
+- Keep the plain-text summary line in the tool response, but add a one-sentence nudge when `presentationHint.preferCanvas` applies.
+
+This pattern is client-specific (Cursor Canvas). Other MCP clients may ignore it. The JSON data remains the source of truth; presentation hints are optional metadata for capable clients.
+
+---
+
 ## Checklist: registering a new tool
 
 - [ ] Description says **when** to call it and what it does

@@ -194,6 +194,8 @@ Bluestone is built API-first, with clean structured data. This is exactly what A
 
 ## Recent updates
 
+- <span class="badge-new">New</span> **May 2026:** Dictionary value reads added. Browse dictionary options and resolve value IDs to labels without opening the Bluestone UI.
+- <span class="badge-improved">Improved</span> **May 2026:** Attribute definition listing now paginates correctly for large attribute models.
 - <span class="badge-new">New</span> **May 2026:** Product completeness search added. Find products above or below a completeness threshold across a catalog or organisation.
 - <span class="badge-new">New</span> **May 2026:** Product completeness score reads added. Check how complete products are per language or market context.
 - <span class="badge-new">New</span> **May 2026:** Full product detail reads added. Inspect product attributes, categories, assets, and relations before writing updates.
@@ -202,8 +204,6 @@ Bluestone is built API-first, with clean structured data. This is exactly what A
 - <span class="badge-new">New</span> **May 2026:** Category node creation added. Create missing onboarding categories after checking the existing catalog tree.
 - <span class="badge-new">New</span> **May 2026:** Product attribute value writes added. Set mapped attribute values on products after the onboarding mapping is approved.
 - <span class="badge-note">Earlier</span> **May 2026:** Attribute definition creation added. Create missing onboarding attributes, including select attributes with initial enum values, after confirmation.
-- <span class="badge-note">Earlier</span> **May 2026:** Product placement and rename tools added. Assign existing products to catalog categories and update product names after confirmation.
-- <span class="badge-note">Earlier</span> **May 2026:** Product data onboarding support added. Ask Claude to map incoming product fields to existing attributes and categories before creating anything.
 
 ---
 
@@ -499,6 +499,9 @@ By default this server connects to the **test environment** (`api.test.bluestone
 This happens when Claude has code execution or artifact creation available alongside the MCP, and reasons it can fetch the data directly. It cannot: the Bluestone credentials only exist inside the tool execution context, so direct HTTP calls will always fail with no API key.
 
 Two ways to prevent it. First, be explicit in your opening message: "Using Bluestone PIM, show me my catalogs" is more reliable than "show me my catalogs." Second, if it happens mid-conversation, redirect: "Don't write code. Use the Bluestone PIM tools directly." The server description now includes an explicit instruction to the model not to attempt direct API calls, which reduces how often this occurs, but it is not a complete fix. When Claude has strong code execution priors (for example, if you opened the conversation in Code mode), it may still choose code over the MCP tool.
+
+**Completeness search shows a plain table instead of the rich canvas view**
+The rich view with summary cards, progress bars, and filterable rows is a Cursor Canvas beside the chat, not something the MCP server renders directly. If you get a simple markdown table, ask explicitly: "Show this in a canvas with progress bars and summary stats." The MCP response includes `presentationHint` and `completenessSummary` to guide the model toward the canvas layout.
 
 **"Authorization with the MCP server failed" (reference code starting with `ofid_`)**
 First, check the URL you entered ends in `/mcp` and uses the exact address shown above: no redirects. OAuth token exchange breaks silently if the URL redirects to a different domain, even if the page loads fine in a browser.

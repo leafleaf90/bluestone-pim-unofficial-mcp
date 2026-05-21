@@ -211,7 +211,7 @@ Uses the same filter body as `/search/products/search`. No page/pageSize needed.
   }]
 }
 ```
-All IDs (`groupId`, `definitionId`, and dictionary option values) are opaque IDs. To display human-readable names, resolve via `GET /pim/definitions` (for attribute names) and `GET /pim/definitions/dictionary/{id}/values/list` (for dictionary option labels).
+All IDs (`groupId`, `definitionId`, and dictionary option values) are opaque IDs. To display human-readable names, resolve via `GET /pim/definitions` (for attribute names) and `POST /pim/definitions/dictionary/{id}/values/list` (for dictionary option labels).
 
 ---
 
@@ -285,7 +285,9 @@ All IDs (`groupId`, `definitionId`, and dictionary option values) are opaque IDs
 | GET | `/definitions` | MAPI | Full attribute definition list (richer than PAPI) |
 | GET | `/definitions/{id}` | MAPI | Single attribute definition |
 | GET | `/definitions/simple` | MAPI | Only simple-type definitions |
-| GET | `/definitions/dictionary/{id}/values/list` | MAPI | List allowed values for a dictionary attribute |
+| POST | `/definitions/dictionary/{id}/values/list` | MAPI | List allowed values for a dictionary attribute |
+| POST | `/definitions/dictionary/{id}/values/count` | MAPI | Count dictionary values |
+| GET | `/definitions/dictionary/{id}/values/{valueId}` | MAPI | Fetch one dictionary value |
 
 ### Relations (product connections)
 

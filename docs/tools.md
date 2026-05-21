@@ -40,7 +40,7 @@ The product identity section should propose the source column to use as product 
 
 No products or attributes should be created during this phase. Do not suggest creating partial sample products as a workaround for missing attributes or categories. If the mapping shows important model gaps, recommend a data-model update or draft a model specification for the user.
 
-When the user approves supported missing pieces, move into the confirmed write phase instead of sending them to the Bluestone UI. After the user approves specific missing simple attributes, call `create_attribute_definition` to create them. Only create an attribute definition when the source field was not mapped to a suitable existing PIM attribute. After the user approves missing dictionary values, call `create_dictionary_value` to create them. Only create a dictionary value when the source value was not mapped to a suitable existing PIM dictionary value. After the user approves missing select values, call `append_select_attribute_values` to add them. Only append a select value when the source value was not mapped to a suitable existing enum value. After the user approves missing category paths, call `create_category_node` to create them. Only create a category when the source category was not mapped to a suitable existing PIM category.
+When the user approves supported missing pieces, move into the confirmed write phase instead of sending them to the Bluestone UI. After the user approves specific missing simple attributes, call `create_attribute_definition` to create them. Only create an attribute definition when the source field was not mapped to a suitable existing PIM attribute. After the user approves missing dictionary values, call `create_dictionary_value` to create them. Only create a dictionary value when the source value was not mapped to a suitable existing PIM dictionary value: use `list_dictionary_values` first to check. After the user approves missing select values, call `append_select_attribute_values` to add them. Only append a select value when the source value was not mapped to a suitable existing enum value. After the user approves missing category paths, call `create_category_node` to create them. Only create a category when the source category was not mapped to a suitable existing PIM category.
 
 If the user answers mapping decisions such as target catalog, product number column, existing attribute mappings, missing attribute creation, or missing category placement, summarize the exact supported writes and ask for confirmation. Do not restart the planning discussion.
 
@@ -190,10 +190,12 @@ Body: { "name": "CATEGORY_NAME", "parentId": "PARENT_ID_IF_NOT_ROOT" }
 
 **API call:**
 ```
-GET /pim/definitions
+GET /pim/definitions?page={page}&pageSize={limit}&excludeToBeRemoved=true
 Header: authorization: Bearer <token>
 Header: context-fallback: true
 ```
+
+When `search`, `group`, or `dataType` filters are used, the tool fetches all definition pages from the API first, then filters and paginates locally so matches are not missed beyond the default API page size.
 
 **What Claude does with the result:**
 - Maps incoming spreadsheet columns or user-provided product fields to existing attributes
@@ -232,12 +234,80 @@ Header: context-fallback: true
 **What Claude does:**
 - Calls `list_attribute_definitions` first when the user names an attribute but has not given an ID
 - Uses this after `get_product` or `get_product_completeness_detail` to resolve one definitionId
-- Dictionary attributes do not include allowed values in this response
+- Dictionary attributes do not include allowed values in this response. Call `list_dictionary_values` or `get_dictionary_value` instead.
 
 **Example prompts:**
 - "What are the allowed values for the Color attribute?"
 - "Show me the full definition for attribute X"
 - "What data type and unit does this attribute use?"
+
+---
+
+## `list_dictionary_values`
+
+**Purpose:** List allowed values for a dictionary attribute definition. Use to browse options, check whether a value already exists, or resolve dictionary context during onboarding.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `dictionaryId` | string | Yes | Dictionary attribute definition ID from `list_attribute_definitions` or `get_attribute_definition` |
+| `dictionaryName` | string | No | Human-readable dictionary attribute name for the response summary |
+| `search` | string | No | Case-insensitive search across value label and number |
+| `includeRemoved` | boolean | No | Include values marked to be removed (default false) |
+| `limit` | number | No | Values per page (default 100, max 500) |
+| `page` | number | No | Page number, 1-indexed (default 1) |
+| `context` | string | No | Language/market context ID for labels. Defaults to `"en"` |
+
+**API call:**
+```
+POST /pim/definitions/dictionary/{dictionaryId}/values/list?excludeToBeRemoved=true
+POST /pim/definitions/dictionary/{dictionaryId}/values/count?excludeToBeRemoved=true
+Header: authorization: Bearer <token>
+Header: context: <context>
+Header: context-fallback: true
+```
+
+**What Claude does:**
+- Calls `list_attribute_definitions` or `get_attribute_definition` first to verify `dataType: "dictionary"`
+- Uses this before `create_dictionary_value` to avoid duplicate values
+- Uses `get_dictionary_value` when only one known value ID needs resolving
+
+**Example prompts:**
+- "What are the allowed values for the Brand dictionary attribute?"
+- "Does this dictionary already have a value for Acme Corp?"
+- "List dictionary options for attribute X"
+
+---
+
+## `get_dictionary_value`
+
+**Purpose:** Fetch one dictionary value by ID. Use when `get_product` returns a dictionary value ID and you need the human-readable label.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `dictionaryId` | string | Yes | Dictionary attribute definition ID |
+| `valueId` | string | Yes | Dictionary value ID from `get_product`, `list_dictionary_values`, or `create_dictionary_value` |
+| `dictionaryName` | string | No | Human-readable dictionary attribute name for the response summary |
+| `context` | string | No | Language/market context ID for the label. Defaults to `"en"` |
+
+**API call:**
+```
+GET /pim/definitions/dictionary/{dictionaryId}/values/{valueId}
+Header: authorization: Bearer <token>
+Header: context: <context>
+Header: context-fallback: true
+```
+
+**What Claude does:**
+- Resolves dictionary value IDs from product reads into labels for user-facing replies
+- Calls `list_dictionary_values` when browsing or searching the full value set
+
+**Example prompts:**
+- "What label does this dictionary value ID map to?"
+- "Resolve the Brand value on this product"
 
 ---
 
@@ -305,7 +375,8 @@ Body: { "value": "NEW VALUE HERE" }
 ```
 
 **What Claude does:**
-- Calls `list_attribute_definitions` first to verify the target definition exists and has `dataType: "dictionary"`
+- Calls `list_attribute_definitions` or `get_attribute_definition` first to verify the target definition exists and has `dataType: "dictionary"`
+- Calls `list_dictionary_values` to check whether the value already exists before creating a duplicate
 - Uses this only when an onboarding value was not mapped to a suitable existing dictionary value
 - Presents the dictionary attribute and new value to the user for explicit confirmation
 - Uses the returned dictionary value ID later as the value in `set_product_attribute`
@@ -373,7 +444,7 @@ Body: { "definitionId": "...", "values": ["..."] }
 - Single select: `["enumValueId"]`
 - Multi-select: `["enumValueId1", "enumValueId2"]`
 
-For select and multi-select attributes, use enum value IDs from `list_attribute_definitions`, not display labels. For dictionary attributes, use dictionary value IDs from `create_dictionary_value` or other dictionary value sources.
+For select and multi-select attributes, use enum value IDs from `list_attribute_definitions`, not display labels. For dictionary attributes, use dictionary value IDs from `list_dictionary_values`, `get_dictionary_value`, or `create_dictionary_value`.
 
 **What Claude does:**
 - Calls `list_attribute_definitions` first to verify the target definition, data type, unit, enum values, and restrictions
@@ -455,7 +526,7 @@ Add new mappings in `mapProductState()` in `src/tools.ts` as they are discovered
 | `completenessScoreMin` | number | No | Minimum score inclusive (0 to 100) |
 | `completenessScoreMax` | number | No | Maximum score inclusive (0 to 100) |
 | `failingRequirementIds` | string[] | No | Requirement IDs from `get_product_completeness_detail` |
-| `includeCompletenessScores` | boolean | No | Include scores in results (default false) |
+| `includeCompletenessScores` | boolean | No | Include scores in results. Defaults to true when filtering by completeness score or failing requirements |
 | `limit` | number | No | Products per page (default 50, max 200) |
 | `page` | number | No | Page number, 1-indexed (default 1) |
 | `context` | string | No | Context for product names in the response. Defaults to `"en"` |
@@ -470,7 +541,12 @@ POST /query-builder/products/count?archiveState=ACTIVE
 Body: { query: { matchRule: "all", children: [...], contextFallback: true }, paging: { page, pageSize } }
 ```
 
-Then resolves IDs via `POST /pim/products/list/views/by-ids`.
+Then resolves IDs via `POST /pim/products/list/views/by-ids`. When completeness filters are active, scores are fetched automatically and the response includes `completenessSummary` and `presentationHint` for rich presentation.
+
+**What Claude does with the result:**
+- For multiple products with scores, opens a Cursor Canvas with summary stat cards, type badges, and completeness progress bars. Does not use a plain markdown table.
+- For one to three products, presents a concise inline summary
+- Calls `get_product_completeness_detail` when the user asks what is missing for one product
 
 **Example prompts:**
 - "Show all products below 50% complete in English"
