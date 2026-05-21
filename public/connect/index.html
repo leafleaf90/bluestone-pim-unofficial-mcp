@@ -243,7 +243,7 @@ If it does go wrong mid-conversation, redirect with: "Don't write code. Use the 
 
 The same applies to image requests. If Claude has web search available, "show the image" can match a web search before it matches the MCP tool. Say "show me the product image from Bluestone PIM" to make the intent unambiguous.
 
-A few conversations showing what is possible. Each window is a mockup of how the exchange looks in Claude Desktop. Completeness examples use inline card mockups that mirror the Cursor Canvas layout: summary stats, filter pills, progress bars, and requirement breakdown cards.
+A few conversations showing what is possible. Each window is a mockup of how the exchange looks in Claude Desktop. Completeness examples use inline card mockups to show the target layout (summary stats, filter pills, progress bars, requirement cards). In Cursor, that same layout opens as a Canvas beside the chat instead.
 
 ---
 
@@ -500,8 +500,12 @@ This happens when Claude has code execution or artifact creation available along
 
 Two ways to prevent it. First, be explicit in your opening message: "Using Bluestone PIM, show me my catalogs" is more reliable than "show me my catalogs." Second, if it happens mid-conversation, redirect: "Don't write code. Use the Bluestone PIM tools directly." The server description now includes an explicit instruction to the model not to attempt direct API calls, which reduces how often this occurs, but it is not a complete fix. When Claude has strong code execution priors (for example, if you opened the conversation in Code mode), it may still choose code over the MCP tool.
 
-**Completeness search shows a plain table instead of the rich canvas view**
-The rich view with summary cards, progress bars, and filterable rows is a Cursor Canvas beside the chat, not something the MCP server renders directly. If you get a simple markdown table, ask explicitly: "Show this in a canvas with progress bars and summary stats." The MCP response includes `presentationHint` and `completenessSummary` to guide the model toward the canvas layout.
+**Completeness search shows a plain table instead of the rich card layout**
+The card layout with summary stats, progress bars, and filter pills is not rendered by the MCP server. It depends on the AI client and how the model formats the reply.
+
+In **Cursor**, the recommended presentation is a Canvas beside the chat. Ask explicitly: "Show this in a canvas with progress bars and summary stats." The MCP response includes `presentationHint` and `completenessSummary` to guide the model.
+
+In **Claude Desktop**, there is no Canvas. The model may produce a similar rich layout inline in the chat, or fall back to a plain markdown table. If you get a table, ask for "product cards with progress bars" or similar. Results are less consistent than in Cursor.
 
 **"Authorization with the MCP server failed" (reference code starting with `ofid_`)**
 First, check the URL you entered ends in `/mcp` and uses the exact address shown above: no redirects. OAuth token exchange breaks silently if the URL redirects to a different domain, even if the page loads fine in a browser.
@@ -823,7 +827,7 @@ The paper also notes that context window economics constrain how much a descript
           { type: 'reply', text: 'All three variants share the same four gaps: three missing attributes (Ecom Description, GEO Optimized Description, Season) and one missing secondary-label media asset. The primary image is already in place. Want me to draft the missing descriptions or drill into another product?' },
         ],
         notes: [
-          '<strong>The rich layout is a Cursor Canvas, not a markdown table.</strong> When <code>search_products</code> returns multiple products with scores, the MCP response includes <code>completenessSummary</code> and <code>presentationHint</code> fields that steer the model toward a canvas with summary stat cards, filter pills, type badges, and completeness progress bars. The mockup above shows the target layout inline for documentation.',
+          '<strong>The card layout is a documentation mockup, not a Cursor Canvas.</strong> These example windows imitate Claude Desktop chat. Claude Desktop has no Canvas panel: when the model produces a rich layout, it appears inline in the reply (HTML or structured text), and behavior varies. In <strong>Cursor</strong>, the same layout is best opened as a Canvas beside the chat. The inline cards above show the target design: summary stat cards, filter pills, type badges, completeness progress bars, and requirement breakdown cards. The MCP response includes <code>completenessSummary</code> and <code>presentationHint</code> to steer the model toward that layout instead of a plain markdown table.',
           '<strong>Score colors follow a simple banding rule.</strong> Below 70% uses red, 70 to 89% uses orange, 90% and above uses green. This matches how completeness bars are rendered in the reference canvas at <code>canvases/bluestone-completeness-search.canvas.tsx</code>.',
           '<strong>Requirement names resolve automatically.</strong> <code>get_product_completeness_detail</code> resolves failed attribute requirements to human-readable names, so the model can explain gaps without sending the user to the Bluestone UI.',
         ]
