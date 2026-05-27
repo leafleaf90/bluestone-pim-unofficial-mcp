@@ -14,6 +14,10 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createMcpServer, Credentials } from "../src/tools.js";
 
 const app = express();
+// Vercel sits behind a reverse proxy and sets X-Forwarded-For. express-rate-limit
+// requires trust proxy or it throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR, which
+// breaks /authorize and /token during connector setup.
+app.set("trust proxy", 1);
 // CSP is disabled: helmet's default includes `form-action 'self'` which blocks
 // the credentials form POST. The form is protected by the HMAC CSRF token instead.
 // TODO (production): re-enable CSP with a proper nonce-based policy.
@@ -304,7 +308,7 @@ function renderCredentialsForm(params: {
 // ─── Health check ─────────────────────────────────────────────────────────────
 
 app.get("/", (_req: Request, res: Response) => {
-  res.json({ status: "ok", service: "bluestone-pim-mcp", version: VERSION, info: "Visit /connect for setup instructions and documentation." });
+  res.json({ status: "ok", service: "unofficial-pim-mcp", version: VERSION, info: "Visit /connect for setup instructions and documentation." });
 });
 
 // ─── OAuth 2.1 discovery ──────────────────────────────────────────────────────

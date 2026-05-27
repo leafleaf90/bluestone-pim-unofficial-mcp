@@ -82,13 +82,15 @@ Response shape:
 
 ## Management API (MAPI): working state read/write
 
-Three API families share the same Bearer token and base domain:
+MAPI is Bluestone's working-state API: every endpoint that is not PAPI. Multiple path prefixes share the same Bearer token and base domain:
 
-| Family | Base path | Used for |
-|---|---|---|
-| PIM | `/pim` | Products, catalogs, categories |
-| Search | `/search` | Full-text and structured product search |
-| Global Settings | `/global-settings` | Contexts (languages/markets) |
+| Prefix | Used for |
+|---|---|
+| `/pim` | Products, catalogs, categories, attributes |
+| `/search` | Full-text and structured product search |
+| `/global-settings` | Contexts (languages/markets) |
+| `/completeness-score` | Completeness scores and sync validation |
+| `/query-builder` | Structured attribute-based product search |
 
 Authentication: OAuth 2.0 client credentials flow. The server fetches a Bearer token from `https://idp.test.bluestonepim.com/op/token`, caches it per `clientId`, and refreshes it 60 seconds before expiry (tokens last 1 hour). In serverless mode the cache is per function instance and does not persist across cold starts.
 

@@ -28,9 +28,9 @@ A scannable reference for adding new tools. For detailed request/response shapes
 
 Base domain: `https://api.test.bluestonepim.com`
 
-| | PAPI (Page API) | MAPI family (PIM, Search, Global Settings) |
+| | PAPI (Page API) | MAPI (all non-PAPI endpoints) |
 |---|---|---|
-| Base paths | `/v1` | `/pim`, `/search`, `/global-settings` |
+| Base paths | `/v1` | `/pim`, `/search`, `/global-settings`, `/completeness-score`, `/query-builder`, and others |
 | Auth | `x-api-key` header (static) | `Authorization: Bearer <token>` (OAuth2 client credentials) |
 | Access | Read-only, published data | Full CRUD, working state |
 | Token URL | n/a | `https://idp.test.bluestonepim.com/op/token` |
@@ -313,16 +313,16 @@ Write endpoints (propagation via `forceCla` / `forceVla`) exist under the same p
 
 ---
 
-## Validation (completeness-score service)
+## Validation (MAPI `/completeness-score`)
 
 Replaces deprecated `POST /pim/validate/product` (EOL 2026-12-20).
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/validations/{entityId}/{context}` | All validation issues for one product |
-| POST | `/validations/by-ids` | Bulk issues. Body: `{ entityIds: string[], context: string }`. Max 100 IDs. |
-| POST | `/validations/product/attribute` | Validate one attribute value on a product |
-| POST | `/validations/definition/value` | Validate a hypothetical value against a definition |
+| Method | Path | API | Notes |
+|---|---|---|---|
+| GET | `/validations/{entityId}/{context}` | MAPI | All validation issues for one product |
+| POST | `/validations/by-ids` | MAPI | Bulk issues. Body: `{ entityIds: string[], context: string }`. Max 100 IDs. |
+| POST | `/validations/product/attribute` | MAPI | Validate one attribute value on a product |
+| POST | `/validations/definition/value` | MAPI | Validate a hypothetical value against a definition |
 
 **CLA/VLA validation types:** `MISSING_CATEGORY_ATTRIBUTE`, `MISSING_CATEGORY_VALUE`, `INVALID_CATEGORY_VALUE`, `MISSING_VARIANT_ATTRIBUTE`, `MISSING_VARIANT_VALUE`, `INVALID_VARIANT_VALUE`.
 

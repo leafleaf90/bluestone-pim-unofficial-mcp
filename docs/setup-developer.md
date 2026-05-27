@@ -1,6 +1,6 @@
 # Setup: Developer guide
 
-There are three ways to run the Bluestone PIM MCP server:
+There are three ways to run the unofficial Bluestone PIM MCP server:
 
 | Mode | Who runs it | What's needed |
 |---|---|---|

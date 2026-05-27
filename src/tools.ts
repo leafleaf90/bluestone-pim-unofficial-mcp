@@ -1038,7 +1038,7 @@ export function createMcpServer(creds: Credentials): McpServer {
     },
     {
       instructions:
-        "Bluestone PIM MCP - Beta / Bluestone PIM Labs\n\n" +
+        "Unofficial Bluestone PIM MCP - Beta / Bluestone PIM Labs\n\n" +
         "This is an early Bluestone PIM Labs community MCP integration for Bluestone PIM. It is currently limited.\n\n" +
         "What it can do right now:\n" +
         "- List available language/market contexts (list_contexts)\n" +

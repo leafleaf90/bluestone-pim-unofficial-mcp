@@ -1,4 +1,4 @@
-# Bluestone PIM MCP Server
+# Unofficial Bluestone PIM MCP Server
 
 An open-source MCP server that connects AI assistants (Claude Desktop, Cursor, ChatGPT) to your Bluestone PIM organisation. Browse catalogs, explore products, and create new products directly in chat.
 
