@@ -1,0 +1,2843 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+    "title": "Completeness score",
+    "description": "To interact with completeness score service.\n <b><h1>Deprecated endpoints:</h1></b><table border=\"1px;\"><tr><th style=\"text-align: center; vertical-align: middle;\"><b><h3>Uri</b></h3></th><th><b>Method</b></th><th><b><h3>Since</h3></b></th><th><b><h3>End of life</h3></b></th></tr></table>",
+    "version": "1-core"
+    },
+    "servers": [
+    {
+    "url": "api.test.bluestonepim.com/completeness-score",
+    "description": "Generated server url"
+    }
+    ],
+    "tags": [
+    {
+    "name": "Requirements",
+    "description": "To interact with requirements."
+    },
+    {
+    "name": "Scores",
+    "description": "To interact with scores."
+    },
+    {
+    "name": "Validation",
+    "description": "To interact with validations."
+    }
+    ],
+    "paths": {
+    "/requirements/{requirementId}": {
+    "put": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Update requirement.",
+    "operationId": "update",
+    "parameters": [
+    {
+    "name": "requirementId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/RequirementUpdateRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {}
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    },
+    "delete": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Delete requirement.",
+    "operationId": "delete",
+    "parameters": [
+    {
+    "name": "requirementId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "responses": {
+    "204": {
+    "description": "No Content",
+    "content": {}
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/requirements/{requirementId}/productType/{productType}/included": {
+    "put": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Add included product type to requirement.",
+    "operationId": "addIncludedProductType",
+    "parameters": [
+    {
+    "name": "requirementId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    },
+    {
+    "name": "productType",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string",
+    "enum": [
+    "SINGLE",
+    "BUNDLE",
+    "GROUP",
+    "VARIANT"
+    ]
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {}
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    },
+    "delete": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Remove included product type to requirement.",
+    "operationId": "removeIncludedProductType",
+    "parameters": [
+    {
+    "name": "requirementId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    },
+    {
+    "name": "productType",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string",
+    "enum": [
+    "SINGLE",
+    "BUNDLE",
+    "GROUP",
+    "VARIANT"
+    ]
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {}
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/requirements/{requirementId}/categories/{categoryId}/included": {
+    "put": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Add included category to requirement.",
+    "operationId": "addIncludedCategory",
+    "parameters": [
+    {
+    "name": "requirementId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    },
+    {
+    "name": "categoryId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {}
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    },
+    "delete": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Remove included category to requirement.",
+    "operationId": "removeIncludedCategory",
+    "parameters": [
+    {
+    "name": "requirementId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    },
+    {
+    "name": "categoryId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {}
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/requirements/{requirementId}/categories/{categoryId}/excluded": {
+    "put": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Add excluded category to requirement.",
+    "operationId": "addExcludedCategory",
+    "parameters": [
+    {
+    "name": "requirementId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    },
+    {
+    "name": "categoryId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {}
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    },
+    "delete": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Remove excluded category to requirement.",
+    "operationId": "removeExcludedCategory",
+    "parameters": [
+    {
+    "name": "requirementId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    },
+    {
+    "name": "categoryId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {}
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/validations/product/attribute": {
+    "post": {
+    "tags": [
+    "Validation"
+    ],
+    "summary": "Validate product attribute.",
+    "operationId": "validateProductAttribute",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ProductAttributeValidationRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/AttributeValueValidationIssuesListResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "RESTRICTED",
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/validations/definition/value": {
+    "post": {
+    "tags": [
+    "Validation"
+    ],
+    "summary": "Validate definition value.",
+    "operationId": "validateDefinitionValue",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/DefinitionValueValidationRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/DefinitionValueValidationIssuesListResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "RESTRICTED",
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/validations/by-ids": {
+    "post": {
+    "tags": [
+    "Validation"
+    ],
+    "summary": "Get validation issues for products by ids.",
+    "description": "Returns validation results only for entities that exist.",
+    "operationId": "getBulkValidationIssues",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/BulkValidationRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/BulkValidationListResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "RESTRICTED",
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/scores/list": {
+    "post": {
+    "tags": [
+    "Scores"
+    ],
+    "summary": "Get scores.",
+    "operationId": "getScores",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ScoreRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ScoreListResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/scores/category/list": {
+    "post": {
+    "tags": [
+    "Scores"
+    ],
+    "summary": "Get category scores.",
+    "operationId": "getCategoryScores",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/CategoryScoreRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/CategoryScoreListResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "RESTRICTED",
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/scores/calculation/stop": {
+    "post": {
+    "tags": [
+    "Scores"
+    ],
+    "summary": "Stop ongoing calculation.",
+    "operationId": "stopCalculation",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/RecalculateScoreStandardRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "202": {
+    "description": "Accepted",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/CalculationResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/scores/calculation/start": {
+    "post": {
+    "tags": [
+    "Scores"
+    ],
+    "summary": "Start new calculation.",
+    "operationId": "startCalculation",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/RecalculateScoreStandardRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "202": {
+    "description": "Accepted",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/CalculationResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/scores/calculation/recalculate/entity": {
+    "post": {
+    "tags": [
+    "Scores"
+    ],
+    "summary": "Recalculate score for entities.",
+    "operationId": "recalculateForEntity",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/RecalculateScoreForEntityRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "200": {
+    "description": "OK"
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "RESTRICTED",
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/scores/calculation/admin/invalidate": {
+    "post": {
+    "tags": [
+    "Scores"
+    ],
+    "summary": "Invalidate scores.",
+    "operationId": "scoresInvalidation",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/InvalidateScoresRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "202": {
+    "description": "Accepted"
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "ADMIN"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/requirements": {
+    "post": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Create requirement.",
+    "operationId": "create",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/RequirementCreateRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "201": {
+    "description": "Created",
+    "content": {}
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "409": {
+    "description": "Conflict\n\nThis response indicates that the request could not be completed due to a conflict with the current state of the target resource. This typically occurs when there are duplicate entries or other data conflicts.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "WRITE"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/requirements/list": {
+    "post": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "List requirements.",
+    "operationId": "list",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/RequirementListRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/RequirementListResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "RESTRICTED",
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/requirements/count": {
+    "post": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Count requirements.",
+    "operationId": "count",
+    "requestBody": {
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/RequirementCountRequest"
+    }
+    }
+    },
+    "required": true
+    },
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/RequirementCountResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/validations/{entityId}/{context}": {
+    "get": {
+    "tags": [
+    "Validation"
+    ],
+    "summary": "Get validation issues for product.",
+    "operationId": "getValidationIssues",
+    "parameters": [
+    {
+    "name": "entityId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    },
+    {
+    "name": "context",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ProductValidationIssuesListResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "RESTRICTED",
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/scores/{entityId}/{context}": {
+    "get": {
+    "tags": [
+    "Scores"
+    ],
+    "summary": "Get detailed scores for single entity.",
+    "operationId": "getDetailedScoresForSingleEntity",
+    "parameters": [
+    {
+    "name": "entityId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    },
+    {
+    "name": "context",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ScoreDetailedResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "RESTRICTED",
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/scores/status/{context}": {
+    "get": {
+    "tags": [
+    "Scores"
+    ],
+    "summary": "Get calculation status.",
+    "operationId": "getCalculationStatus",
+    "parameters": [
+    {
+    "name": "context",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ScoreCompletenessStateResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "RESTRICTED",
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    },
+    "/requirements/entity/{entityId}/{context}": {
+    "get": {
+    "tags": [
+    "Requirements"
+    ],
+    "summary": "Get requirements for single entity.",
+    "operationId": "getRequirementsForSingleEntity",
+    "parameters": [
+    {
+    "name": "entityId",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    },
+    {
+    "name": "context",
+    "in": "path",
+    "required": true,
+    "schema": {
+    "type": "string"
+    }
+    }
+    ],
+    "responses": {
+    "200": {
+    "description": "OK",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ScoreDetailedResponse"
+    }
+    }
+    }
+    },
+    "400": {
+    "description": "Bad Request\n\nThis response indicates that the server could not understand the request due to invalid syntax. It is typically triggered by client-side input errors such as improperly formatted requests, missing required fields, or invalid data values.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    },
+    "404": {
+    "description": "Not Found\n\nThis response indicates that the requested resource could not be found on the server. It typically occurs when no resource matches the requested URI, or the resource identifier used in the request does not exist.",
+    "content": {
+    "application/json": {
+    "schema": {
+    "$ref": "#/components/schemas/ErrorResponse"
+    }
+    }
+    }
+    }
+    },
+    "x-bluestone-allowed-user-types": [
+    "STANDARD"
+    ],
+    "x-bluestone-permission": [
+    {
+    "module": "COMPLETENESS_SCORE",
+    "accessType": "READ"
+    }
+    ],
+    "security": [
+    {
+    "oauth2": []
+    }
+    ]
+    }
+    }
+    },
+    "components": {
+    "schemas": {
+    "AttributeHasValueRequirementParams": {
+    "type": "object",
+    "properties": {
+    "definitionId": {
+    "type": "string",
+    "minLength": 1,
+    "title": "Attribute definition id."
+    }
+    },
+    "required": [
+    "definitionId"
+    ]
+    },
+    "AttributePercentageRequirementParams": {
+    "type": "object",
+    "properties": {
+    "percentage": {
+    "type": "integer",
+    "format": "int32",
+    "title": "Minimum percentage of attributes with values."
+    }
+    },
+    "required": [
+    "percentage"
+    ]
+    },
+    "AttributesInGroupHaveValuesRequirementParams": {
+    "type": "object",
+    "properties": {
+    "groupId": {
+    "type": "string",
+    "minLength": 1,
+    "title": "Attribute group id."
+    },
+    "percentage": {
+    "type": "integer",
+    "format": "int32",
+    "title": "Percentage of required values."
+    }
+    },
+    "required": [
+    "groupId",
+    "percentage"
+    ]
+    },
+    "ImageDeepEtchRequirementParams": {
+    "type": "object",
+    "properties": {
+    "mediaLabelId": {
+    "type": "string",
+    "minLength": 1,
+    "title": "Media label id."
+    }
+    },
+    "required": [
+    "mediaLabelId"
+    ]
+    },
+    "ImageDensityRequirementParams": {
+    "type": "object",
+    "properties": {
+    "mediaLabelId": {
+    "type": "string",
+    "minLength": 1,
+    "title": "Media label id."
+    },
+    "dpi": {
+    "type": "integer",
+    "format": "int32",
+    "minimum": 1,
+    "title": "Minimum DPI."
+    }
+    },
+    "required": [
+    "dpi",
+    "mediaLabelId"
+    ]
+    },
+    "ImageResolutionRequirementParams": {
+    "type": "object",
+    "properties": {
+    "mediaLabelId": {
+    "type": "string",
+    "minLength": 1,
+    "title": "Media label id."
+    },
+    "width": {
+    "type": "integer",
+    "format": "int32",
+    "minimum": 1,
+    "title": "Minimum image width."
+    },
+    "height": {
+    "type": "integer",
+    "format": "int32",
+    "minimum": 1,
+    "title": "Minimum image height."
+    }
+    },
+    "required": [
+    "height",
+    "mediaLabelId",
+    "width"
+    ]
+    },
+    "MinimumRelationConnectionsRequirementParams": {
+    "type": "object",
+    "properties": {
+    "connectionCount": {
+    "type": "integer",
+    "format": "int32",
+    "minimum": 1,
+    "title": "Minimum number of connection."
+    },
+    "relationId": {
+    "type": "string",
+    "minLength": 1,
+    "title": "Relation identifier."
+    },
+    "direction": {
+    "type": "string",
+    "enum": [
+    "DIRECT",
+    "REVERSE"
+    ],
+    "title": "Relation direction. Applicable only for TWO_WAY relations. DIRECT means the original direction, REVERSE means the opposite direction."
+    }
+    },
+    "required": [
+    "connectionCount",
+    "relationId"
+    ]
+    },
+    "NumberOfMediaWithLabelRequirementParams": {
+    "type": "object",
+    "properties": {
+    "mediaCount": {
+    "type": "integer",
+    "format": "int32",
+    "minimum": 1,
+    "title": "Number of media."
+    },
+    "mediaLabelId": {
+    "type": "string",
+    "minLength": 1,
+    "title": "Id of media label."
+    }
+    },
+    "required": [
+    "mediaCount",
+    "mediaLabelId"
+    ]
+    },
+    "ProductAddedToCategoryRequirementParams": {
+    "type": "object",
+    "properties": {
+    "categoryId": {
+    "type": "string",
+    "minLength": 1,
+    "title": "Category id."
+    },
+    "includeSubcategories": {
+    "type": "boolean",
+    "title": "Product is added to required category or any of its sub-categories."
+    }
+    },
+    "required": [
+    "categoryId"
+    ]
+    },
+    "RequirementParams": {
+    "description": "<p>Subtypes mapping</p><table><tr><th>Requirement type</th><th>Params model</th></tr><tr><td>ATTRIBUTE_HAS_VALUE</td><td>AttributeHasValueRequirementParams</td></tr><tr><td>MINIMUM_MEDIA_WITH_LABEL</td><td>NumberOfMediaWithLabelRequirementParams</td></tr><tr><td>PERCENTAGE_OF_ATTRIBUTES_IN_GROUP_HAVE_VALUE</td><td>AttributesInGroupHaveValuesRequirementParams</td></tr><tr><td>IMAGE_WITH_LABEL_HAS_MINIMUM_RESOLUTION</td><td>ImageResolutionRequirementParams</td></tr><tr><td>PERCENTAGE_OF_ATTRIBUTES_HAVE_VALUE</td><td>AttributePercentageRequirementParams</td></tr><tr><td>MINIMUM_RELATION_CONNECTIONS</td><td>MinimumRelationConnectionsRequirementParams</td></tr><tr><td>IMAGE_WITH_LABEL_HAS_MINIMUM_DENSITY</td><td>ImageDensityRequirementParams</td></tr><tr><td>IMAGE_WITH_LABEL_HAS_DEEP_ETCH</td><td>ImageDeepEtchRequirementParams</td></tr><tr><td>PRODUCT_ADDED_TO_CATEGORY</td><td>ProductAddedToCategoryRequirementParams</td></tr></table>"
+    },
+    "RequirementUpdateRequest": {
+    "type": "object",
+    "properties": {
+    "requirementType": {
+    "type": "string",
+    "enum": [
+    "ATTRIBUTE_HAS_VALUE",
+    "MINIMUM_MEDIA_WITH_LABEL",
+    "PERCENTAGE_OF_ATTRIBUTES_IN_GROUP_HAVE_VALUE",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_RESOLUTION",
+    "PERCENTAGE_OF_ATTRIBUTES_HAVE_VALUE",
+    "MINIMUM_RELATION_CONNECTIONS",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_DENSITY",
+    "IMAGE_WITH_LABEL_HAS_DEEP_ETCH",
+    "PRODUCT_ADDED_TO_CATEGORY"
+    ],
+    "title": "Requirement type."
+    },
+    "params": {
+    "$ref": "#/components/schemas/RequirementParams",
+    "title": "Requirement params."
+    },
+    "weight": {
+    "type": "number",
+    "minimum": 1,
+    "title": "Requirement weight. Max 6 digits, no fractional digits. Defaults to 1."
+    }
+    }
+    },
+    "AttributeDto": {
+    "type": "object",
+    "properties": {
+    "definitionId": {
+    "type": "string",
+    "title": "Attribute definition id."
+    },
+    "value": {
+    "type": "string",
+    "title": "Attribute value."
+    },
+    "selectValuesIds": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "title": "List of select value ids."
+    },
+    "dictionaryValuesIds": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "title": "List of dictionary values ids."
+    }
+    },
+    "required": [
+    "definitionId"
+    ]
+    },
+    "ProductAttributeValidationRequest": {
+    "type": "object",
+    "properties": {
+    "productId": {
+    "type": "string",
+    "title": "Product id."
+    },
+    "context": {
+    "type": "string",
+    "title": "Context."
+    },
+    "attribute": {
+    "$ref": "#/components/schemas/AttributeDto",
+    "title": "Attribute information."
+    }
+    },
+    "required": [
+    "attribute",
+    "context",
+    "productId"
+    ]
+    },
+    "AttributeDefinitionRequirementIssue": {
+    "type": "object",
+    "properties": {
+    "restrictionType": {
+    "type": "string",
+    "enum": [
+    "MIN_VALUE_OUT_OF_RANGE",
+    "MAX_VALUE_OUT_OF_RANGE",
+    "EXCEEDED_CHARACTER_LIMIT",
+    "WHITE_SPACES_NOT_ALLOWED",
+    "INVALID_FORMAT",
+    "PATTERN_NOT_MATCHED",
+    "INVALID_STEP"
+    ]
+    }
+    },
+    "required": [
+    "restrictionType"
+    ]
+    },
+    "AttributeDefinitionValidationDetails": {
+    "allOf": [
+    {
+    "$ref": "#/components/schemas/ValidationDetails"
+    },
+    {
+    "type": "object",
+    "properties": {
+    "issues": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/AttributeDefinitionRequirementIssue"
+    }
+    }
+    }
+    }
+    ],
+    "required": [
+    "definitionId",
+    "issues"
+    ]
+    },
+    "AttributeValueValidationIssuesListResponse": {
+    "type": "object",
+    "properties": {
+    "data": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/AttributeValueValidationIssuesResponse"
+    },
+    "title": "Attribute value validation issues."
+    }
+    },
+    "required": [
+    "data"
+    ]
+    },
+    "AttributeValueValidationIssuesResponse": {
+    "type": "object",
+    "properties": {
+    "validationType": {
+    "type": "string",
+    "enum": [
+    "INVALID_ATTRIBUTE_VALUE",
+    "INVALID_CATEGORY_VALUE",
+    "INVALID_VARIANT_VALUE",
+    "DICTIONARY_VALUE_NOT_EXIST_IN_FILTER"
+    ],
+    "title": "Type of validation."
+    },
+    "validationDetails": {
+    "oneOf": [
+    {
+    "$ref": "#/components/schemas/AttributeDefinitionValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/CategoryAttributesValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/CompoundAttributeDefinitionValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/DictionaryValueFilterValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/VariantAttributesValidationDetails"
+    }
+    ],
+    "title": "Status of validation."
+    }
+    },
+    "required": [
+    "validationDetails",
+    "validationType"
+    ]
+    },
+    "CategoryAttributesValidationDetails": {
+    "allOf": [
+    {
+    "$ref": "#/components/schemas/ValidationDetails"
+    },
+    {
+    "type": "object",
+    "properties": {
+    "categoryId": {
+    "type": "string"
+    }
+    }
+    }
+    ],
+    "required": [
+    "categoryId",
+    "definitionId"
+    ]
+    },
+    "CompoundAttributeDefinitionValidationDetails": {
+    "allOf": [
+    {
+    "$ref": "#/components/schemas/ValidationDetails"
+    },
+    {
+    "type": "object",
+    "properties": {
+    "parentId": {
+    "type": "string"
+    }
+    }
+    }
+    ],
+    "required": [
+    "definitionId",
+    "parentId"
+    ]
+    },
+    "DictionaryValueFilterValidationDetails": {
+    "allOf": [
+    {
+    "$ref": "#/components/schemas/ValidationDetails"
+    },
+    {
+    "type": "object",
+    "properties": {
+    "invalidIds": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    }
+    }
+    }
+    }
+    ],
+    "required": [
+    "definitionId",
+    "invalidIds"
+    ]
+    },
+    "ValidationDetails": {
+    "type": "object",
+    "description": "\nSubtypes mapping\n| Requirement details | Requirement types |\n|---|---|\n| CompoundAttributeDefinitionValidationDetails | MISSING_COMPOUND_ATTRIBUTE |\n| AttributeDefinitionValidationDetails | INVALID_ATTRIBUTE_VALUE |\n| DictionaryValueFilterValidationDetails | DICTIONARY_VALUE_NOT_EXIST_IN_FILTER |\n| VariantAttributesValidationDetails | MISSING_VARIANT_ATTRIBUTE, MISSING_VARIANT_VALUE, INVALID_VARIANT_VALUE|\n| CategoryAttributesValidationDetails | MISSING_CATEGORY_ATTRIBUTE, MISSING_CATEGORY_VALUE, INVALID_CATEGORY_VALUE|\n",
+    "properties": {
+    "definitionId": {
+    "type": "string"
+    }
+    },
+    "required": [
+    "definitionId"
+    ]
+    },
+    "VariantAttributesValidationDetails": {
+    "allOf": [
+    {
+    "$ref": "#/components/schemas/ValidationDetails"
+    },
+    {
+    "type": "object",
+    "properties": {
+    "variantParentId": {
+    "type": "string"
+    }
+    }
+    }
+    ],
+    "required": [
+    "definitionId",
+    "variantParentId"
+    ]
+    },
+    "DefinitionValueValidationRequest": {
+    "type": "object",
+    "properties": {
+    "context": {
+    "type": "string",
+    "title": "Context."
+    },
+    "attribute": {
+    "$ref": "#/components/schemas/SimpleAttributeDto",
+    "title": "Attribute information."
+    }
+    },
+    "required": [
+    "attribute",
+    "context"
+    ]
+    },
+    "SimpleAttributeDto": {
+    "type": "object",
+    "properties": {
+    "definitionId": {
+    "type": "string",
+    "title": "Attribute definition id."
+    },
+    "value": {
+    "type": "string",
+    "title": "Attribute value."
+    }
+    },
+    "required": [
+    "definitionId"
+    ]
+    },
+    "DefinitionValueValidationIssuesListResponse": {
+    "type": "object",
+    "properties": {
+    "data": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/DefinitionValueValidationIssuesResponse"
+    },
+    "title": "Definition value validation issues."
+    }
+    },
+    "required": [
+    "data"
+    ]
+    },
+    "DefinitionValueValidationIssuesResponse": {
+    "type": "object",
+    "properties": {
+    "validationDetails": {
+    "oneOf": [
+    {
+    "$ref": "#/components/schemas/AttributeDefinitionValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/CategoryAttributesValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/CompoundAttributeDefinitionValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/DictionaryValueFilterValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/VariantAttributesValidationDetails"
+    }
+    ],
+    "title": "Status of validation."
+    }
+    },
+    "required": [
+    "validationDetails"
+    ]
+    },
+    "BulkValidationRequest": {
+    "type": "object",
+    "properties": {
+    "entityIds": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "maxItems": 100,
+    "minItems": 1,
+    "title": "Array of entity IDs to validate."
+    },
+    "context": {
+    "type": "string",
+    "minLength": 1,
+    "title": "Context in which the validation is performed."
+    }
+    },
+    "required": [
+    "context",
+    "entityIds"
+    ]
+    },
+    "BulkValidationListResponse": {
+    "type": "object",
+    "properties": {
+    "data": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/BulkValidationResponse"
+    },
+    "title": "List of validation results for entities."
+    }
+    },
+    "required": [
+    "data"
+    ]
+    },
+    "BulkValidationResponse": {
+    "type": "object",
+    "properties": {
+    "entityId": {
+    "type": "string",
+    "title": "Entity ID."
+    },
+    "validations": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/ProductValidationIssuesResponse"
+    },
+    "title": "Validation issues for the entity."
+    }
+    },
+    "required": [
+    "entityId",
+    "validations"
+    ]
+    },
+    "ProductValidationIssuesResponse": {
+    "type": "object",
+    "properties": {
+    "validationType": {
+    "type": "string",
+    "enum": [
+    "INVALID_ATTRIBUTE_VALUE",
+    "MISSING_CATEGORY_ATTRIBUTE",
+    "MISSING_CATEGORY_VALUE",
+    "INVALID_CATEGORY_VALUE",
+    "MISSING_COMPOUND_ATTRIBUTE",
+    "MISSING_VARIANT_ATTRIBUTE",
+    "MISSING_VARIANT_VALUE",
+    "INVALID_VARIANT_VALUE",
+    "DICTIONARY_VALUE_NOT_EXIST_IN_FILTER"
+    ],
+    "title": "Type of validation."
+    },
+    "validationDetails": {
+    "oneOf": [
+    {
+    "$ref": "#/components/schemas/AttributeDefinitionValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/CategoryAttributesValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/CompoundAttributeDefinitionValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/DictionaryValueFilterValidationDetails"
+    },
+    {
+    "$ref": "#/components/schemas/VariantAttributesValidationDetails"
+    }
+    ],
+    "title": "Status of validation."
+    }
+    },
+    "required": [
+    "validationDetails",
+    "validationType"
+    ]
+    },
+    "ScoreRequest": {
+    "type": "object",
+    "properties": {
+    "contexts": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "title": "List of contexts."
+    },
+    "entityIds": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "title": "List of entity ids."
+    },
+    "pageSize": {
+    "type": "integer",
+    "format": "int32",
+    "example": 10,
+    "maximum": 100,
+    "minimum": 1,
+    "title": "Size of a block of items to return. It corresponds with the page parameter."
+    },
+    "page": {
+    "type": "integer",
+    "format": "int64",
+    "example": 0,
+    "minimum": 0,
+    "title": "A number sequence representing a block of items to return as a result set."
+    }
+    },
+    "required": [
+    "page",
+    "pageSize"
+    ]
+    },
+    "ScoreListResponse": {
+    "type": "object",
+    "properties": {
+    "data": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/ScoreResponse"
+    },
+    "title": "Score information."
+    }
+    },
+    "required": [
+    "data"
+    ]
+    },
+    "ScoreResponse": {
+    "type": "object",
+    "properties": {
+    "entityId": {
+    "type": "string",
+    "title": "Scored entity id."
+    },
+    "score": {
+    "type": "number",
+    "title": "Score value."
+    },
+    "context": {
+    "type": "string",
+    "title": "Context."
+    },
+    "date": {
+    "type": "integer",
+    "format": "int64",
+    "title": "Score computation date."
+    },
+    "sourceEventId": {
+    "type": "string",
+    "title": "Source event id that triggered score computation."
+    },
+    "validationStatus": {
+    "type": "string",
+    "enum": [
+    "VALID",
+    "INVALID"
+    ],
+    "title": "Status of validation."
+    },
+    "entityLastUpdate": {
+    "type": "integer",
+    "format": "int64",
+    "title": "Date of the last product update in pim."
+    }
+    },
+    "required": [
+    "context",
+    "date",
+    "entityId"
+    ]
+    },
+    "CategoryScoreRequest": {
+    "type": "object",
+    "properties": {
+    "contexts": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "title": "List of contexts to return score for. Returns score for all contexts by default."
+    },
+    "categoryIds": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "title": "List of categoryIds to return score for. Returns score for all categories by default."
+    },
+    "includeUnassigned": {
+    "type": "boolean",
+    "title": "Indicates whether the response should include a score for unassigned products. Default: true."
+    },
+    "pageSize": {
+    "type": "integer",
+    "format": "int32",
+    "example": 10,
+    "maximum": 100,
+    "minimum": 1,
+    "title": "Size of a block of items to return. It corresponds with the page parameter."
+    },
+    "page": {
+    "type": "integer",
+    "format": "int64",
+    "example": 0,
+    "minimum": 0,
+    "title": "A number sequence representing a block of items to return as a result set."
+    }
+    },
+    "required": [
+    "includeUnassigned",
+    "page",
+    "pageSize"
+    ]
+    },
+    "CategoryScoreListResponse": {
+    "type": "object",
+    "properties": {
+    "data": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/CategoryScoreResponse"
+    },
+    "title": "Category score list."
+    }
+    },
+    "required": [
+    "data"
+    ]
+    },
+    "CategoryScoreResponse": {
+    "type": "object",
+    "properties": {
+    "score": {
+    "type": "number",
+    "title": "Category score."
+    },
+    "categoryId": {
+    "type": "string",
+    "title": "Category id."
+    },
+    "context": {
+    "type": "string",
+    "title": "Score context."
+    }
+    },
+    "required": [
+    "context"
+    ]
+    },
+    "RecalculateScoreStandardRequest": {
+    "type": "object",
+    "properties": {
+    "context": {
+    "type": "string",
+    "maxLength": 2147483647,
+    "minLength": 1,
+    "title": "Context."
+    }
+    },
+    "required": [
+    "context"
+    ]
+    },
+    "CalculationResponse": {
+    "type": "object",
+    "properties": {
+    "message": {
+    "type": "string"
+    }
+    },
+    "required": [
+    "message"
+    ]
+    },
+    "RecalculateScoreForEntityRequest": {
+    "type": "object",
+    "properties": {
+    "context": {
+    "type": "string",
+    "maxLength": 2147483647,
+    "minLength": 1,
+    "title": "Context."
+    },
+    "entityId": {
+    "type": "string",
+    "deprecated": true,
+    "description": "EntityId is deprecated. Please use entityIds field.",
+    "title": "Entity id."
+    },
+    "entityIds": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "maxItems": 100,
+    "minItems": 1,
+    "title": "List of entity ids."
+    }
+    },
+    "required": [
+    "context"
+    ]
+    },
+    "InvalidateScoresRequest": {
+    "type": "object",
+    "properties": {
+    "context": {
+    "type": "string",
+    "maxLength": 2147483647,
+    "minLength": 1,
+    "title": "Context."
+    }
+    },
+    "required": [
+    "context"
+    ]
+    },
+    "RequirementCreateRequest": {
+    "type": "object",
+    "properties": {
+    "requirementType": {
+    "type": "string",
+    "enum": [
+    "ATTRIBUTE_HAS_VALUE",
+    "MINIMUM_MEDIA_WITH_LABEL",
+    "PERCENTAGE_OF_ATTRIBUTES_IN_GROUP_HAVE_VALUE",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_RESOLUTION",
+    "PERCENTAGE_OF_ATTRIBUTES_HAVE_VALUE",
+    "MINIMUM_RELATION_CONNECTIONS",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_DENSITY",
+    "IMAGE_WITH_LABEL_HAS_DEEP_ETCH",
+    "PRODUCT_ADDED_TO_CATEGORY"
+    ],
+    "title": "Requirement type."
+    },
+    "params": {
+    "$ref": "#/components/schemas/RequirementParams",
+    "title": "Requirement params."
+    },
+    "weight": {
+    "type": "number",
+    "minimum": 1,
+    "title": "Requirement weight."
+    },
+    "includedProductTypes": {
+    "type": "array",
+    "items": {
+    "type": "string",
+    "enum": [
+    "SINGLE",
+    "BUNDLE",
+    "GROUP",
+    "VARIANT"
+    ]
+    },
+    "title": "Requirement included product type.",
+    "uniqueItems": true
+    }
+    },
+    "required": [
+    "includedProductTypes",
+    "params",
+    "requirementType",
+    "weight"
+    ]
+    },
+    "RequirementListRequest": {
+    "type": "object",
+    "properties": {
+    "sort": {
+    "$ref": "#/components/schemas/RequirementSortingProperties",
+    "title": "Sorting properties."
+    },
+    "ids": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "maxItems": 2147483647,
+    "minItems": 1,
+    "title": "Ids of requirements to include in response."
+    },
+    "types": {
+    "type": "array",
+    "items": {
+    "type": "string",
+    "enum": [
+    "ATTRIBUTE_HAS_VALUE",
+    "MINIMUM_MEDIA_WITH_LABEL",
+    "PERCENTAGE_OF_ATTRIBUTES_IN_GROUP_HAVE_VALUE",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_RESOLUTION",
+    "PERCENTAGE_OF_ATTRIBUTES_HAVE_VALUE",
+    "MINIMUM_RELATION_CONNECTIONS",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_DENSITY",
+    "IMAGE_WITH_LABEL_HAS_DEEP_ETCH",
+    "PRODUCT_ADDED_TO_CATEGORY"
+    ]
+    },
+    "maxItems": 2147483647,
+    "minItems": 1,
+    "title": "Types of requirements to include in response."
+    },
+    "pageSize": {
+    "type": "integer",
+    "format": "int32",
+    "example": 10,
+    "maximum": 100,
+    "minimum": 1,
+    "title": "Size of a block of items to return. It corresponds with the page parameter."
+    },
+    "page": {
+    "type": "integer",
+    "format": "int64",
+    "example": 0,
+    "minimum": 0,
+    "title": "A number sequence representing a block of items to return as a result set."
+    }
+    },
+    "required": [
+    "page",
+    "pageSize"
+    ]
+    },
+    "RequirementSortingProperties": {
+    "type": "object",
+    "properties": {
+    "sortDirection": {
+    "type": "string",
+    "enum": [
+    "ASC",
+    "DESC"
+    ],
+    "title": "Sort direction."
+    },
+    "sortField": {
+    "type": "string",
+    "enum": [
+    "REQUIREMENT_TYPE",
+    "WEIGHT"
+    ],
+    "title": "Sort field."
+    }
+    },
+    "required": [
+    "sortDirection",
+    "sortField"
+    ]
+    },
+    "RequirementListResponse": {
+    "type": "object",
+    "properties": {
+    "data": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/RequirementResponse"
+    },
+    "title": "Requirements list."
+    }
+    },
+    "required": [
+    "data"
+    ]
+    },
+    "RequirementResponse": {
+    "type": "object",
+    "properties": {
+    "id": {
+    "type": "string"
+    },
+    "requirementType": {
+    "type": "string",
+    "enum": [
+    "ATTRIBUTE_HAS_VALUE",
+    "MINIMUM_MEDIA_WITH_LABEL",
+    "PERCENTAGE_OF_ATTRIBUTES_IN_GROUP_HAVE_VALUE",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_RESOLUTION",
+    "PERCENTAGE_OF_ATTRIBUTES_HAVE_VALUE",
+    "MINIMUM_RELATION_CONNECTIONS",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_DENSITY",
+    "IMAGE_WITH_LABEL_HAS_DEEP_ETCH",
+    "PRODUCT_ADDED_TO_CATEGORY"
+    ]
+    },
+    "params": {
+    "$ref": "#/components/schemas/RequirementParams"
+    },
+    "weight": {
+    "type": "number"
+    },
+    "includedCategoryIds": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "uniqueItems": true
+    },
+    "excludedCategoryIds": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "uniqueItems": true
+    },
+    "includedProductTypes": {
+    "type": "array",
+    "items": {
+    "type": "string",
+    "enum": [
+    "SINGLE",
+    "BUNDLE",
+    "GROUP",
+    "VARIANT"
+    ]
+    },
+    "uniqueItems": true
+    }
+    },
+    "required": [
+    "excludedCategoryIds",
+    "id",
+    "includedCategoryIds",
+    "includedProductTypes",
+    "params",
+    "requirementType",
+    "weight"
+    ]
+    },
+    "RequirementCountRequest": {
+    "type": "object",
+    "properties": {
+    "ids": {
+    "type": "array",
+    "items": {
+    "type": "string"
+    },
+    "maxItems": 2147483647,
+    "minItems": 1,
+    "title": "Ids of requirements to include in response."
+    },
+    "types": {
+    "type": "array",
+    "items": {
+    "type": "string",
+    "enum": [
+    "ATTRIBUTE_HAS_VALUE",
+    "MINIMUM_MEDIA_WITH_LABEL",
+    "PERCENTAGE_OF_ATTRIBUTES_IN_GROUP_HAVE_VALUE",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_RESOLUTION",
+    "PERCENTAGE_OF_ATTRIBUTES_HAVE_VALUE",
+    "MINIMUM_RELATION_CONNECTIONS",
+    "IMAGE_WITH_LABEL_HAS_MINIMUM_DENSITY",
+    "IMAGE_WITH_LABEL_HAS_DEEP_ETCH",
+    "PRODUCT_ADDED_TO_CATEGORY"
+    ]
+    },
+    "maxItems": 2147483647,
+    "minItems": 1,
+    "title": "Types of requirements to include in response."
+    }
+    }
+    },
+    "RequirementCountResponse": {
+    "type": "object",
+    "properties": {
+    "count": {
+    "type": "integer",
+    "format": "int64",
+    "title": "Number of requirements."
+    }
+    },
+    "required": [
+    "count"
+    ]
+    },
+    "ProductValidationIssuesListResponse": {
+    "type": "object",
+    "properties": {
+    "data": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/ProductValidationIssuesResponse"
+    },
+    "title": "Product validation issues."
+    }
+    },
+    "required": [
+    "data"
+    ]
+    },
+    "RequirementResult": {
+    "type": "object",
+    "properties": {
+    "requirementId": {
+    "type": "string"
+    },
+    "weight": {
+    "type": "number"
+    },
+    "requirementStatus": {
+    "type": "string",
+    "enum": [
+    "PASSED",
+    "FAILED",
+    "INVALID"
+    ]
+    }
+    },
+    "required": [
+    "requirementId",
+    "requirementStatus",
+    "weight"
+    ]
+    },
+    "ScoreDetailedResponse": {
+    "type": "object",
+    "properties": {
+    "entityId": {
+    "type": "string",
+    "title": "Scored entity id."
+    },
+    "score": {
+    "type": "number",
+    "title": "Score value."
+    },
+    "context": {
+    "type": "string",
+    "title": "Context."
+    },
+    "date": {
+    "type": "integer",
+    "format": "int64",
+    "title": "Score computation date."
+    },
+    "sourceEventId": {
+    "type": "string",
+    "title": "Source event id that triggered score computation."
+    },
+    "requirementsResults": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/RequirementResult"
+    },
+    "title": "List of score computation reports."
+    },
+    "pimLastUpdate": {
+    "type": "integer",
+    "format": "int64",
+    "title": "Date of last update product in pim."
+    }
+    },
+    "required": [
+    "context",
+    "date",
+    "entityId",
+    "requirementsResults"
+    ]
+    },
+    "ScoreCompletenessStateResponse": {
+    "type": "object",
+    "properties": {
+    "calculationStatus": {
+    "type": "string",
+    "enum": [
+    "RUNNING",
+    "STOPPING",
+    "IDLE",
+    "TO_BE_STARTED"
+    ],
+    "title": "Status of score calculation."
+    },
+    "recalculationRequired": {
+    "type": "boolean",
+    "title": "Flag indicate if recalculation is required."
+    }
+    },
+    "required": [
+    "calculationStatus",
+    "recalculationRequired"
+    ]
+    },
+    "ErrorResponse": {
+    "properties": {
+    "status": {
+    "type": "integer",
+    "format": "int32",
+    "title": "Error status code."
+    },
+    "error": {
+    "type": "string",
+    "title": "General error description."
+    },
+    "errorDetails": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/ErrorDetails"
+    },
+    "title": "List of errors details."
+    },
+    "requestId": {
+    "type": "string",
+    "title": "Request ID used for logging."
+    },
+    "timestamp": {
+    "type": "integer",
+    "format": "int64",
+    "title": "Error timestamp."
+    },
+    "conflictingEntities": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/ConflictingEntity"
+    },
+    "title": "Additional entity id list related to error"
+    },
+    "quotaLimitExceededDetails": {
+    "type": "array",
+    "items": {
+    "$ref": "#/components/schemas/LimitExceededDetails"
+    },
+    "title": "Additional details related to quota limit exceeded errors"
+    }
+    }
+    },
+    "ErrorDetails": {
+    "properties": {
+    "message": {
+    "type": "string",
+    "title": "Error message."
+    },
+    "field": {
+    "type": "string",
+    "title": "Error related field."
+    },
+    "rejectedValue": {
+    "type": "string",
+    "title": "Invalid value causing error."
+    }
+    }
+    },
+    "ConflictingEntity": {
+    "properties": {
+    "entityId": {
+    "type": "string",
+    "title": "Identifier of the related entity causing the conflict"
+    }
+    }
+    },
+    "LimitExceededDetails": {
+    "properties": {
+    "message": {
+    "type": "string",
+    "title": "Detailed quota error message"
+    },
+    "quota": {
+    "type": "string",
+    "title": "Unique quota identifier"
+    },
+    "limit": {
+    "type": "integer",
+    "format": "int32",
+    "title": "Allowed limit"
+    },
+    "entityId": {
+    "type": "string",
+    "title": "ID of the entity that violated the quota"
+    },
+    "entityType": {
+    "type": "string",
+    "title": "Type of the entity that violated the quota"
+    }
+    }
+    }
+    },
+    "securitySchemes": {
+    "oauth2": {
+    "type": "oauth2",
+    "flows": {
+    "clientCredentials": {
+    "tokenUrl": "https://idp.test.bluestonepim.com/op/token",
+    "scopes": {
+    "openid profile systemRoles permissions organization email name nickname": "All needed scopes."
+    }
+    }
+    }
+    }
+    }
+    },
+    "x-amazon-apigateway-api-key-source": "AUTHORIZER"
+    }

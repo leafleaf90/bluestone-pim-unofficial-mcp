@@ -544,9 +544,13 @@ Body: { query: { matchRule: "all", children: [...], contextFallback: true }, pag
 Then resolves IDs via `POST /pim/products/list/views/by-ids`. When completeness filters are active, scores are fetched automatically and the response includes `completenessSummary` and `presentationHint` for rich presentation.
 
 **What Claude does with the result:**
-- For multiple products with scores, opens a Cursor Canvas with summary stat cards, type badges, and completeness progress bars. Does not use a plain markdown table.
+- For multiple products with scores, presents a rich layout with summary stat cards, filter pills, type badges, and completeness progress bars. Does not use a plain markdown table when possible.
+- In **Cursor**, opens the layout in a Canvas beside the chat. In **Claude Desktop**, renders a similar layout inline in the reply (no Canvas panel).
+- Uses score color bands: below 70% red, 70 to 89% orange, 90% and above green
 - For one to three products, presents a concise inline summary
 - Calls `get_product_completeness_detail` when the user asks what is missing for one product
+
+**Visual example:** See the connect page example "Find incomplete products and drill into gaps" and the reference canvas `canvases/bluestone-completeness-search.canvas.tsx` for the target layout: three summary stats at the top, score-band filter pills, product cards with VARIANT/GROUP/SINGLE badges, horizontal completeness bars, and SKU labels beneath each bar.
 
 **Example prompts:**
 - "Show all products below 50% complete in English"
@@ -588,7 +592,7 @@ Header: context-fallback: true
 
 **Purpose:** Fetch completeness scores for one or more known products. Use when the user asks whether a product is complete, what its score is, or wants scores for specific product IDs.
 
-**Do not use for:** listing or filtering products by score across a catalog (e.g. all products above 80%, all incomplete products in a category). That search capability is not available yet.
+**Do not use for:** listing or filtering products by score across a catalog (for example all products above 80%, all incomplete products in a category). Use `search_products` for those catalog-wide completeness searches.
 
 **Input:**
 
@@ -610,7 +614,7 @@ The `contexts` field is optional. When omitted, the API returns one score row pe
 
 **What Claude does:**
 - Resolves product IDs with `list_products_in_category` or `get_product` when the user names a product
-- Presents scores as a concise table or summary grouped by product and context
+- Presents scores as a concise summary for one to three products, or opens a Cursor Canvas for larger sets
 - Calls `get_product_completeness_detail` when the user then asks what is missing or wants a requirement breakdown
 - Calls `search_products` when the user then asks for catalog-wide completeness filtering
 
@@ -642,13 +646,133 @@ Header: authorization: Bearer <token>
 **What Claude does:**
 - Calls `list_product_completeness_scores` first if the score is not yet known
 - Explains failed requirements by name in plain language
+- For multi-variant products with the same score, groups the explanation and shows one requirement breakdown canvas with MISSING and PASSING sections, a top-level completeness bar, and requirement cards
 - Uses `get_product` if the user needs to inspect underlying product attribute values
 - Attribute-based requirements are resolved to attribute names automatically
+
+**Visual example:** The connect page example "Find incomplete products and drill into gaps" shows the target breakdown layout: overall completeness bar, MISSING cards (attributes and media), and PASSING cards with resolved requirement names.
 
 **Example prompts:**
 - "What is missing for this product to be complete?"
 - "Why is the completeness score only 50%?"
 - "Which requirements failed for product X in English?"
+
+---
+
+## `list_category_level_attributes`
+
+**Purpose:** List Category Level Attributes (CLAs) on one catalog node or category: attribute name, value, and propagate, lock, and mandatory flags.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `categoryId` | string | Yes | From `list_catalogs` or `list_category_tree` |
+| `categoryName` | string | No | Human-readable name or path for the summary |
+| `context` | string | No | Defaults to `"en"` |
+
+**API call:**
+```
+GET /pim/catalogs/nodes/{categoryId}/attributes?archiveState=ACTIVE
+Header: authorization: Bearer <token>
+Header: context: <context>
+Header: context-fallback: true
+```
+
+Use `/attributes`, not `/category-attributes`. The richer path includes propagate, lock, and mandatory metadata.
+
+---
+
+## `list_categories_with_cla`
+
+**Purpose:** Find categories that use a given attribute definition as a CLA.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `definitionId` | string | Yes | From `list_attribute_definitions` |
+| `attributeName` | string | No | For summary |
+| `context` | string | No | Defaults to `"en"` |
+| `page` | number | No | 1-indexed (default 1) |
+| `limit` | number | No | Default 50, max 1000 |
+
+**API call:**
+```
+GET /pim/catalogs/nodes/attributeDefinition/{definitionId}?page={page-1}&pageSize={limit}&archiveState=ACTIVE
+```
+
+---
+
+## `list_variant_level_attributes`
+
+**Purpose:** List VLAs on a variant group (`GROUP` product). Probes up to 50 attributes per call; use `offset` for the next batch when `truncated` is true.
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `groupProductId` | string | Yes | GROUP product ID from `get_product` |
+| `groupProductName` | string | No | For summary |
+| `context` | string | No | Defaults to `"en"` |
+| `offset` | number | No | Skip first N attribute definitions (default 0) |
+| `limit` | number | No | Max definitions to probe (default 50, max 50) |
+
+**Implementation:** `GET /pim/products/{groupId}` (full+json), then `GET /pim/products/{groupId}/variants/attributes/{definitionId}` per attribute. Only 200 responses are VLAs.
+
+---
+
+## `get_variant_level_attribute`
+
+**Purpose:** VLA flags for one attribute on one variant group.
+
+**API call:**
+```
+GET /pim/products/{groupId}/variants/attributes/{definitionId}
+```
+
+Returns a clear message (not an error) when the attribute is not configured as a VLA.
+
+---
+
+## `get_product_validation_issues`
+
+**Purpose:** Sync validation issues for one product in one context. Surfaces CLA, VLA, attribute restriction, compound, and dictionary violations.
+
+**Do not use for:** completeness breakdown (`get_product_completeness_detail`).
+
+**API call:**
+```
+GET /completeness-score/validations/{productId}/{context}
+Header: authorization: Bearer <token>
+```
+
+Empty `issues` means valid for sync in that context.
+
+**What Claude does:**
+- Presents a Canvas when `issueCount > 5` (see `canvases/bluestone-validation-issues.canvas.tsx`)
+- Calls `list_category_level_attributes` to explain CLA issues
+- Calls `list_variant_level_attributes` to explain VLA issues
+
+**Example prompts:**
+- "Why is this product invalid?"
+- "Show validation errors for this product"
+
+---
+
+## `list_product_validation_issues`
+
+**Purpose:** Bulk validation issues for up to 100 product IDs in one context.
+
+**API call:**
+```
+POST /completeness-score/validations/by-ids
+Body: { "entityIds": ["..."], "context": "en" }
+```
+
+**Example prompts:**
+- "Which products in this list have validation errors?"
+- "Check CLA and VLA violations for these products"
 
 ---
 

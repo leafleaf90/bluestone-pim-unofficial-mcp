@@ -300,6 +300,36 @@ All IDs (`groupId`, `definitionId`, and dictionary option values) are opaque IDs
 
 ---
 
+## Category level attributes (CLA) and variant level attributes (VLA)
+
+| Method | Path | API | Notes |
+|---|---|---|---|
+| GET | `/catalogs/nodes/{id}/attributes` | MAPI | CLAs on one category. Rich metadata: `copySetOn`, `lockedSetOn`, `mandatorySetOn`, `attributeDefinitionName`. **Use this for QA reads**, not `/category-attributes`. |
+| GET | `/catalogs/nodes/attributes` | MAPI | Org-wide CLA list with pagination |
+| GET | `/catalogs/nodes/attributeDefinition/{id}` | MAPI | Categories using a definition as CLA |
+| GET | `/products/{groupId}/variants/attributes/{definitionId}` | MAPI | VLA config on a variant group: `copy`, `locked`, `mandatory`, `definingAttributes`. No list-all endpoint. |
+
+Write endpoints (propagation via `forceCla` / `forceVla`) exist under the same paths but are not exposed in MCP yet.
+
+---
+
+## Validation (completeness-score service)
+
+Replaces deprecated `POST /pim/validate/product` (EOL 2026-12-20).
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/validations/{entityId}/{context}` | All validation issues for one product |
+| POST | `/validations/by-ids` | Bulk issues. Body: `{ entityIds: string[], context: string }`. Max 100 IDs. |
+| POST | `/validations/product/attribute` | Validate one attribute value on a product |
+| POST | `/validations/definition/value` | Validate a hypothetical value against a definition |
+
+**CLA/VLA validation types:** `MISSING_CATEGORY_ATTRIBUTE`, `MISSING_CATEGORY_VALUE`, `INVALID_CATEGORY_VALUE`, `MISSING_VARIANT_ATTRIBUTE`, `MISSING_VARIANT_VALUE`, `INVALID_VARIANT_VALUE`.
+
+**Search filter (not in MCP yet):** `validationStatusFilter: { type: "IN", validationStatus: ["VALID" | "INVALID"] }` on `POST /search/products/search`.
+
+---
+
 ## Deprecated: do not use
 
 | Endpoint | EOL |

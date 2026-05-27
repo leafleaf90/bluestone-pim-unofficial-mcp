@@ -265,8 +265,11 @@ For `search_products` with completeness scores:
 
 - Include pre-computed summary stats in the JSON (`completenessSummary`) so the model does not have to derive counts.
 - Include an explicit `presentationHint` object when the result set is large enough to benefit from a canvas.
-- State in the tool description and server instructions: for more than three rows with scores, use a Cursor Canvas with summary cards, type badges, and progress bars. Do not use a plain markdown table.
+- State in the tool description and server instructions: for more than three rows with scores, use a Cursor Canvas with summary cards, filter pills, type badges, and progress bars. Do not use a plain markdown table.
+- Use score color bands consistently: below 70% red, 70 to 89% orange, 90% and above green.
 - Keep the plain-text summary line in the tool response, but add a one-sentence nudge when `presentationHint.preferCanvas` applies.
+
+The connect page example "Find incomplete products and drill into gaps" and the reference canvas `canvases/bluestone-completeness-search.canvas.tsx` document the target layout for both search results and requirement breakdowns.
 
 This pattern is client-specific (Cursor Canvas). Other MCP clients may ignore it. The JSON data remains the source of truth; presentation hints are optional metadata for capable clients.
 

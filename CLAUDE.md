@@ -48,6 +48,12 @@ All MCP tools are registered inside a single `createMcpServer(creds: Credentials
 - `get_product`: calls MAPI `/pim/products/{productId}` via `mapiGetFull()` with `accept: application/full+json`. Returns metadata, raw attribute IDs/values, category IDs, asset IDs, relations, bundles, and variant information.
 - `list_product_completeness_scores`: calls MAPI `/completeness-score/scores/list` via `mapiPostBody()`. Returns completeness scores (0 to 100) per product and context for known product IDs. Optional context filter; omit to return all contexts. Not for catalog-wide score filtering.
 - `get_product_completeness_detail`: calls MAPI `GET /completeness-score/scores/{productId}/{context}` via `mapiGet()`, then `POST /completeness-score/requirements/list` and `GET /pim/definitions/{id}` to resolve requirement names. Returns score plus per-requirement PASSED/FAILED breakdown with human-readable labels.
+- `list_category_level_attributes`: calls MAPI `GET /pim/catalogs/nodes/{id}/attributes` via `mapiGet()`. Returns CLAs on one category with propagate, lock, and mandatory flags and resolved attribute names.
+- `list_categories_with_cla`: calls MAPI `GET /pim/catalogs/nodes/attributeDefinition/{definitionId}` via `mapiGet()`. Reverse lookup of categories using an attribute as a CLA.
+- `list_variant_level_attributes`: reads a GROUP product via `mapiGetFull()`, then probes `GET /pim/products/{groupId}/variants/attributes/{definitionId}` per attribute (paginated, max 50 per call). Lists VLAs with copy, locked, mandatory, and variant-defining flags.
+- `get_variant_level_attribute`: calls MAPI `GET /pim/products/{groupId}/variants/attributes/{definitionId}` via `mapiGetOptional()`. Returns VLA flags for one attribute on a variant group.
+- `get_product_validation_issues`: calls `GET /completeness-score/validations/{productId}/{context}` via `mapiGet()`. Returns sync validation issues with CLA and VLA types resolved to attribute names.
+- `list_product_validation_issues`: calls `POST /completeness-score/validations/by-ids` via `mapiPostBody()`. Bulk validation issues for up to 100 product IDs in one context.
 - `assign_product_to_category`: calls MAPI `/pim/catalogs/nodes/{categoryId}/products` via `mapiPost()` to assign an existing product to a catalog category.
 - `update_product_name`: calls MAPI `/pim/products/{productId}` via `mapiPatch()` to rename an existing product.
 
@@ -63,7 +69,7 @@ Three MAPI API families share the same Bearer token and base domain (test: `api.
 - **`/pim`** (`MAPI_PIM_BASE`): products, catalogs, attributes, categories
 - **`/search`** (`MAPI_SEARCH_BASE`): full-text and structured product search
 - **`/global-settings`** (`MAPI_GLOBAL_SETTINGS_BASE`): contexts (languages/markets)
-- **`/completeness-score`** (`MAPI_COMPLETENESS_SCORE_BASE`): product completeness scores
+- **`/completeness-score`** (`MAPI_COMPLETENESS_SCORE_BASE`): product completeness scores and sync validation issues
 - **`/query-builder`** (`MAPI_QUERY_BUILDER_BASE`): structured product search with filter trees
 
 Two auth methods:

@@ -1,0 +1,32 @@
+---
+description: Present Bluestone validation issue results in a Cursor Canvas, not a plain markdown table
+alwaysApply: true
+---
+
+# Validation issues presentation
+
+When `get_product_validation_issues` or `list_product_validation_issues` returns more than five issues for one product, or `list_product_validation_issues` finds issues on more than three products, do **not** reply with a plain markdown table in chat.
+
+Instead, open a **Cursor Canvas** (`.canvas.tsx` in the workspace canvases directory) beside the chat. Use `canvases/bluestone-validation-issues.canvas.tsx` in this repo as the reference layout.
+
+## Validation issues canvas
+
+1. **Summary stat cards** at the top:
+   - Total validation issues
+   - CLA issues (category level attribute violations)
+   - VLA issues (variant level attribute violations)
+   - Other issues (attribute restrictions, compound, dictionary)
+
+2. **Kind filter pills**: All, CLA, VLA, Other
+
+3. **Issue cards** (not a plain table). Each card includes:
+   - Attribute name
+   - Kind badge: CLA (blue), VLA (purple), Attribute/Compound/Dictionary (neutral)
+   - Issue summary text
+   - For bulk results: product name or ID as a subtitle
+
+4. **Chat reply**: keep it short. State what was checked, the context, valid vs invalid count, and point the user to the canvas.
+
+For one to three issues on one product, a concise inline summary in chat is fine.
+
+Use the `presentationHint` field from the tool response when present.

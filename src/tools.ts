@@ -7,6 +7,14 @@ import {
   type ProductSearchFilters,
 } from "./query-builder/compile.js";
 import { resolveRequirementResults } from "./completeness/resolve-requirements.js";
+import {
+  buildValidationPresentationHint,
+  countValidationIssuesByKind,
+  fetchAttributeDefinitionNames,
+  shapeValidationIssue,
+  type RawValidationIssue,
+  type ShapedValidationIssue,
+} from "./validation/shape-issues.js";
 import { VERSION } from "./version.js";
 
 // ─── Credentials ──────────────────────────────────────────────────────────────
@@ -286,6 +294,52 @@ interface QueryBuilderCountResponse {
   count: number;
 }
 
+interface MapiCategoryAttributeMetadata {
+  assignedOn?: string;
+  attributeDefinitionId: string;
+  attributeDefinitionName?: string;
+  attributeValue?: string;
+  copySetOn?: string;
+  lockedSetOn?: string;
+  mandatorySetOn?: string;
+  column?: Record<string, string>;
+  matrix?: Record<string, Record<string, string>>;
+  readOnly?: boolean;
+}
+
+interface MapiCategoryAttributesMetadataResponse {
+  data: MapiCategoryAttributeMetadata[];
+}
+
+interface MapiCategoryBasic {
+  id: string;
+  name?: string;
+  number?: string;
+  description?: string;
+}
+
+interface MapiCategoryBasicListResponse {
+  data: MapiCategoryBasic[];
+}
+
+interface MapiProductVariantAttribute {
+  copy?: boolean;
+  locked?: boolean;
+  mandatory?: boolean;
+  definingAttributes?: boolean;
+}
+
+interface MapiProductValidationIssuesListResponse {
+  data: RawValidationIssue[];
+}
+
+interface MapiBulkValidationListResponse {
+  data: Array<{
+    entityId: string;
+    validations: RawValidationIssue[];
+  }>;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const IS_PRODUCTION = process.env.ENVIRONMENT === "production";
@@ -313,6 +367,10 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_COMPLETENESS_LIMIT = 100;
 const MAX_COMPLETENESS_LIMIT = 500;
 const MAX_COMPLETENESS_PRODUCT_IDS = 100;
+const MAX_VALIDATION_PRODUCT_IDS = 100;
+const MAX_VLA_ATTRIBUTE_PROBE = 50;
+const DEFAULT_CLA_CATEGORY_LIMIT = 50;
+const MAX_CLA_CATEGORY_LIMIT = 1000;
 const MAPI_DEFINITIONS_FETCH_PAGE_SIZE = 1000;
 const DEFAULT_DICTIONARY_VALUE_LIMIT = 100;
 const MAX_DICTIONARY_VALUE_LIMIT = 500;
@@ -586,6 +644,100 @@ async function mapiGetFull<T>(
     throw new Error(mapiErrorMessage(res.status, body));
   }
   return res.json() as Promise<T>;
+}
+
+async function mapiGetOptional<T>(
+  url: string,
+  creds: Credentials,
+  options?: {
+    context?: string;
+    query?: Record<string, string | number | boolean | undefined>;
+  }
+): Promise<{ ok: true; data: T } | { ok: false; status: number }> {
+  const token = await getBearerToken(creds);
+  const headers: Record<string, string> = {
+    accept: "application/json",
+    authorization: `Bearer ${token}`,
+    "context-fallback": "true",
+  };
+  if (options?.context) {
+    headers["context"] = options.context;
+  }
+  let requestUrl = url;
+  if (options?.query) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(options.query)) {
+      if (value !== undefined) {
+        params.set(key, String(value));
+      }
+    }
+    const queryString = params.toString();
+    if (queryString) {
+      requestUrl += `${url.includes("?") ? "&" : "?"}${queryString}`;
+    }
+  }
+  const res = await fetch(requestUrl, { headers });
+  if (res.status === 404) {
+    return { ok: false, status: 404 };
+  }
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(mapiErrorMessage(res.status, body));
+  }
+  return { ok: true, data: (await res.json()) as T };
+}
+
+function shapeCategoryLevelAttribute(attribute: MapiCategoryAttributeMetadata) {
+  return {
+    definitionId: attribute.attributeDefinitionId,
+    name: attribute.attributeDefinitionName ?? attribute.attributeDefinitionId,
+    ...(attribute.attributeValue !== undefined && { value: attribute.attributeValue }),
+    propagated: Boolean(attribute.copySetOn),
+    locked: Boolean(attribute.lockedSetOn),
+    mandatory: Boolean(attribute.mandatorySetOn),
+    ...(attribute.column &&
+      Object.keys(attribute.column).length > 0 && { column: attribute.column }),
+    ...(attribute.matrix &&
+      Object.keys(attribute.matrix).length > 0 && { matrix: attribute.matrix }),
+  };
+}
+
+async function shapeProductValidationIssues(
+  issues: RawValidationIssue[],
+  creds: Credentials
+): Promise<ShapedValidationIssue[]> {
+  const definitionIds = issues
+    .map((issue) => issue.validationDetails?.definitionId)
+    .filter((value): value is string => typeof value === "string");
+  const nameByDefinitionId = await fetchAttributeDefinitionNames(
+    definitionIds,
+    creds,
+    mapiGet,
+    MAPI_PIM_BASE
+  );
+  return issues.map((issue) => shapeValidationIssue(issue, nameByDefinitionId));
+}
+
+function validationIssuesSummaryText(
+  issueCount: number,
+  issuesByKind: Record<string, number>
+): string {
+  if (issueCount === 0) {
+    return "No validation issues.";
+  }
+  const parts: string[] = [];
+  if (issuesByKind.CLA > 0) {
+    parts.push(`${issuesByKind.CLA} CLA`);
+  }
+  if (issuesByKind.VLA > 0) {
+    parts.push(`${issuesByKind.VLA} VLA`);
+  }
+  const other =
+    issueCount - (issuesByKind.CLA ?? 0) - (issuesByKind.VLA ?? 0);
+  if (other > 0) {
+    parts.push(`${other} other`);
+  }
+  return parts.join(", ");
 }
 
 // ─── Mappers ──────────────────────────────────────────────────────────────────
@@ -901,6 +1053,11 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- Fetch full product detail including attributes, categories, assets, and relations (get_product)\n" +
         "- Read product completeness scores by context (list_product_completeness_scores)\n" +
         "- Fetch completeness requirement breakdown for one product and context (get_product_completeness_detail)\n" +
+        "- List category level attributes on a catalog node (list_category_level_attributes)\n" +
+        "- Find categories using an attribute as a CLA (list_categories_with_cla)\n" +
+        "- List variant level attributes on a variant group (list_variant_level_attributes)\n" +
+        "- Fetch variant level attribute settings for one attribute on a group (get_variant_level_attribute)\n" +
+        "- Read product validation issues for sync/data quality (get_product_validation_issues, list_product_validation_issues)\n" +
         "- List published catalogs only (list_published_catalogs)\n" +
         "- List published products in a category, includes image URL per product (list_published_products_in_category)\n" +
         "- Fetch and display a product image inline (get_product_image)\n" +
@@ -926,7 +1083,18 @@ export function createMcpServer(creds: Credentials): McpServer {
         "In Cursor, open a Canvas beside the chat with summary stat cards (total matching, count at 0%, count partially filled in the filtered range), " +
         "a filterable product table, color-coded type badges (single, variant, group), and horizontal completeness progress bars with percentages. " +
         "Keep chat to a short intro and point the user to the canvas. " +
+        "Use score color bands: below 70% red, 70 to 89% orange, 90% and above green. " +
+        "When the user asks what is missing, present get_product_completeness_detail results in a canvas with MISSING and PASSING requirement cards. " +
         "For one to three products, a concise inline summary is fine.\n\n" +
+        "Validation vs completeness: completeness scores measure requirement pass/fail and produce a 0 to 100% score. " +
+        "Validation issues measure sync and data-quality rules, including CLA lock or mandatory violations and VLA inheritance violations. " +
+        "When the user asks why a product is invalid, fails sync, or violates category or variant rules, call get_product_validation_issues or list_product_validation_issues. " +
+        "When they ask how complete a product is or which completeness requirements failed, call get_product_completeness_detail or search_products. " +
+        "Both may be relevant for broad data quality questions.\n\n" +
+        "Validation presentation: when get_product_validation_issues or list_product_validation_issues returns more than five issues, " +
+        "or list_product_validation_issues finds issues on more than three products, do NOT use a plain markdown table in chat. " +
+        "In Cursor, open a Canvas with summary stat cards (total issues, CLA count, VLA count, other count), kind filter pills, and issue cards grouped by CLA, VLA, and other. " +
+        "Use canvases/bluestone-validation-issues.canvas.tsx as the reference layout. Keep chat to a short intro and point the user to the canvas.\n\n" +
         "Working state vs published: the default read tools return working state data, " +
         "which includes unpublished changes and is what enrichment teams work with. " +
         "Use the list_published_* tools when the user specifically asks about live/published data.\n\n" +
@@ -2626,6 +2794,11 @@ export function createMcpServer(creds: Credentials): McpServer {
                         group: "blue",
                       },
                       completenessBar: true,
+                      scoreColorBands: {
+                        below70: "red",
+                        from70to89: "orange",
+                        from90: "green",
+                      },
                     },
                   }),
                   products,
@@ -2869,6 +3042,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Use list_products_in_category or get_product to resolve the productId when the user names a product but has not given an ID. " +
         "Call list_contexts when the user asks about a specific language or market. Defaults to English if context is omitted. " +
         "Requirement results include resolved names where available. Attribute-based requirements are resolved via completeness requirements and attribute definitions. " +
+        "Present the breakdown in a Cursor Canvas when the user asks what is missing: overall completeness bar, MISSING requirement cards, PASSING requirement cards, and a variant scope line when multiple variants share the same gaps. " +
         "Surface failed requirement names clearly in user-facing replies. Suppress raw requirement IDs unless the user asks for implementation detail.",
       annotations: {
         readOnlyHint: true,
@@ -2940,6 +3114,623 @@ export function createMcpServer(creds: Credentials): McpServer {
                   failedRequirements,
                   passedRequirements,
                   requirements,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: list_category_level_attributes
+  server.registerTool(
+    "list_category_level_attributes",
+    {
+      description:
+        "List Category Level Attributes (CLAs) configured on one Bluestone PIM catalog node or category. " +
+        "Returns attribute name, value, and propagate, lock, and mandatory flags for each CLA. " +
+        "Call list_catalogs and list_category_tree first when the user names a category but has not given an ID. " +
+        "Do not use for product attribute values (get_product), completeness scores (list_product_completeness_scores), " +
+        "or org-wide CLA browse without a category (list_categories_with_cla). " +
+        "When the user asks which products violate these rules, call get_product_validation_issues or list_product_validation_issues. " +
+        "Suppress raw IDs in user-facing replies unless the user asks for implementation detail.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        categoryId: z
+          .string()
+          .describe(
+            "Catalog or category node ID from list_catalogs or list_category_tree."
+          ),
+        categoryName: z
+          .string()
+          .optional()
+          .describe("Human-readable category name or path for the response summary."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID (e.g. \"en\", \"l3600\"). " +
+            "Call list_contexts to see available values. Defaults to English if omitted."
+          ),
+      },
+    },
+    async ({ categoryId, categoryName, context }) => {
+      const effectiveContext = context ?? "en";
+      const response = await mapiGet<MapiCategoryAttributesMetadataResponse>(
+        `${MAPI_PIM_BASE}/catalogs/nodes/${categoryId}/attributes`,
+        creds,
+        { context, query: { archiveState: "ACTIVE" } }
+      );
+      const attributes = (response.data ?? []).map(shapeCategoryLevelAttribute);
+      const label = categoryName ?? categoryId;
+      const lockedCount = attributes.filter((attribute) => attribute.locked).length;
+      const mandatoryCount = attributes.filter((attribute) => attribute.mandatory).length;
+      const propagatedCount = attributes.filter((attribute) => attribute.propagated).length;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Found ${attributes.length} category level attribute${attributes.length === 1 ? "" : "s"} on "${label}" (working state, context: ${effectiveContext}). ` +
+              `${lockedCount} locked, ${mandatoryCount} mandatory, ${propagatedCount} propagated.\n\n` +
+              JSON.stringify(
+                {
+                  categoryId,
+                  category: label,
+                  context: effectiveContext,
+                  lockedCount,
+                  mandatoryCount,
+                  propagatedCount,
+                  attributes,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: list_categories_with_cla
+  server.registerTool(
+    "list_categories_with_cla",
+    {
+      description:
+        "Find catalog nodes or categories that use a given attribute definition as a Category Level Attribute (CLA). " +
+        "Call list_attribute_definitions or get_attribute_definition first to resolve the definitionId when the user names an attribute. " +
+        "Do not use when the category is already known (list_category_level_attributes). " +
+        "Suppress raw IDs in user-facing replies unless the user asks for implementation detail.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        definitionId: z
+          .string()
+          .describe(
+            "Attribute definition ID from list_attribute_definitions or get_attribute_definition."
+          ),
+        attributeName: z
+          .string()
+          .optional()
+          .describe("Human-readable attribute name for the response summary."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID. Call list_contexts when needed. Defaults to English if omitted."
+          ),
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Page number, 1-indexed (default 1)."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_CLA_CATEGORY_LIMIT)
+          .optional()
+          .describe(
+            `Categories per page (default ${DEFAULT_CLA_CATEGORY_LIMIT}, max ${MAX_CLA_CATEGORY_LIMIT}).`
+          ),
+      },
+    },
+    async ({ definitionId, attributeName, context, page, limit }) => {
+      const effectiveContext = context ?? "en";
+      const effectivePage = page ?? DEFAULT_PAGE;
+      const effectiveLimit = limit ?? DEFAULT_CLA_CATEGORY_LIMIT;
+      const response = await mapiGet<MapiCategoryBasicListResponse>(
+        `${MAPI_PIM_BASE}/catalogs/nodes/attributeDefinition/${definitionId}`,
+        creds,
+        {
+          context,
+          query: {
+            page: effectivePage - 1,
+            pageSize: effectiveLimit,
+            archiveState: "ACTIVE",
+          },
+        }
+      );
+      const categories = (response.data ?? []).map((category) => ({
+        categoryId: category.id,
+        name: category.name ?? category.number ?? category.id,
+        ...(category.number && { number: category.number }),
+      }));
+      const label = attributeName ?? definitionId;
+      const hasMore = categories.length === effectiveLimit;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Found ${categories.length} categor${categories.length === 1 ? "y" : "ies"} using "${label}" as a CLA (working state, context: ${effectiveContext}, page ${effectivePage})` +
+              (hasMore
+                ? `. Call again with page=${effectivePage + 1} to fetch more.`
+                : ".") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  definitionId,
+                  attribute: label,
+                  context: effectiveContext,
+                  page: effectivePage,
+                  limit: effectiveLimit,
+                  returned: categories.length,
+                  hasMore,
+                  categories,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: list_variant_level_attributes
+  server.registerTool(
+    "list_variant_level_attributes",
+    {
+      description:
+        "List Variant Level Attributes (VLAs) configured on a variant group product: copy, locked, mandatory, and variant-defining flags. " +
+        "The groupProductId must be a GROUP product. Call get_product first to confirm type and get the group ID. " +
+        "There is no single list API: this tool probes each attribute on the group (up to 50 per call by default). " +
+        "When truncated is true in the response, tell the user how many attributes were checked and offer to call again with offset to show the rest. " +
+        "Do not use for variant product values (get_product) or a single known attribute (get_variant_level_attribute). " +
+        "Suppress raw IDs in user-facing replies unless the user asks for implementation detail.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        groupProductId: z
+          .string()
+          .describe(
+            "Variant group product ID (type GROUP). From get_product or list_products_in_category."
+          ),
+        groupProductName: z
+          .string()
+          .optional()
+          .describe("Human-readable group name for the response summary."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context when reading group attributes. Defaults to English if omitted."
+          ),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(
+            "Skip the first N attribute definitions on the group before probing (default 0). Use with truncated responses to fetch the next batch."
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_VLA_ATTRIBUTE_PROBE)
+          .optional()
+          .describe(
+            `Maximum attribute definitions to probe per call (default ${MAX_VLA_ATTRIBUTE_PROBE}, max ${MAX_VLA_ATTRIBUTE_PROBE}).`
+          ),
+      },
+    },
+    async ({ groupProductId, groupProductName, context, offset, limit }) => {
+      const effectiveContext = context ?? "en";
+      const effectiveOffset = offset ?? 0;
+      const effectiveLimit = limit ?? MAX_VLA_ATTRIBUTE_PROBE;
+      const product = await mapiGetFull<MapiProductDetail>(
+        `${MAPI_PIM_BASE}/products/${groupProductId}`,
+        creds,
+        { context }
+      );
+
+      if (product.type === "VARIANT") {
+        throw new Error(
+          `Product ${groupProductId} is a VARIANT, not a variant group. ` +
+            "Use variantParentId from get_product as groupProductId, or open the parent GROUP product."
+        );
+      }
+      if (product.type && product.type !== "GROUP") {
+        throw new Error(
+          `Product ${groupProductId} has type ${product.type}. list_variant_level_attributes requires a GROUP product.`
+        );
+      }
+
+      const allDefinitionIds = [
+        ...new Set((product.attributes ?? []).map((attribute) => attribute.definitionId)),
+      ];
+      const slice = allDefinitionIds.slice(
+        effectiveOffset,
+        effectiveOffset + effectiveLimit
+      );
+      const truncated = effectiveOffset + slice.length < allDefinitionIds.length;
+      const nextOffset = truncated ? effectiveOffset + slice.length : undefined;
+
+      const probeResults = await Promise.all(
+        slice.map(async (definitionId) => {
+          const result = await mapiGetOptional<MapiProductVariantAttribute>(
+            `${MAPI_PIM_BASE}/products/${groupProductId}/variants/attributes/${definitionId}`,
+            creds
+          );
+          if (!result.ok) {
+            return null;
+          }
+          return { definitionId, config: result.data };
+        })
+      );
+      const vlaConfigs = probeResults.filter(
+        (entry): entry is { definitionId: string; config: MapiProductVariantAttribute } =>
+          entry !== null
+      );
+      const nameByDefinitionId = await fetchAttributeDefinitionNames(
+        vlaConfigs.map((entry) => entry.definitionId),
+        creds,
+        mapiGet,
+        MAPI_PIM_BASE
+      );
+      const variantLevelAttributes = vlaConfigs.map(({ definitionId, config }) => ({
+        definitionId,
+        name: nameByDefinitionId.get(definitionId) ?? definitionId,
+        copy: Boolean(config.copy),
+        locked: Boolean(config.locked),
+        mandatory: Boolean(config.mandatory),
+        variantDefining: Boolean(config.definingAttributes),
+      }));
+
+      const label = groupProductName ?? product.name ?? groupProductId;
+      const definingCount = variantLevelAttributes.filter(
+        (attribute) => attribute.variantDefining
+      ).length;
+      const truncatedNote = truncated
+        ? ` Checked ${slice.length} of ${allDefinitionIds.length} attributes on the group (offset ${effectiveOffset}).` +
+          (nextOffset !== undefined
+            ? ` Call again with offset=${nextOffset} to show the rest.`
+            : "")
+        : "";
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Found ${variantLevelAttributes.length} variant level attribute${variantLevelAttributes.length === 1 ? "" : "s"} on group "${label}" (working state). ` +
+              `${definingCount} variant-defining.${truncatedNote}\n\n` +
+              JSON.stringify(
+                {
+                  groupProductId,
+                  group: label,
+                  context: effectiveContext,
+                  totalAttributesOnGroup: allDefinitionIds.length,
+                  offset: effectiveOffset,
+                  probed: slice.length,
+                  truncated,
+                  ...(nextOffset !== undefined && { nextOffset }),
+                  variantDefiningCount: definingCount,
+                  variantLevelAttributes,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: get_variant_level_attribute
+  server.registerTool(
+    "get_variant_level_attribute",
+    {
+      description:
+        "Fetch Variant Level Attribute (VLA) configuration for one attribute on one variant group product. " +
+        "Returns copy, locked, mandatory, and variant-defining flags. " +
+        "The groupProductId must be a GROUP product. Call get_product first to confirm type. " +
+        "If the attribute is on the group but not configured as a VLA, the tool returns a clear message instead of an error. " +
+        "Call list_variant_level_attributes to discover all VLAs on a group. " +
+        "Suppress raw IDs in user-facing replies unless the user asks for implementation detail.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        groupProductId: z
+          .string()
+          .describe("Variant group product ID (type GROUP)."),
+        definitionId: z.string().describe("Attribute definition ID."),
+        attributeName: z
+          .string()
+          .optional()
+          .describe("Human-readable attribute name for the response summary."),
+        groupProductName: z
+          .string()
+          .optional()
+          .describe("Human-readable group name for the response summary."),
+      },
+    },
+    async ({ groupProductId, definitionId, attributeName, groupProductName }) => {
+      const result = await mapiGetOptional<MapiProductVariantAttribute>(
+        `${MAPI_PIM_BASE}/products/${groupProductId}/variants/attributes/${definitionId}`,
+        creds
+      );
+      const attrLabel = attributeName ?? definitionId;
+      const groupLabel = groupProductName ?? groupProductId;
+
+      if (!result.ok) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                `Attribute "${attrLabel}" on group "${groupLabel}" is not configured as a variant level attribute (VLA), or the group or definition was not found. ` +
+                "Call get_product to confirm the product type is GROUP and the attribute exists on the group. " +
+                "Call list_variant_level_attributes to list all VLAs on the group.",
+            },
+          ],
+        };
+      }
+
+      const config = result.data;
+      const shaped = {
+        definitionId,
+        name: attrLabel,
+        copy: Boolean(config.copy),
+        locked: Boolean(config.locked),
+        mandatory: Boolean(config.mandatory),
+        variantDefining: Boolean(config.definingAttributes),
+      };
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Fetched VLA settings for "${attrLabel}" on group "${groupLabel}" (working state). ` +
+              `Copy: ${shaped.copy}, locked: ${shaped.locked}, mandatory: ${shaped.mandatory}, variant-defining: ${shaped.variantDefining}.\n\n` +
+              JSON.stringify(
+                {
+                  groupProductId,
+                  group: groupLabel,
+                  variantLevelAttribute: shaped,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: get_product_validation_issues
+  server.registerTool(
+    "get_product_validation_issues",
+    {
+      description:
+        "Fetch sync validation issues for one Bluestone PIM product in one context. " +
+        "Surfaces CLA, VLA, attribute restriction, compound, and dictionary filter violations. " +
+        "Do not use for completeness requirement breakdown (get_product_completeness_detail) or bulk checks (list_product_validation_issues). " +
+        "An empty issue list means the product has no validation issues in that context, not an API failure. " +
+        "Call list_category_level_attributes when the user asks which CLA rule caused an issue (use categoryId from the issue). " +
+        "Call list_variant_level_attributes when the user asks which VLA rule caused an issue (use variantParentId from the issue). " +
+        "Do not conflate validation with completeness score. Both may matter for broad data quality questions. " +
+        "When issueCount is greater than five, present results in a Cursor Canvas, not a plain markdown table. " +
+        "Suppress raw IDs in user-facing replies unless the user asks for implementation detail.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        productId: z
+          .string()
+          .describe(
+            "Product ID from list_products_in_category, get_product, or create_product."
+          ),
+        productName: z
+          .string()
+          .optional()
+          .describe("Human-readable product name for the response summary."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID. Call list_contexts when needed. Defaults to English if omitted."
+          ),
+      },
+    },
+    async ({ productId, productName, context }) => {
+      const effectiveContext = context ?? "en";
+      const response = await mapiGet<MapiProductValidationIssuesListResponse>(
+        `${MAPI_COMPLETENESS_SCORE_BASE}/validations/${productId}/${effectiveContext}`,
+        creds
+      );
+      const rawIssues = response.data ?? [];
+      const issues = await shapeProductValidationIssues(rawIssues, creds);
+      const issuesByKind = countValidationIssuesByKind(issues);
+      const label = productName ?? productId;
+      const valid = issues.length === 0;
+      const presentationHint = buildValidationPresentationHint({
+        issueCount: issues.length,
+      });
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              (valid
+                ? `Product "${label}" has no validation issues (working state, context: ${effectiveContext}).`
+                : `Product "${label}" has ${issues.length} validation issue${issues.length === 1 ? "" : "s"} (working state, context: ${effectiveContext}): ${validationIssuesSummaryText(issues.length, issuesByKind)}.`) +
+              (presentationHint
+                ? " Present these results in a Cursor Canvas grouped by kind, not a plain markdown table."
+                : "") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  productId,
+                  product: label,
+                  context: effectiveContext,
+                  valid,
+                  issueCount: issues.length,
+                  issuesByKind,
+                  issues,
+                  ...(presentationHint && { presentationHint }),
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: list_product_validation_issues
+  server.registerTool(
+    "list_product_validation_issues",
+    {
+      description:
+        "Fetch sync validation issues for up to 100 known product IDs in one context. " +
+        "Surfaces CLA, VLA, and other validation violations across multiple products. " +
+        "Do not use for catalog-wide discovery of invalid products (not supported yet). " +
+        "Do not use for one product (get_product_validation_issues). " +
+        "By default only products with issues are included. Set includeValidProducts to include products with zero issues. " +
+        "When some requested IDs are missing from the response, the API omitted non-existent products. " +
+        "When productsWithIssues is greater than three or total issues exceed ten, present results in a Cursor Canvas, not a plain markdown table. " +
+        "Workflow: list_products_in_category, then call this tool with up to 100 IDs per call.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        productIds: z
+          .array(z.string())
+          .min(1)
+          .max(MAX_VALIDATION_PRODUCT_IDS)
+          .describe(
+            `Product IDs to validate. Min 1, max ${MAX_VALIDATION_PRODUCT_IDS} per call.`
+          ),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context ID. Call list_contexts when needed. Defaults to English if omitted."
+          ),
+        includeValidProducts: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, include products with zero validation issues in the response JSON. Default false."
+          ),
+      },
+    },
+    async ({ productIds, context, includeValidProducts }) => {
+      const effectiveContext = context ?? "en";
+      const response = await mapiPostBody<MapiBulkValidationListResponse>(
+        `${MAPI_COMPLETENESS_SCORE_BASE}/validations/by-ids`,
+        { entityIds: productIds, context: effectiveContext },
+        creds
+      );
+
+      const allDefinitionIds = (response.data ?? []).flatMap((entry) =>
+        entry.validations.map((issue) => issue.validationDetails?.definitionId)
+      ).filter((value): value is string => typeof value === "string");
+      const nameByDefinitionId = await fetchAttributeDefinitionNames(
+        allDefinitionIds,
+        creds,
+        mapiGet,
+        MAPI_PIM_BASE
+      );
+
+      const products = [];
+      let totalIssues = 0;
+      for (const entry of response.data ?? []) {
+        const issues = entry.validations.map((issue) =>
+          shapeValidationIssue(issue, nameByDefinitionId)
+        );
+        if (!includeValidProducts && issues.length === 0) {
+          continue;
+        }
+        totalIssues += issues.length;
+        products.push({
+          productId: entry.entityId,
+          issueCount: issues.length,
+          valid: issues.length === 0,
+          issuesByKind: countValidationIssuesByKind(issues),
+          issues,
+        });
+      }
+
+      const returnedCount = response.data?.length ?? 0;
+      const missingCount = productIds.length - returnedCount;
+      const productsWithIssues = products.filter((product) => product.issueCount > 0).length;
+      const presentationHint = buildValidationPresentationHint({
+        issueCount: totalIssues,
+        productCount: productsWithIssues,
+      });
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Validated ${productIds.length} product${productIds.length === 1 ? "" : "s"} (working state, context: ${effectiveContext}). ` +
+              `${productsWithIssues} with issues, ${totalIssues} total issue${totalIssues === 1 ? "" : "s"}` +
+              (missingCount > 0 ? `, ${missingCount} ID${missingCount === 1 ? "" : "s"} not found` : "") +
+              "." +
+              (presentationHint
+                ? " Present these results in a Cursor Canvas grouped by product and kind, not a plain markdown table."
+                : "") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  context: effectiveContext,
+                  requestedCount: productIds.length,
+                  returnedCount,
+                  ...(missingCount > 0 && { missingCount }),
+                  productsWithIssues,
+                  totalIssues,
+                  products,
+                  ...(presentationHint && { presentationHint }),
                 },
                 null,
                 2
