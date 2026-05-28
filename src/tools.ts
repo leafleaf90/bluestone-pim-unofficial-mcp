@@ -15,6 +15,15 @@ import {
   type RawValidationIssue,
   type ShapedValidationIssue,
 } from "./validation/shape-issues.js";
+import {
+  buildVariantCandidatePresentationHint,
+  confidenceMeetsMinimum,
+  rankVariantGroupCandidates,
+  resolveMatchingProfile,
+  snapshotFromProduct,
+  type MatchConfidence,
+  type VariantGroupCandidate,
+} from "./variant-candidates/match.js";
 import { VERSION } from "./version.js";
 
 // ─── Credentials ──────────────────────────────────────────────────────────────
@@ -374,6 +383,11 @@ const MAX_CLA_CATEGORY_LIMIT = 1000;
 const MAPI_DEFINITIONS_FETCH_PAGE_SIZE = 1000;
 const DEFAULT_DICTIONARY_VALUE_LIMIT = 100;
 const MAX_DICTIONARY_VALUE_LIMIT = 500;
+const DEFAULT_VARIANT_CANDIDATE_SINGLES = 25;
+const MAX_VARIANT_CANDIDATE_SINGLES = 50;
+const MAX_VARIANT_GROUPS_IN_SCOPE = 100;
+const DEFAULT_MAX_GROUPS_PER_SINGLE = 3;
+const MAX_GROUPS_PER_SINGLE = 5;
 
 const ATTRIBUTE_DATA_TYPES = [
   "boolean",
@@ -949,6 +963,112 @@ async function fetchAllAttributeDefinitions(
   return allDefinitions;
 }
 
+type BluestoneProductType = "SINGLE" | "GROUP" | "VARIANT" | "BUNDLE";
+
+function searchCategoryFilter(categoryId: string, categoryScope: CategoryScope) {
+  return {
+    categoryFilters: [
+      {
+        categoryId,
+        type:
+          categoryScope === "exact_category" ? "IN_CATEGORY" : "IN_ANY_CHILD",
+      },
+    ],
+  };
+}
+
+async function searchProductIdsByTypes(
+  productTypes: BluestoneProductType[],
+  categoryId: string,
+  categoryScope: CategoryScope,
+  page: number,
+  pageSize: number,
+  creds: Credentials,
+  context?: string
+): Promise<{ ids: string[]; total: number }> {
+  const filterBody = {
+    ...searchCategoryFilter(categoryId, categoryScope),
+    typesFilter: {
+      type: "IN" as const,
+      productTypes,
+    },
+  };
+
+  const [searchResponse, countResponse] = await Promise.all([
+    mapiPostBody<SearchProductsResponse>(
+      `${MAPI_SEARCH_BASE}/products/search?archiveState=ACTIVE`,
+      { ...filterBody, page: page - 1, pageSize },
+      creds,
+      { context }
+    ),
+    mapiPostBody<SearchCountResponse>(
+      `${MAPI_SEARCH_BASE}/products/count`,
+      filterBody,
+      creds,
+      { context }
+    ),
+  ]);
+
+  return {
+    ids: (searchResponse.data ?? []).map((product) => product.id),
+    total: countResponse.count ?? 0,
+  };
+}
+
+async function fetchProductIdsByTypesUpToLimit(
+  productTypes: BluestoneProductType[],
+  categoryId: string,
+  categoryScope: CategoryScope,
+  maxIds: number,
+  creds: Credentials,
+  context?: string
+): Promise<{ ids: string[]; total: number; truncated: boolean }> {
+  const ids: string[] = [];
+  let total = 0;
+  let page = 1;
+
+  while (ids.length < maxIds) {
+    const pageSize = Math.min(100, maxIds - ids.length);
+    const result = await searchProductIdsByTypes(
+      productTypes,
+      categoryId,
+      categoryScope,
+      page,
+      pageSize,
+      creds,
+      context
+    );
+    total = result.total;
+    if (result.ids.length === 0) {
+      break;
+    }
+    ids.push(...result.ids);
+    if (result.ids.length < pageSize || ids.length >= total) {
+      break;
+    }
+    page += 1;
+  }
+
+  return {
+    ids: ids.slice(0, maxIds),
+    total,
+    truncated: total > ids.length,
+  };
+}
+
+async function loadProductSnapshot(
+  productId: string,
+  creds: Credentials,
+  context?: string
+) {
+  const product = await mapiGetFull<MapiProductDetail>(
+    `${MAPI_PIM_BASE}/products/${productId}`,
+    creds,
+    { context }
+  );
+  return snapshotFromProduct(product);
+}
+
 function resolveMultiLanguageValue(
   value: { value?: Record<string, string> } | undefined,
   context: string
@@ -1058,6 +1178,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- List variant level attributes on a variant group (list_variant_level_attributes)\n" +
         "- Fetch variant level attribute settings for one attribute on a group (get_variant_level_attribute)\n" +
         "- Read product validation issues for sync/data quality (get_product_validation_issues, list_product_validation_issues)\n" +
+        "- Suggest SINGLE products that may belong in an existing variant group (suggest_variant_group_candidates)\n" +
         "- List published catalogs only (list_published_catalogs)\n" +
         "- List published products in a category, includes image URL per product (list_published_products_in_category)\n" +
         "- Fetch and display a product image inline (get_product_image)\n" +
@@ -1095,6 +1216,9 @@ export function createMcpServer(creds: Credentials): McpServer {
         "or list_product_validation_issues finds issues on more than three products, do NOT use a plain markdown table in chat. " +
         "In Cursor, open a Canvas with summary stat cards (total issues, CLA count, VLA count, other count), kind filter pills, and issue cards grouped by CLA, VLA, and other. " +
         "Use canvases/bluestone-validation-issues.canvas.tsx as the reference layout. Keep chat to a short intro and point the user to the canvas.\n\n" +
+        "Variant group candidates: when the user asks which SINGLE products might belong in an existing variant group, or which loose products should join a group, call suggest_variant_group_candidates. " +
+        "Start from a category scope via list_catalogs or list_category_tree. Pass groupProductId when the target group is already known. " +
+        "Results are suggestions only: confirm with the user before converting products to variants in the UI or via a future write tool.\n\n" +
         "Working state vs published: the default read tools return working state data, " +
         "which includes unpublished changes and is what enrichment teams work with. " +
         "Use the list_published_* tools when the user specifically asks about live/published data.\n\n" +
@@ -3730,6 +3854,368 @@ export function createMcpServer(creds: Credentials): McpServer {
                   productsWithIssues,
                   totalIssues,
                   products,
+                  ...(presentationHint && { presentationHint }),
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: suggest_variant_group_candidates
+  server.registerTool(
+    "suggest_variant_group_candidates",
+    {
+      description:
+        "Suggest SINGLE products in a Bluestone PIM category that may belong in an existing variant group (GROUP product). " +
+        "Read-only: returns ranked suggestions with confidence, reasons, and cautions. Does not attach variants. " +
+        "Call list_catalogs or list_category_tree first to get categoryId. " +
+        "Use category audit mode to scan a category, or pass groupProductId to find singles for one known group. " +
+        "Matching uses shared category, title similarity, and optional attribute comparison for brand, product type, and key specs. " +
+        "Pass brandDefinitionId, productTypeDefinitionId, or specDefinitionIds when your attribute model uses non-standard names; otherwise the tool auto-detects common definition names. " +
+        "Confirm every suggestion with the user before restructuring products in Bluestone PIM. " +
+        "When more than three suggestions are returned, use a Cursor Canvas with confidence filter pills and SINGLE → GROUP cards instead of a plain markdown table.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        categoryId: z
+          .string()
+          .optional()
+          .describe(
+            "Catalog or category ID from list_catalogs or list_category_tree. " +
+            "Required unless groupProductId is set and the group already has categories."
+          ),
+        categoryName: z
+          .string()
+          .optional()
+          .describe("Human-readable category name for the response summary."),
+        categoryScope: z
+          .enum(["catalog_with_subcategories", "exact_category"])
+          .optional()
+          .describe(
+            "How to apply categoryId. catalog_with_subcategories includes sub-categories (default). " +
+            "exact_category matches only that node."
+          ),
+        groupProductId: z
+          .string()
+          .optional()
+          .describe(
+            "Optional GROUP product ID. When set, compare SINGLE products only against this variant group."
+          ),
+        groupProductName: z
+          .string()
+          .optional()
+          .describe("Human-readable group name for the response summary."),
+        brandDefinitionId: z
+          .string()
+          .optional()
+          .describe(
+            "Attribute definition ID for brand matching. Auto-detected from common names like Brand when omitted."
+          ),
+        productTypeDefinitionId: z
+          .string()
+          .optional()
+          .describe(
+            "Attribute definition ID for business product type matching. Auto-detected when omitted."
+          ),
+        specDefinitionIds: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Attribute definition IDs treated as key specs for overlap comparison. Auto-detected from dimension-like names when omitted."
+          ),
+        minTitleSimilarity: z
+          .number()
+          .min(0)
+          .max(1)
+          .optional()
+          .describe(
+            "Minimum title similarity for a strong match (0 to 1, default 0.9)."
+          ),
+        minSpecOverlap: z
+          .number()
+          .min(0)
+          .max(1)
+          .optional()
+          .describe(
+            "Minimum shared spec overlap before rejecting a pair (0 to 1, default 0.6)."
+          ),
+        minConfidence: z
+          .enum(["low", "medium", "high"])
+          .optional()
+          .describe(
+            "Minimum confidence to include in results (default medium)."
+          ),
+        maxGroupsPerSingle: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_GROUPS_PER_SINGLE)
+          .optional()
+          .describe(
+            `Maximum group suggestions per SINGLE (default ${DEFAULT_MAX_GROUPS_PER_SINGLE}, max ${MAX_GROUPS_PER_SINGLE}).`
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_VARIANT_CANDIDATE_SINGLES)
+          .optional()
+          .describe(
+            `SINGLE products to scan per page (default ${DEFAULT_VARIANT_CANDIDATE_SINGLES}, max ${MAX_VARIANT_CANDIDATE_SINGLES}).`
+          ),
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Page of SINGLE products to scan, 1-indexed (default 1)."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context for product names and attribute values (e.g. \"en\")."
+          ),
+      },
+    },
+    async ({
+      categoryId,
+      categoryName,
+      categoryScope,
+      groupProductId,
+      groupProductName,
+      brandDefinitionId,
+      productTypeDefinitionId,
+      specDefinitionIds,
+      minTitleSimilarity,
+      minSpecOverlap,
+      minConfidence,
+      maxGroupsPerSingle,
+      limit,
+      page,
+      context,
+    }) => {
+      const effectiveContext = context ?? "en";
+      const effectiveScope = categoryScope ?? "catalog_with_subcategories";
+      const effectiveLimit = limit ?? DEFAULT_VARIANT_CANDIDATE_SINGLES;
+      const effectivePage = page ?? DEFAULT_PAGE;
+      const effectiveMaxGroups =
+        maxGroupsPerSingle ?? DEFAULT_MAX_GROUPS_PER_SINGLE;
+      const effectiveMinConfidence = (minConfidence ?? "medium") as MatchConfidence;
+
+      let effectiveCategoryId = categoryId;
+      let targetGroups: Awaited<ReturnType<typeof loadProductSnapshot>>[] = [];
+
+      if (groupProductId) {
+        const groupSnapshot = await loadProductSnapshot(
+          groupProductId,
+          creds,
+          context
+        );
+        if (groupSnapshot.type !== "GROUP") {
+          throw new Error(
+            `Product ${groupProductId} has type ${groupSnapshot.type}. suggest_variant_group_candidates requires a GROUP product when groupProductId is set.`
+          );
+        }
+        targetGroups = [groupSnapshot];
+        if (!effectiveCategoryId) {
+          effectiveCategoryId = groupSnapshot.categories[0];
+        }
+        if (!effectiveCategoryId) {
+          throw new Error(
+            "categoryId is required when the target group has no categories assigned."
+          );
+        }
+      }
+
+      if (!effectiveCategoryId) {
+        throw new Error(
+          "categoryId is required unless groupProductId is set and the group belongs to at least one category."
+        );
+      }
+
+      const label = categoryName ?? effectiveCategoryId;
+      const allDefinitions = await fetchAllAttributeDefinitions(creds, {
+        context,
+      });
+      const matchingProfile = resolveMatchingProfile(
+        allDefinitions.map((definition) => ({
+          id: definition.id,
+          name: definition.name,
+        })),
+        {
+          ...(brandDefinitionId && { brandDefinitionId }),
+          ...(productTypeDefinitionId && { productTypeDefinitionId }),
+          ...(specDefinitionIds && { specDefinitionIds }),
+          ...(minTitleSimilarity !== undefined && { minTitleSimilarity }),
+          ...(minSpecOverlap !== undefined && { minSpecOverlap }),
+        }
+      );
+
+      if (!groupProductId) {
+        const groupSearch = await fetchProductIdsByTypesUpToLimit(
+          ["GROUP"],
+          effectiveCategoryId,
+          effectiveScope,
+          MAX_VARIANT_GROUPS_IN_SCOPE,
+          creds,
+          context
+        );
+        targetGroups = await Promise.all(
+          groupSearch.ids.map((id) => loadProductSnapshot(id, creds, context))
+        );
+      }
+
+      const singleSearch = await searchProductIdsByTypes(
+        ["SINGLE"],
+        effectiveCategoryId,
+        effectiveScope,
+        effectivePage,
+        effectiveLimit,
+        creds,
+        context
+      );
+
+      if (singleSearch.ids.length === 0) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                `No SINGLE products to scan in "${label}" (working state, context: ${effectiveContext}).\n\n` +
+                JSON.stringify(
+                  {
+                    category: label,
+                    context: effectiveContext,
+                    mode: groupProductId ? "group-centric" : "category-audit",
+                    totalSingles: singleSearch.total,
+                    groupsCompared: targetGroups.length,
+                    page: effectivePage,
+                    returned: 0,
+                    hasMore: false,
+                    suggestions: [],
+                    matchingProfile: {
+                      brandDefinitionId: matchingProfile.brandDefinitionId ?? null,
+                      productTypeDefinitionId:
+                        matchingProfile.productTypeDefinitionId ?? null,
+                      specDefinitionIds: matchingProfile.specDefinitionIds,
+                      minTitleSimilarity: matchingProfile.minTitleSimilarity,
+                      minSpecOverlap: matchingProfile.minSpecOverlap,
+                    },
+                  },
+                  null,
+                  2
+                ),
+            },
+          ],
+        };
+      }
+
+      const singleSnapshots = await Promise.all(
+        singleSearch.ids.map((id) => loadProductSnapshot(id, creds, context))
+      );
+
+      const suggestions: VariantGroupCandidate[] = [];
+      for (const single of singleSnapshots) {
+        if (single.type !== "SINGLE") {
+          continue;
+        }
+        const ranked = rankVariantGroupCandidates(
+          single,
+          targetGroups,
+          matchingProfile,
+          effectiveMaxGroups
+        ).filter((candidate) =>
+          confidenceMeetsMinimum(candidate.confidence, effectiveMinConfidence)
+        );
+        suggestions.push(...ranked);
+      }
+
+      suggestions.sort((left, right) => {
+        const confidenceRank: Record<MatchConfidence, number> = {
+          high: 3,
+          medium: 2,
+          low: 1,
+        };
+        const confidenceDiff =
+          confidenceRank[right.confidence] - confidenceRank[left.confidence];
+        if (confidenceDiff !== 0) {
+          return confidenceDiff;
+        }
+        return right.titleSimilarity - left.titleSimilarity;
+      });
+
+      const singlesWithSuggestions = new Set(
+        suggestions.map((entry) => entry.singleProductId)
+      ).size;
+      const hasMoreSingles =
+        effectivePage * effectiveLimit < singleSearch.total;
+      const presentationHint = buildVariantCandidatePresentationHint(
+        suggestions.length
+      );
+      const groupLabel =
+        groupProductName ??
+        (groupProductId ? targetGroups[0]?.name : undefined);
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Scanned ${singleSnapshots.length} SINGLE product${singleSnapshots.length === 1 ? "" : "s"} in "${label}" against ${targetGroups.length} variant group${targetGroups.length === 1 ? "" : "s"} (working state, context: ${effectiveContext}). ` +
+              `Found ${suggestions.length} suggestion${suggestions.length === 1 ? "" : "s"} for ${singlesWithSuggestions} SINGLE${singlesWithSuggestions === 1 ? "" : "s"}` +
+              (groupLabel ? ` targeting "${groupLabel}"` : "") +
+              "." +
+              (presentationHint
+                ? " Present these results in a Cursor Canvas, not a plain markdown table."
+                : "") +
+              (hasMoreSingles
+                ? ` Call again with page=${effectivePage + 1} to scan more SINGLE products.`
+                : "") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  category: label,
+                  context: effectiveContext,
+                  mode: groupProductId ? "group-centric" : "category-audit",
+                  ...(groupProductId && {
+                    groupProductId,
+                    ...(groupLabel && { groupProductName: groupLabel }),
+                  }),
+                  totalSingles: singleSearch.total,
+                  scannedSingles: singleSnapshots.length,
+                  groupsCompared: targetGroups.length,
+                  page: effectivePage,
+                  hasMoreSingles,
+                  minConfidence: effectiveMinConfidence,
+                  matchingProfile: {
+                    brandDefinitionId: matchingProfile.brandDefinitionId ?? null,
+                    productTypeDefinitionId:
+                      matchingProfile.productTypeDefinitionId ?? null,
+                    specDefinitionIds: matchingProfile.specDefinitionIds,
+                    minTitleSimilarity: matchingProfile.minTitleSimilarity,
+                    minSpecOverlap: matchingProfile.minSpecOverlap,
+                  },
+                  summary: {
+                    suggestionCount: suggestions.length,
+                    singlesWithSuggestions,
+                    highConfidence: suggestions.filter(
+                      (entry) => entry.confidence === "high"
+                    ).length,
+                    mediumConfidence: suggestions.filter(
+                      (entry) => entry.confidence === "medium"
+                    ).length,
+                    lowConfidence: suggestions.filter(
+                      (entry) => entry.confidence === "low"
+                    ).length,
+                  },
+                  suggestions,
                   ...(presentationHint && { presentationHint }),
                 },
                 null,

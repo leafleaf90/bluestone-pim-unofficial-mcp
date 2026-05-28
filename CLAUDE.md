@@ -54,6 +54,7 @@ All MCP tools are registered inside a single `createMcpServer(creds: Credentials
 - `get_variant_level_attribute`: calls MAPI `GET /pim/products/{groupId}/variants/attributes/{definitionId}` via `mapiGetOptional()`. Returns VLA flags for one attribute on a variant group.
 - `get_product_validation_issues`: calls `GET /completeness-score/validations/{productId}/{context}` via `mapiGet()`. Returns sync validation issues with CLA and VLA types resolved to attribute names.
 - `list_product_validation_issues`: calls `POST /completeness-score/validations/by-ids` via `mapiPostBody()`. Bulk validation issues for up to 100 product IDs in one context.
+- `suggest_variant_group_candidates`: uses MAPI Search `typesFilter` plus full product reads to suggest SINGLE products that may belong in an existing GROUP. Read-only; does not attach variants.
 - `assign_product_to_category`: calls MAPI `/pim/catalogs/nodes/{categoryId}/products` via `mapiPost()` to assign an existing product to a catalog category.
 - `update_product_name`: calls MAPI `/pim/products/{productId}` via `mapiPatch()` to rename an existing product.
 

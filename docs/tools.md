@@ -776,6 +776,55 @@ Body: { "entityIds": ["..."], "context": "en" }
 
 ---
 
+## `suggest_variant_group_candidates`
+
+**Purpose:** Suggest `SINGLE` products that may belong in an existing variant group (`GROUP` product). Read-only: ranked suggestions with confidence, reasons, and cautions. Does not attach variants.
+
+**Modes:**
+
+| Mode | Input | Behaviour |
+|---|---|---|
+| Category audit | `categoryId` | Scan a page of SINGLE products against up to 100 GROUP products in the same category scope |
+| Group-centric | `groupProductId` | Find SINGLE products that may belong in one known group |
+
+**Matching (reject first, then rank):**
+
+- Reject when categories do not overlap, brand differs, business product type differs, key specs differ significantly, or title similarity is very low
+- Rank survivors on shared category, title similarity (default threshold 90%), brand match, product type match, and spec overlap (default 60%)
+- Auto-detects common attribute definition names for brand, product type, and dimension-like specs when IDs are omitted
+
+**Input:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `categoryId` | string | Usually | From `list_catalogs` or `list_category_tree`. Optional when `groupProductId` has categories |
+| `categoryScope` | enum | No | `catalog_with_subcategories` (default) or `exact_category` |
+| `groupProductId` | string | No | Target GROUP for group-centric mode |
+| `brandDefinitionId` | string | No | Override auto-detected brand attribute |
+| `productTypeDefinitionId` | string | No | Override auto-detected product type attribute |
+| `specDefinitionIds` | string[] | No | Override auto-detected key spec attributes |
+| `minTitleSimilarity` | number | No | 0 to 1, default 0.9 |
+| `minSpecOverlap` | number | No | 0 to 1, default 0.6 |
+| `minConfidence` | enum | No | `low`, `medium` (default), or `high` |
+| `limit` / `page` | number | No | Paginate SINGLE products scanned (default 25, max 50) |
+
+**API calls:**
+
+| Step | MAPI endpoint |
+|---|---|
+| List SINGLE / GROUP IDs | `POST /search/products/search` + `/search/products/count` with `typesFilter` and `categoryFilters` |
+| Product detail | `GET /pim/products/{id}` (`application/full+json`) |
+| Attribute mapping | `GET /pim/definitions` (paginated, for auto-detect) |
+
+**Follow-up:** Confirm with the user before converting products to variants. Attachment would use `PUT /pim/products/{groupId}/variants/{variantProductId}` (not exposed in MCP yet).
+
+**Example prompts:**
+
+- "Which SINGLE products in Clothes might belong in an existing variant group?"
+- "Find loose products that should join the T-shirt group"
+
+---
+
 ## `list_published_catalogs`
 
 **Purpose:** List published (live) catalogs. Returns only data that has been synced. No unpublished changes.
