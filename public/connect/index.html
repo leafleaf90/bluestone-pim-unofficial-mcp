@@ -273,7 +273,7 @@ For Claude Desktop and Cursor: no. The setup is a form and a few copy-paste step
 
 ### Will it modify my data?
 
-Most tools are read-only. A small number can write to your PIM, currently limited to creating products. MCP clients like Claude Desktop let you turn individual tools on and off, so you can restrict to read-only access if you prefer. Check your client's MCP settings to see and control which tools are active.
+Most tools are read-only. Write tools (create product, variant matrix, attributes, categories, and related mutations) can change your PIM. MCP clients like Claude Desktop let you turn individual tools on and off, so you can restrict to read-only access if you prefer. Check your client's MCP settings to see and control which tools are active.
 
 ### What AI tools does it work with?
 
@@ -454,6 +454,8 @@ ChatGPT is more likely than Claude to answer from general PIM knowledge when a p
 
 If ChatGPT already started explaining catalog types from memory, redirect with: "Don't guess. Call the Bluestone PIM MCP tools and show my live data."
 
+**Write tools (create product, variant matrix, attribute changes):** start a **new chat** after connecting or refreshing the app, with the connector enabled for that chat. Confirm in chat, then say **"Call generate_variant_matrix now"** if ChatGPT describes the payload instead of executing. ChatGPT should show a tool-call approval step: approve it there. If reads work but writes never appear, disconnect and reconnect the app in Settings, then open a new chat.
+
 The app **Description** in Step 3 reinforces this for every conversation. Use the recommended text above rather than a generic label like "Unofficial MCP Server".
 
 ---
@@ -524,6 +526,18 @@ Two ways to prevent it. First, be explicit in your opening message: "Using Blues
 This happens when the prompt reads like a documentation or concept question. ChatGPT may describe typical catalog types, attribute models, or PIM patterns from training data instead of calling `list_catalogs`, `list_attribute_definitions`, or another MCP tool on your organisation.
 
 Two ways to prevent it. First, name the connector and ask for your data: "Using my Bluestone PIM connector, list my catalogs" is more reliable than "List the catalogs in Bluestone PIM." Second, if it happens mid-conversation, redirect: "Don't guess. Call the Bluestone PIM MCP tools and show my live data." Also set the app Description in ChatGPT settings to the recommended text in [Step 3](#step-3-fill-in-the-app-details). See [Getting reliable tool calls](#getting-reliable-tool-calls) for more examples.
+
+**ChatGPT confirms a write but does not call the tool**
+ChatGPT sometimes asks for confirmation, then replies that the connector tool "isn't available for execution" without calling it. This is usually a session or approval issue, not a missing tool on the server.
+
+Try in order:
+1. **New chat** after connecting or refreshing the Bluestone PIM app. Include "Using my Bluestone PIM connector" in the first message.
+2. **Verify reads first:** "Using my Bluestone PIM connector, list my catalogs." If that works, the connector is live.
+3. **After you confirm a write,** say: "Call generate_variant_matrix now with createMissingAttributes true and createMissingValues true." Approve the tool call when ChatGPT shows the approval prompt.
+4. **Reconnect:** Settings → Apps → Bluestone PIM → disconnect, re-authorise, new chat.
+5. **Check the tool list** in app settings includes `generate_variant_matrix` (requires server v1.8.2+ deployed to your MCP URL).
+
+If the tool call runs but returns an API error, that is a credentials or permissions issue, not connector availability. See the other troubleshooting entries below.
 
 **Completeness search shows a plain table instead of the rich card layout**
 The card layout with summary stats, progress bars, and filter pills is not rendered by the MCP server. It depends on the AI client and how the model formats the reply.

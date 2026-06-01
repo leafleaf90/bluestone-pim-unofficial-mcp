@@ -1863,6 +1863,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Always confirm the product name, product number, and product type with the user before calling create_product. " +
         "Always confirm variant group, attribute, and VLA flags before calling set_variant_level_attribute. " +
         "Always confirm the variant group, dimensions, allowed values, expected combination count, and whether to create missing attributes or values before calling generate_variant_matrix. " +
+        "After the user confirms in chat, call generate_variant_matrix immediately. Do not tell the user a connector tool is unavailable unless a tool call was attempted and returned an error. " +
         "Always confirm the variant group and the exact variant products before calling append_variants_to_group. " +
         "Always confirm the exact missing category name and parent before calling create_category_node. " +
         "Always confirm the exact missing attribute name, data type, unit, and initial enum values for select attributes before calling create_attribute_definition. " +
@@ -5395,6 +5396,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Optional numberPrefix generates variant numbers like \"{prefix}-red-m-standard\". " +
         `Maximum ${MAX_VARIANT_MATRIX_SIZE} combinations per call. ` +
         "Always confirm the group, every dimension, every allowed value, the expected combination count, naming pattern, and create flags with the user before calling this tool. " +
+        "After the user confirms, call this tool in the same conversation. Do not respond that the connector is unavailable unless the tool call was attempted and failed. " +
         "On failure after partial progress, the error message lists created product IDs for cleanup.",
       annotations: {
         readOnlyHint: false,
