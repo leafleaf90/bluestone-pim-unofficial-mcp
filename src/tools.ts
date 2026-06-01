@@ -442,7 +442,7 @@ async function configureVariantLevelAttributeInternal(
 ): Promise<void> {
   const query = forceVla ? "?forceVla=true" : "";
   await mapiPut<Record<string, unknown>>(
-    `${MAPI_PIM_BASE}/products/${groupProductId}/variants/attributes/${definitionId}${query}`,
+    `/pim/products/${groupProductId}/variants/attributes/${definitionId}${query}`,
     { copy: true, definingAttributes: true },
     creds
   );
@@ -1030,7 +1030,7 @@ async function appendVariantsToGroup(
     const batch = productIds.slice(offset, offset + MAX_VARIANT_APPEND_BATCH);
     const query = forceVla ? "?forceVla=true" : "";
     await mapiPost<Record<string, unknown>>(
-      `${MAPI_PIM_BASE}/products/variants/append/by-ids${query}`,
+      `/pim/products/variants/append/by-ids${query}`,
       { variantGroupId, productIds: batch },
       creds
     );
@@ -4379,7 +4379,7 @@ export function createMcpServer(creds: Credentials): McpServer {
       };
       const query = forceVla ? "?forceVla=true" : "";
       await mapiPut<Record<string, unknown>>(
-        `${MAPI_PIM_BASE}/products/${groupProductId}/variants/attributes/${definitionId}${query}`,
+        `/pim/products/${groupProductId}/variants/attributes/${definitionId}${query}`,
         body,
         creds
       );

@@ -393,6 +393,15 @@ See the [Examples](#examples) section for prompts and what to expect.
 
 ## ChatGPT
 
+> **Important: read vs write on ChatGPT plans**
+>
+> ChatGPT Developer Mode can **list** all MCP tools, including write tools, but **which tools can actually run** depends on your ChatGPT plan:
+>
+> - **Plus and Pro:** **read-only** MCP tools only (`list_catalogs`, `get_product`, `search_products`, and other tools with `readOnlyHint: true`). Write tools such as `generate_variant_matrix`, `create_product`, and `set_product_attribute` appear in the tool list but **cannot be invoked**. ChatGPT may describe the payload instead of calling the tool.
+> - **Business, Enterprise, and Edu:** read and write MCP tools, with per-call approval cards for mutations.
+>
+> **Quick check:** ask "Using my Bluestone PIM connector, list my catalogs." If that works but variant matrix generation does not, you are on a read-only plan for MCP writes. Use **Cursor** or **Claude Desktop** for write operations on a personal account, or move to a Business workspace for writes inside ChatGPT.
+
 > **Note:** Custom MCP servers can only be added from the ChatGPT web app at chatgpt.com, not from the desktop client. Once added, the connector will be available in the desktop client as well.
 
 ### Step 1: Open Settings
@@ -528,9 +537,11 @@ This happens when the prompt reads like a documentation or concept question. Cha
 Two ways to prevent it. First, name the connector and ask for your data: "Using my Bluestone PIM connector, list my catalogs" is more reliable than "List the catalogs in Bluestone PIM." Second, if it happens mid-conversation, redirect: "Don't guess. Call the Bluestone PIM MCP tools and show my live data." Also set the app Description in ChatGPT settings to the recommended text in [Step 3](#step-3-fill-in-the-app-details). See [Getting reliable tool calls](#getting-reliable-tool-calls) for more examples.
 
 **ChatGPT confirms a write but does not call the tool**
-ChatGPT sometimes asks for confirmation, then replies that the connector tool "isn't available for execution" without calling it. This is usually a session or approval issue, not a missing tool on the server.
+ChatGPT sometimes asks for confirmation, then replies that the connector tool "isn't available for execution" or that only the schema is visible. **First check your ChatGPT plan.** On Plus and Pro, write MCP tools are not invokable: discovery shows them, but `tools/call` for mutations is disabled by OpenAI. Read tools such as `list_catalogs` still work. On Business, Enterprise, or Edu, writes should show an approval card when invoked.
 
-Try in order:
+If reads work but writes never execute on a **Plus or Pro** account, this is expected. Use Cursor or Claude Desktop for `generate_variant_matrix` and other write tools, or use a Business workspace in ChatGPT.
+
+If writes fail on a **Business** account, try in order:
 1. **New chat** after connecting or refreshing the Bluestone PIM app. Include "Using my Bluestone PIM connector" in the first message.
 2. **Verify reads first:** "Using my Bluestone PIM connector, list my catalogs." If that works, the connector is live.
 3. **After you confirm a write,** say: "Call generate_variant_matrix now with createMissingAttributes true and createMissingValues true." Approve the tool call when ChatGPT shows the approval prompt.
