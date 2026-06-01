@@ -239,7 +239,9 @@ A [Bluestone PIM Labs](https://labs.bluestonepim.com/) community project. Not an
 
 Start with "Using Bluestone PIM, ..." rather than just "Show me my catalogs." This sounds minor, but it matters: when Claude has code execution or other tools available alongside the MCP, it can try to fetch data via HTTP or write an artifact instead of calling the right tool. Naming the source removes the ambiguity. All the examples below follow this pattern.
 
-If it does go wrong mid-conversation, redirect with: "Don't write code. Use the Bluestone PIM tools directly."
+**ChatGPT in particular:** without naming the connector, ChatGPT may describe what catalogs *usually* look like in PIM systems instead of calling `list_catalogs` on your organisation. Prefer "Using my Bluestone PIM connector, ..." or "In my Bluestone PIM organisation, ...". See [Getting reliable tool calls](#getting-reliable-tool-calls) in the ChatGPT setup section.
+
+If it does go wrong mid-conversation, redirect with: "Don't write code. Use the Bluestone PIM tools directly." In ChatGPT, also try: "Don't guess. Call the Bluestone PIM MCP tools and show my live data."
 
 The same applies to image requests. If Claude has web search available, "show the image" can match a web search before it matches the MCP tool. Say "show me the product image from Bluestone PIM" to make the intent unambiguous.
 
@@ -414,7 +416,7 @@ Navigate to **Apps** in the left sidebar, then click **Advanced settings**. Enab
 Fill in the New App form:
 
 - **Name**: `Bluestone PIM`
-- **Description**: `Unofficial Bluestone PIM MCP Server` (optional)
+- **Description**: `Live Bluestone PIM data via MCP. Always call MCP tools for org-specific questions (catalogs, products, attributes). Never answer from general knowledge when a tool applies.` (optional but recommended)
 - **MCP Server URL**: [server-url]
 - **Authentication**: `OAuth`
 
@@ -435,6 +437,24 @@ You are now connected. ChatGPT shows a "Bluestone PIM is now connected" confirma
 ### Try it
 
 See the [Examples](#examples) section for prompts and what to expect.
+
+### Getting reliable tool calls
+
+ChatGPT is more likely than Claude to answer from general PIM knowledge when a prompt sounds like a documentation question. Name your connector and ask for **your** data, not a generic explanation.
+
+**Less reliable:** "List the catalogs in Bluestone PIM"
+
+**More reliable:** "Using my Bluestone PIM connector, list my catalogs"
+
+**Less reliable:** "What kind of catalogs do companies usually have in Bluestone?"
+
+**More reliable:** "Using Bluestone PIM, what catalogs do I have in my organisation?"
+
+**Rule of thumb:** include *my*, *my organisation*, or *the connector* when you want a tool call, not an essay.
+
+If ChatGPT already started explaining catalog types from memory, redirect with: "Don't guess. Call the Bluestone PIM MCP tools and show my live data."
+
+The app **Description** in Step 3 reinforces this for every conversation. Use the recommended text above rather than a generic label like "Unofficial MCP Server".
 
 ---
 
@@ -499,6 +519,11 @@ By default this server connects to the **test environment** (`api.test.bluestone
 This happens when Claude has code execution or artifact creation available alongside the MCP, and reasons it can fetch the data directly. It cannot: the Bluestone credentials only exist inside the tool execution context, so direct HTTP calls will always fail with no API key.
 
 Two ways to prevent it. First, be explicit in your opening message: "Using Bluestone PIM, show me my catalogs" is more reliable than "show me my catalogs." Second, if it happens mid-conversation, redirect: "Don't write code. Use the Bluestone PIM tools directly." The server description now includes an explicit instruction to the model not to attempt direct API calls, which reduces how often this occurs, but it is not a complete fix. When Claude has strong code execution priors (for example, if you opened the conversation in Code mode), it may still choose code over the MCP tool.
+
+**ChatGPT explains Bluestone instead of calling tools**
+This happens when the prompt reads like a documentation or concept question. ChatGPT may describe typical catalog types, attribute models, or PIM patterns from training data instead of calling `list_catalogs`, `list_attribute_definitions`, or another MCP tool on your organisation.
+
+Two ways to prevent it. First, name the connector and ask for your data: "Using my Bluestone PIM connector, list my catalogs" is more reliable than "List the catalogs in Bluestone PIM." Second, if it happens mid-conversation, redirect: "Don't guess. Call the Bluestone PIM MCP tools and show my live data." Also set the app Description in ChatGPT settings to the recommended text in [Step 3](#step-3-fill-in-the-app-details). See [Getting reliable tool calls](#getting-reliable-tool-calls) for more examples.
 
 **Completeness search shows a plain table instead of the rich card layout**
 The card layout with summary stats, progress bars, and filter pills is not rendered by the MCP server. It depends on the AI client and how the model formats the reply.

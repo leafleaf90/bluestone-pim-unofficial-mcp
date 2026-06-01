@@ -1068,6 +1068,221 @@ async function fetchAllAttributeDefinitions(
   return allDefinitions;
 }
 
+interface VariantMatrixDimensionInput {
+  definitionId?: string;
+  attributeName?: string;
+  values: Array<{ valueId?: string; label: string }>;
+}
+
+interface ResolvedVariantMatrixDimension {
+  definitionId: string;
+  attributeName: string;
+  values: Array<{ valueId: string; label: string }>;
+}
+
+function normalizeMatchLabel(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function findAttributeDefinitionByName(
+  definitions: MapiAttributeDefinition[],
+  attributeName: string
+): MapiAttributeDefinition {
+  const normalized = normalizeMatchLabel(attributeName);
+  const exactMatches = definitions.filter(
+    (definition) => normalizeMatchLabel(definition.name) === normalized
+  );
+  if (exactMatches.length === 1) {
+    return exactMatches[0];
+  }
+  if (exactMatches.length > 1) {
+    throw new Error(
+      `Multiple attribute definitions are named "${attributeName}". Pass definitionId instead.`
+    );
+  }
+
+  const numberMatches = definitions.filter(
+    (definition) => normalizeMatchLabel(definition.number) === normalized
+  );
+  if (numberMatches.length === 1) {
+    return numberMatches[0];
+  }
+
+  throw new Error(
+    `No attribute definition named "${attributeName}" was found. Call list_attribute_definitions or create_attribute_definition first.`
+  );
+}
+
+function resolveEnumValueIdForLabel(
+  definition: MapiAttributeDefinition,
+  label: string,
+  valueId?: string
+): string {
+  if (valueId) {
+    return valueId;
+  }
+
+  const enumValues = definition.restrictions?.enum?.values ?? [];
+  const normalized = normalizeMatchLabel(label);
+  const exactMatches = enumValues.filter(
+    (entry) =>
+      normalizeMatchLabel(entry.value) === normalized ||
+      (entry.number && normalizeMatchLabel(entry.number) === normalized)
+  );
+  if (exactMatches.length === 1) {
+    const resolvedId = exactMatches[0].valueId;
+    if (!resolvedId) {
+      throw new Error(
+        `Enum value "${label}" on attribute "${definition.name}" has no valueId in the attribute definition. Call get_attribute_definition for the full enum list.`
+      );
+    }
+    return resolvedId;
+  }
+  if (exactMatches.length > 1) {
+    throw new Error(
+      `Multiple enum values match "${label}" on attribute "${definition.name}". Pass valueId instead.`
+    );
+  }
+
+  throw new Error(
+    `No enum value "${label}" found on attribute "${definition.name}". Call get_attribute_definition or append_select_attribute_values first.`
+  );
+}
+
+async function fetchAllDictionaryValuesForDefinition(
+  dictionaryId: string,
+  creds: Credentials,
+  context?: string
+): Promise<MapiDictionaryValue[]> {
+  const allValues: MapiDictionaryValue[] = [];
+  let apiPage = 0;
+  const listUrl = `${MAPI_PIM_BASE}/definitions/dictionary/${dictionaryId}/values/list?excludeToBeRemoved=true`;
+
+  while (true) {
+    const response = await mapiPostBody<MapiDictionaryValuesResponse>(
+      listUrl,
+      { page: apiPage, pageSize: MAPI_DEFINITIONS_FETCH_PAGE_SIZE },
+      creds,
+      { context }
+    );
+    const batch = response.data ?? [];
+    allValues.push(...batch);
+    if (batch.length < MAPI_DEFINITIONS_FETCH_PAGE_SIZE) {
+      break;
+    }
+    apiPage += 1;
+  }
+
+  return allValues;
+}
+
+function resolveDictionaryValueIdForLabel(
+  dictionaryValues: MapiDictionaryValue[],
+  label: string,
+  attributeName: string,
+  context: string,
+  valueId?: string
+): string {
+  if (valueId) {
+    return valueId;
+  }
+
+  const normalized = normalizeMatchLabel(label);
+  const exactMatches = dictionaryValues.filter((entry) => {
+    const entryLabel = resolveMultiLanguageValue(entry.value, context);
+    return (
+      normalizeMatchLabel(entryLabel) === normalized ||
+      (entry.number && normalizeMatchLabel(entry.number) === normalized)
+    );
+  });
+  if (exactMatches.length === 1) {
+    return exactMatches[0].id;
+  }
+  if (exactMatches.length > 1) {
+    throw new Error(
+      `Multiple dictionary values match "${label}" on attribute "${attributeName}". Pass valueId instead.`
+    );
+  }
+
+  throw new Error(
+    `No dictionary value "${label}" found on attribute "${attributeName}". Call list_dictionary_values or create_dictionary_value first.`
+  );
+}
+
+async function resolveVariantMatrixDimensions(
+  dimensions: VariantMatrixDimensionInput[],
+  creds: Credentials,
+  context?: string
+): Promise<ResolvedVariantMatrixDimension[]> {
+  const effectiveContext = context ?? "en";
+  const definitions = await fetchAllAttributeDefinitions(creds);
+  const resolvedDimensions: ResolvedVariantMatrixDimension[] = [];
+
+  for (const dimension of dimensions) {
+    if (!dimension.definitionId && !dimension.attributeName) {
+      throw new Error(
+        "Each dimension needs definitionId or attributeName. Pass attribute names like Color and value labels like Red when IDs are unknown."
+      );
+    }
+
+    const definition = dimension.definitionId
+      ? (() => {
+          const found = definitions.find((entry) => entry.id === dimension.definitionId);
+          if (!found) {
+            throw new Error(
+              `Attribute definition ${dimension.definitionId} was not found. Call list_attribute_definitions first.`
+            );
+          }
+          return found;
+        })()
+      : findAttributeDefinitionByName(definitions, dimension.attributeName!);
+
+    const dataType = definition.dataType;
+    if (
+      dataType !== "single_select" &&
+      dataType !== "multi_select" &&
+      dataType !== "dictionary"
+    ) {
+      throw new Error(
+        `Attribute "${definition.name}" has dataType ${dataType ?? "unknown"}. Variant matrix dimensions must be single_select, multi_select, or dictionary.`
+      );
+    }
+
+    let dictionaryValues: MapiDictionaryValue[] | undefined;
+    if (dataType === "dictionary") {
+      dictionaryValues = await fetchAllDictionaryValuesForDefinition(
+        definition.id,
+        creds,
+        effectiveContext
+      );
+    }
+
+    const resolvedValues: Array<{ valueId: string; label: string }> = [];
+    for (const value of dimension.values) {
+      const valueId =
+        dataType === "dictionary"
+          ? resolveDictionaryValueIdForLabel(
+              dictionaryValues!,
+              value.label,
+              definition.name,
+              effectiveContext,
+              value.valueId
+            )
+          : resolveEnumValueIdForLabel(definition, value.label, value.valueId);
+
+      resolvedValues.push({ valueId, label: value.label });
+    }
+
+    resolvedDimensions.push({
+      definitionId: definition.id,
+      attributeName: definition.name,
+      values: resolvedValues,
+    });
+  }
+
+  return resolvedDimensions;
+}
+
 type BluestoneProductType = "SINGLE" | "GROUP" | "VARIANT" | "BUNDLE";
 
 function searchCategoryFilter(categoryId: string, categoryScope: CategoryScope) {
@@ -1328,6 +1543,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Start from a category scope via list_catalogs or list_category_tree. Pass groupProductId when the target group is already known. " +
         "Results are suggestions only: confirm with the user before converting products to variants.\n\n" +
         "Variant matrix workflow: when the user wants a full variant matrix from dimensions and allowed values, prefer generate_variant_matrix after confirming the group, dimensions, values, and naming pattern. " +
+        "Do not tell the user that ID discovery blocks the workflow: generate_variant_matrix accepts attribute names and value labels and resolves definitionId and valueId internally. " +
+        "Call list_attribute_definitions only when an attribute or value is missing from the tenant or the tool returns a not-found error. " +
         "For manual control, create the variant group with create_product and type GROUP, configure each dimension with set_variant_level_attribute, create SINGLE products with create_product, set values with set_product_attribute, then append_variants_to_group. " +
         "Variant names default to \"{group name} - {value1} / {value2}\" unless the user specifies otherwise.\n\n" +
         "Working state vs published: the default read tools return working state data, " +
@@ -4859,9 +5076,12 @@ export function createMcpServer(creds: Credentials): McpServer {
       description:
         "Generate a full variant matrix for a variant group from variant-defining dimensions and attach all variants in one workflow. " +
         "Creates or uses an existing GROUP product, configures each dimension as a variant-defining VLA, creates one SINGLE per cartesian combination, sets defining attribute values, and assigns all variants to the group. " +
-        "Call list_attribute_definitions first to resolve definitionId and enum or dictionary value IDs for each dimension. " +
+        "Pass human-readable attribute names and value labels: the tool resolves definitionId and enum or dictionary valueId internally. " +
+        "IDs are optional when names and labels are unambiguous. Call list_attribute_definitions or get_attribute_definition only if resolution fails because an attribute or value is missing. " +
+        "Do not refuse to call this tool because IDs are unknown: pass attributeName and value labels instead. " +
         "Pass groupProductId for an existing GROUP, or groupName (and optional groupNumber) to create a new group. " +
-        "Each dimension needs a definitionId and at least one value with valueId and label. Labels are used in generated variant names. " +
+        "Each dimension needs attributeName or definitionId, plus values with label. valueId is optional when the label matches an enum or dictionary value. " +
+        "Dimensions must be single_select, multi_select, or dictionary attributes. " +
         "Default variant name pattern: \"{group name} - {value1} / {value2}\". " +
         "Optional numberPrefix generates variant numbers like \"{prefix}-red-m-standard\". " +
         `Maximum ${MAX_VARIANT_MATRIX_SIZE} combinations per call. ` +
@@ -4907,26 +5127,42 @@ export function createMcpServer(creds: Credentials): McpServer {
           .describe(
             "When true, overwrite existing VLA values when configuring dimensions and attaching variants. Default false."
           ),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context for resolving dictionary value labels (default \"en\"). Call list_contexts to see available values."
+          ),
         dimensions: z
           .array(
             z.object({
               definitionId: z
                 .string()
-                .describe("Attribute definition ID for this variant dimension."),
+                .optional()
+                .describe(
+                  "Attribute definition ID for this variant dimension. Optional when attributeName is passed."
+                ),
               attributeName: z
                 .string()
                 .optional()
-                .describe("Human-readable attribute name for error messages."),
+                .describe(
+                  "Human-readable attribute name (for example Color or Size). Used to resolve definitionId when omitted."
+                ),
               values: z
                 .array(
                   z.object({
                     valueId: z
                       .string()
-                      .describe("Enum or dictionary value ID to set on each variant."),
+                      .optional()
+                      .describe(
+                        "Enum or dictionary value ID. Optional when label matches an allowed value on the attribute."
+                      ),
                     label: z
                       .string()
                       .min(1)
-                      .describe("Human-readable value label used in generated variant names."),
+                      .describe(
+                        "Human-readable value label (for example Red or M). Used in generated variant names and to resolve valueId when omitted."
+                      ),
                   })
                 )
                 .min(1)
@@ -4936,7 +5172,7 @@ export function createMcpServer(creds: Credentials): McpServer {
           .min(1)
           .max(10)
           .describe(
-            "Variant-defining dimensions. The cartesian product of all value lists determines how many variants are created."
+            "Variant-defining dimensions. Pass attributeName and value labels; IDs are resolved internally. The cartesian product of all value lists determines how many variants are created."
           ),
       },
     },
@@ -4947,6 +5183,7 @@ export function createMcpServer(creds: Credentials): McpServer {
       categoryId,
       numberPrefix,
       forceVla,
+      context,
       dimensions,
     }) => {
       if (!groupProductId && !groupName) {
@@ -4955,7 +5192,13 @@ export function createMcpServer(creds: Credentials): McpServer {
         );
       }
 
-      const combinationCount = dimensions.reduce(
+      const resolvedDimensions = await resolveVariantMatrixDimensions(
+        dimensions,
+        creds,
+        context
+      );
+
+      const combinationCount = resolvedDimensions.reduce(
         (total, dimension) => total * dimension.values.length,
         1
       );
@@ -4996,7 +5239,7 @@ export function createMcpServer(creds: Credentials): McpServer {
           }
         }
 
-        for (const dimension of dimensions) {
+        for (const dimension of resolvedDimensions) {
           await setProductAttributeInternal(
             resolvedGroupId,
             dimension.definitionId,
@@ -5011,7 +5254,7 @@ export function createMcpServer(creds: Credentials): McpServer {
           );
         }
 
-        const valueLists: VariantMatrixCombinationValue[][] = dimensions.map((dimension) =>
+        const valueLists: VariantMatrixCombinationValue[][] = resolvedDimensions.map((dimension) =>
           dimension.values.map((value) => ({
             definitionId: dimension.definitionId,
             valueId: value.valueId,
@@ -5076,9 +5319,9 @@ export function createMcpServer(creds: Credentials): McpServer {
 
         await appendVariantsToGroup(resolvedGroupId, variantProductIds, creds, forceVla);
 
-        const dimensionSummary = dimensions
+        const dimensionSummary = resolvedDimensions
           .map((dimension) => {
-            const label = dimension.attributeName ?? dimension.definitionId;
+            const label = dimension.attributeName;
             return `${label} (${dimension.values.length})`;
           })
           .join(", ");
