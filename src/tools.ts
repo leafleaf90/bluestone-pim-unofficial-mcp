@@ -357,6 +357,91 @@ const API_BASE = IS_PRODUCTION
   : "https://api.test.bluestonepim.com";
 const PAPI_BASE = `${API_BASE}/v1`;
 const MAPI_PIM_BASE = `${API_BASE}/pim`;
+const MAX_VARIANT_APPEND_BATCH = 100;
+const MAX_VARIANT_MATRIX_SIZE = 500;
+
+interface VariantMatrixCombinationValue {
+  definitionId: string;
+  valueId: string;
+  label: string;
+}
+
+function cartesianProduct<T>(arrays: T[][]): T[][] {
+  return arrays.reduce<T[][]>(
+    (acc, curr) => acc.flatMap((prefix) => curr.map((item) => [...prefix, item])),
+    [[]]
+  );
+}
+
+function slugifyProductNumberPart(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  return slug || "value";
+}
+
+async function createMapiProduct(
+  body: { name: string; type?: string; number?: string },
+  creds: Credentials
+): Promise<string> {
+  const result = await mapiPost<Record<string, unknown>>(
+    "/pim/products",
+    {
+      name: body.name,
+      type: body.type ?? "SINGLE",
+      ...(body.number && { number: body.number }),
+    },
+    creds
+  );
+  if (!result.resourceId) {
+    throw new Error(
+      `Product "${body.name}" was created but no resource-id was returned in the response headers.`
+    );
+  }
+  return result.resourceId;
+}
+
+async function assignProductToCategoryInternal(
+  productId: string,
+  categoryId: string,
+  creds: Credentials
+): Promise<void> {
+  await mapiPost<Record<string, unknown>>(
+    `/pim/catalogs/nodes/${categoryId}/products`,
+    { productId },
+    creds
+  );
+}
+
+async function setProductAttributeInternal(
+  productId: string,
+  definitionId: string,
+  values: string[],
+  creds: Credentials
+): Promise<void> {
+  await mapiPost<Record<string, unknown>>(
+    `/pim/products/${productId}/attributes`,
+    { definitionId, values },
+    creds
+  );
+}
+
+async function configureVariantLevelAttributeInternal(
+  groupProductId: string,
+  definitionId: string,
+  creds: Credentials,
+  forceVla?: boolean
+): Promise<void> {
+  const query = forceVla ? "?forceVla=true" : "";
+  await mapiPut<Record<string, unknown>>(
+    `${MAPI_PIM_BASE}/products/${groupProductId}/variants/attributes/${definitionId}${query}`,
+    { copy: true, definingAttributes: true },
+    creds
+  );
+}
 const MAPI_SEARCH_BASE = `${API_BASE}/search`;
 const MAPI_GLOBAL_SETTINGS_BASE = `${API_BASE}/global-settings`;
 const MAPI_COMPLETENESS_SCORE_BASE = `${API_BASE}/completeness-score`;
@@ -805,6 +890,26 @@ function computeCompletenessSummary(
   };
 }
 
+async function appendVariantsToGroup(
+  variantGroupId: string,
+  productIds: string[],
+  creds: Credentials,
+  forceVla?: boolean
+): Promise<void> {
+  if (productIds.length === 0) {
+    return;
+  }
+  for (let offset = 0; offset < productIds.length; offset += MAX_VARIANT_APPEND_BATCH) {
+    const batch = productIds.slice(offset, offset + MAX_VARIANT_APPEND_BATCH);
+    const query = forceVla ? "?forceVla=true" : "";
+    await mapiPost<Record<string, unknown>>(
+      `${MAPI_PIM_BASE}/products/variants/append/by-ids${query}`,
+      { variantGroupId, productIds: batch },
+      creds
+    );
+  }
+}
+
 function productNumberConflictMessage(error: unknown, number: string): string | null {
   if (!(error instanceof Error)) {
     return null;
@@ -1186,7 +1291,10 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- Create a dictionary value for a dictionary attribute definition (create_dictionary_value)\n" +
         "- Append values to single_select and multi_select attribute definitions (append_select_attribute_values)\n" +
         "- Create a catalog category node with optional parent category (create_category_node)\n" +
-        "- Create a new product by name, optionally assigned to a catalog category (create_product)\n" +
+        "- Create a new product by name, optionally as SINGLE, GROUP, or BUNDLE, and optionally assigned to a catalog category (create_product)\n" +
+        "- Configure a variant level attribute on a variant group, including variant-defining flags (set_variant_level_attribute)\n" +
+        "- Generate a full variant matrix from variant-defining dimensions and attach variants to a group (generate_variant_matrix)\n" +
+        "- Assign multiple SINGLE products as variants of a variant group in bulk (append_variants_to_group)\n" +
         "- Add an attribute value to a product (set_product_attribute)\n" +
         "- Assign an existing product to a catalog category (assign_product_to_category)\n" +
         "- Rename an existing product (update_product_name)\n\n" +
@@ -1218,14 +1326,20 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Use canvases/bluestone-validation-issues.canvas.tsx as the reference layout. Keep chat to a short intro and point the user to the canvas.\n\n" +
         "Variant group candidates: when the user asks which SINGLE products might belong in an existing variant group, or which loose products should join a group, call suggest_variant_group_candidates. " +
         "Start from a category scope via list_catalogs or list_category_tree. Pass groupProductId when the target group is already known. " +
-        "Results are suggestions only: confirm with the user before converting products to variants in the UI or via a future write tool.\n\n" +
+        "Results are suggestions only: confirm with the user before converting products to variants.\n\n" +
+        "Variant matrix workflow: when the user wants a full variant matrix from dimensions and allowed values, prefer generate_variant_matrix after confirming the group, dimensions, values, and naming pattern. " +
+        "For manual control, create the variant group with create_product and type GROUP, configure each dimension with set_variant_level_attribute, create SINGLE products with create_product, set values with set_product_attribute, then append_variants_to_group. " +
+        "Variant names default to \"{group name} - {value1} / {value2}\" unless the user specifies otherwise.\n\n" +
         "Working state vs published: the default read tools return working state data, " +
         "which includes unpublished changes and is what enrichment teams work with. " +
         "Use the list_published_* tools when the user specifically asks about live/published data.\n\n" +
         "Context (language/market): read tools accept an optional context parameter. " +
         "If the user asks to see data in a specific language, call list_contexts first to find the right context ID, " +
         "then pass it to subsequent tool calls. The default context is 'en' (English).\n\n" +
-        "Always confirm the product name and product number with the user before calling create_product. " +
+        "Always confirm the product name, product number, and product type with the user before calling create_product. " +
+        "Always confirm variant group, attribute, and VLA flags before calling set_variant_level_attribute. " +
+        "Always confirm the variant group, dimensions, allowed values, and expected combination count before calling generate_variant_matrix. " +
+        "Always confirm the variant group and the exact variant products before calling append_variants_to_group. " +
         "Always confirm the exact missing category name and parent before calling create_category_node. " +
         "Always confirm the exact missing attribute name, data type, unit, and initial enum values for select attributes before calling create_attribute_definition. " +
         "Always confirm the exact dictionary or select values before calling create_dictionary_value or append_select_attribute_values. " +
@@ -3663,6 +3777,109 @@ export function createMcpServer(creds: Credentials): McpServer {
     }
   );
 
+  // Tool: set_variant_level_attribute
+  server.registerTool(
+    "set_variant_level_attribute",
+    {
+      description:
+        "Configure a Variant Level Attribute (VLA) on a variant group product. " +
+        "Use this to mark attributes as variant-defining before generating a variant matrix. " +
+        "The groupProductId must be a GROUP product. The attribute definition must already be present on the group product: call set_product_attribute on the group first if list_variant_level_attributes does not list it. " +
+        "Variant-defining attributes require copy true. Attributes marked locked or mandatory also require copy true. " +
+        "Call get_variant_level_attribute or list_variant_level_attributes to inspect current settings. " +
+        "Always confirm the variant group, attribute, and exact flag changes with the user before calling this tool.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        groupProductId: z
+          .string()
+          .describe("Variant group product ID (type GROUP). Get this from create_product with type GROUP or get_product."),
+        definitionId: z
+          .string()
+          .describe("Attribute definition ID for the VLA. Get this from list_attribute_definitions."),
+        copy: z
+          .boolean()
+          .describe(
+            "When true, the attribute is a VLA inherited by child variants. Required true for variant-defining attributes."
+          ),
+        variantDefining: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, this VLA distinguishes variants from each other (for example colour or size). Requires copy true."
+          ),
+        locked: z
+          .boolean()
+          .optional()
+          .describe("When true, all variants must share the same value as the group. Requires copy true."),
+        mandatory: z
+          .boolean()
+          .optional()
+          .describe("When true, all variants must have a value for this attribute. Requires copy true."),
+        forceVla: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, overwrite existing attribute values on variants when propagating VLA changes. Default false."
+          ),
+        attributeName: z
+          .string()
+          .optional()
+          .describe("Human-readable attribute name for the confirmation message."),
+        groupProductName: z
+          .string()
+          .optional()
+          .describe("Human-readable group name for the confirmation message."),
+      },
+    },
+    async ({
+      groupProductId,
+      definitionId,
+      copy,
+      variantDefining,
+      locked,
+      mandatory,
+      forceVla,
+      attributeName,
+      groupProductName,
+    }) => {
+      const body: MapiProductVariantAttribute = {
+        copy,
+        ...(variantDefining !== undefined && { definingAttributes: variantDefining }),
+        ...(locked !== undefined && { locked }),
+        ...(mandatory !== undefined && { mandatory }),
+      };
+      const query = forceVla ? "?forceVla=true" : "";
+      await mapiPut<Record<string, unknown>>(
+        `${MAPI_PIM_BASE}/products/${groupProductId}/variants/attributes/${definitionId}${query}`,
+        body,
+        creds
+      );
+
+      const attrLabel = attributeName ?? definitionId;
+      const groupLabel = groupProductName ?? groupProductId;
+      const flags = [
+        `copy: ${copy}`,
+        ...(variantDefining !== undefined ? [`variant-defining: ${variantDefining}`] : []),
+        ...(locked !== undefined ? [`locked: ${locked}`] : []),
+        ...(mandatory !== undefined ? [`mandatory: ${mandatory}`] : []),
+      ].join(", ");
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Updated VLA settings for "${attrLabel}" on variant group "${groupLabel}". ${flags}.`,
+          },
+        ],
+      };
+    }
+  );
+
   // Tool: get_product_validation_issues
   server.registerTool(
     "get_product_validation_issues",
@@ -4442,7 +4659,8 @@ export function createMcpServer(creds: Credentials): McpServer {
       description:
         "Create a new product in Bluestone PIM. " +
         "The product name is required. Product number is optional but strongly recommended for onboarding because it is the unique product key Bluestone uses to detect existing products. " +
-        "Always confirm the name and product number with the user before calling this tool. " +
+        "Use type GROUP to create a variant group parent. Omit type or use SINGLE for standalone products and future variant children. " +
+        "Always confirm the name, product number, and product type with the user before calling this tool. " +
         "Returns the name and ID of the newly created product. " +
         "If categoryId is provided, the product will also be assigned to that catalog category after creation. " +
         "Category assignment is a separate step: if it fails, the product still exists and the failure is reported separately. " +
@@ -4465,6 +4683,12 @@ export function createMcpServer(creds: Credentials): McpServer {
           .describe(
             "Optional product number. Strongly recommended for onboarding because it is the unique product key used to detect existing products. Must be confirmed by the user before calling."
           ),
+        type: z
+          .enum(["SINGLE", "GROUP", "BUNDLE"])
+          .optional()
+          .describe(
+            "Product type. Use GROUP for a variant group parent. Omit or use SINGLE for standalone products and variant children. BUNDLE for bundle products."
+          ),
         categoryId: z
           .string()
           .optional()
@@ -4474,13 +4698,15 @@ export function createMcpServer(creds: Credentials): McpServer {
           ),
       },
     },
-    async ({ name, number, categoryId }) => {
+    async ({ name, number, type, categoryId }) => {
       let resourceId: string | null;
+      const productType = type ?? "SINGLE";
       try {
         const result = await mapiPost<Record<string, unknown>>(
           "/pim/products",
           {
             name,
+            type: productType,
             ...(number && { number }),
           },
           creds
@@ -4506,6 +4732,8 @@ export function createMcpServer(creds: Credentials): McpServer {
         );
       }
 
+      const typeLabel = productType === "SINGLE" ? "" : ` Type: ${productType}.`;
+
       if (categoryId) {
         try {
           await mapiPost<Record<string, unknown>>(
@@ -4518,21 +4746,22 @@ export function createMcpServer(creds: Credentials): McpServer {
               {
                 type: "text" as const,
                 text:
-                  `Product "${name}" created and assigned to catalog category ${categoryId}. ID: ${resourceId}` +
+                  `Product "${name}" created and assigned to catalog category ${categoryId}. ID: ${resourceId}.` +
+                  typeLabel +
                   (number ? ` Number: ${number}` : ""),
               },
             ],
           };
         } catch (err) {
-          // Product was created: report success and note the assignment failure.
           const message = err instanceof Error ? err.message : String(err);
           return {
             content: [
               {
                 type: "text" as const,
                 text:
-                  `Product "${name}" created successfully. ID: ${resourceId}\n\n` +
-                  (number ? `Number: ${number}\n\n` : "") +
+                  `Product "${name}" created successfully. ID: ${resourceId}.` +
+                  typeLabel +
+                  (number ? `\n\nNumber: ${number}\n\n` : "\n\n") +
                   `Note: category assignment to ${categoryId} failed. You can assign it manually in Bluestone PIM. Error: ${message}`,
               },
             ],
@@ -4545,11 +4774,338 @@ export function createMcpServer(creds: Credentials): McpServer {
           {
             type: "text" as const,
             text:
-              `Product "${name}" created successfully. ID: ${resourceId}` +
+              `Product "${name}" created successfully. ID: ${resourceId}.` +
+              typeLabel +
               (number ? ` Number: ${number}` : ""),
           },
         ],
       };
+    }
+  );
+
+  // Tool: append_variants_to_group
+  server.registerTool(
+    "append_variants_to_group",
+    {
+      description:
+        "Assign multiple SINGLE products as variants of a variant group in one call. " +
+        "Use after creating variant SINGLE products and setting their variant-defining attribute values, or prefer generate_variant_matrix for the full workflow. " +
+        "The variant group must be type GROUP. Each product ID must be a SINGLE product not already assigned to another group. " +
+        "Up to 100 product IDs per API call; this tool batches automatically when more IDs are passed. " +
+        "Call create_product with type GROUP to create the parent, set_variant_level_attribute to configure variant-defining VLAs, " +
+        "create_product for each variant SINGLE, set_product_attribute for each dimension value, then call this tool. " +
+        "Always confirm the variant group and the full list of variant products with the user before calling this tool.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
+      inputSchema: {
+        variantGroupId: z
+          .string()
+          .describe("Variant group product ID (type GROUP). Get this from create_product with type GROUP or get_product."),
+        productIds: z
+          .array(z.string())
+          .min(1)
+          .describe(
+            "SINGLE product IDs to attach as variants. Get these from create_product calls for each matrix combination."
+          ),
+        forceVla: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, overwrite existing VLA values on variants when attaching. Default false."
+          ),
+        groupProductName: z
+          .string()
+          .optional()
+          .describe("Human-readable group name for the confirmation message."),
+      },
+    },
+    async ({ variantGroupId, productIds, forceVla, groupProductName }) => {
+      const uniqueIds = [...new Set(productIds)];
+      if (uniqueIds.length !== productIds.length) {
+        throw new Error(
+          "productIds contains duplicates. Pass each variant product ID once."
+        );
+      }
+
+      await appendVariantsToGroup(variantGroupId, uniqueIds, creds, forceVla);
+
+      const batchCount = Math.ceil(uniqueIds.length / MAX_VARIANT_APPEND_BATCH);
+      const groupLabel = groupProductName ?? variantGroupId;
+      const batchNote =
+        batchCount > 1
+          ? ` Sent in ${batchCount} batches of up to ${MAX_VARIANT_APPEND_BATCH}.`
+          : "";
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Assigned ${uniqueIds.length} variant${uniqueIds.length === 1 ? "" : "s"} to variant group "${groupLabel}".` +
+              batchNote,
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: generate_variant_matrix
+  server.registerTool(
+    "generate_variant_matrix",
+    {
+      description:
+        "Generate a full variant matrix for a variant group from variant-defining dimensions and attach all variants in one workflow. " +
+        "Creates or uses an existing GROUP product, configures each dimension as a variant-defining VLA, creates one SINGLE per cartesian combination, sets defining attribute values, and assigns all variants to the group. " +
+        "Call list_attribute_definitions first to resolve definitionId and enum or dictionary value IDs for each dimension. " +
+        "Pass groupProductId for an existing GROUP, or groupName (and optional groupNumber) to create a new group. " +
+        "Each dimension needs a definitionId and at least one value with valueId and label. Labels are used in generated variant names. " +
+        "Default variant name pattern: \"{group name} - {value1} / {value2}\". " +
+        "Optional numberPrefix generates variant numbers like \"{prefix}-red-m-standard\". " +
+        `Maximum ${MAX_VARIANT_MATRIX_SIZE} combinations per call. ` +
+        "Always confirm the group, every dimension, every allowed value, the expected combination count, and naming pattern with the user before calling this tool. " +
+        "On failure after partial progress, the error message lists created product IDs for cleanup.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
+      inputSchema: {
+        groupProductId: z
+          .string()
+          .optional()
+          .describe(
+            "Existing variant group product ID (type GROUP). Omit when creating a new group with groupName."
+          ),
+        groupName: z
+          .string()
+          .optional()
+          .describe(
+            "Name for a new variant group. Required when groupProductId is omitted. Must be confirmed by the user."
+          ),
+        groupNumber: z
+          .string()
+          .optional()
+          .describe("Optional product number for a newly created variant group."),
+        categoryId: z
+          .string()
+          .optional()
+          .describe(
+            "Optional catalog category ID to assign the group and every generated variant to after creation."
+          ),
+        numberPrefix: z
+          .string()
+          .optional()
+          .describe(
+            "Optional prefix for auto-generated variant product numbers. Example prefix \"WIDGET\" yields \"widget-red-m-standard\"."
+          ),
+        forceVla: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, overwrite existing VLA values when configuring dimensions and attaching variants. Default false."
+          ),
+        dimensions: z
+          .array(
+            z.object({
+              definitionId: z
+                .string()
+                .describe("Attribute definition ID for this variant dimension."),
+              attributeName: z
+                .string()
+                .optional()
+                .describe("Human-readable attribute name for error messages."),
+              values: z
+                .array(
+                  z.object({
+                    valueId: z
+                      .string()
+                      .describe("Enum or dictionary value ID to set on each variant."),
+                    label: z
+                      .string()
+                      .min(1)
+                      .describe("Human-readable value label used in generated variant names."),
+                  })
+                )
+                .min(1)
+                .describe("Allowed values for this dimension."),
+            })
+          )
+          .min(1)
+          .max(10)
+          .describe(
+            "Variant-defining dimensions. The cartesian product of all value lists determines how many variants are created."
+          ),
+      },
+    },
+    async ({
+      groupProductId,
+      groupName,
+      groupNumber,
+      categoryId,
+      numberPrefix,
+      forceVla,
+      dimensions,
+    }) => {
+      if (!groupProductId && !groupName) {
+        throw new Error(
+          "Pass groupProductId for an existing variant group, or groupName to create a new GROUP product."
+        );
+      }
+
+      const combinationCount = dimensions.reduce(
+        (total, dimension) => total * dimension.values.length,
+        1
+      );
+      if (combinationCount > MAX_VARIANT_MATRIX_SIZE) {
+        throw new Error(
+          `This matrix would create ${combinationCount} variants, which exceeds the maximum of ${MAX_VARIANT_MATRIX_SIZE} per call. Reduce dimension values or split the matrix.`
+        );
+      }
+
+      const createdProductIds: string[] = [];
+      let resolvedGroupId = groupProductId;
+      let resolvedGroupName = groupName ?? groupProductId ?? "variant group";
+
+      try {
+        if (resolvedGroupId) {
+          const group = await mapiGetFull<MapiProductDetail>(
+            `${MAPI_PIM_BASE}/products/${resolvedGroupId}`,
+            creds
+          );
+          if (group.type !== "GROUP") {
+            throw new Error(
+              `Product ${resolvedGroupId} has type ${group.type ?? "unknown"}. generate_variant_matrix requires a GROUP product.`
+            );
+          }
+          resolvedGroupName = group.name ?? groupName ?? resolvedGroupId;
+        } else {
+          resolvedGroupId = await createMapiProduct(
+            {
+              name: groupName!,
+              type: "GROUP",
+              ...(groupNumber && { number: groupNumber }),
+            },
+            creds
+          );
+          createdProductIds.push(resolvedGroupId);
+          if (categoryId) {
+            await assignProductToCategoryInternal(resolvedGroupId, categoryId, creds);
+          }
+        }
+
+        for (const dimension of dimensions) {
+          await setProductAttributeInternal(
+            resolvedGroupId,
+            dimension.definitionId,
+            [dimension.values[0]!.valueId],
+            creds
+          );
+          await configureVariantLevelAttributeInternal(
+            resolvedGroupId,
+            dimension.definitionId,
+            creds,
+            forceVla
+          );
+        }
+
+        const valueLists: VariantMatrixCombinationValue[][] = dimensions.map((dimension) =>
+          dimension.values.map((value) => ({
+            definitionId: dimension.definitionId,
+            valueId: value.valueId,
+            label: value.label,
+          }))
+        );
+        const combinations = cartesianProduct(valueLists);
+        const variantSummaries: string[] = [];
+        const variantProductIds: string[] = [];
+        const effectiveNumberPrefix =
+          numberPrefix ??
+          (groupNumber ? slugifyProductNumberPart(groupNumber) : slugifyProductNumberPart(resolvedGroupName));
+
+        for (const combination of combinations) {
+          const valueLabels = combination.map((entry) => entry.label);
+          const variantName = `${resolvedGroupName} - ${valueLabels.join(" / ")}`;
+          const variantNumber =
+            effectiveNumberPrefix.length > 0
+              ? `${effectiveNumberPrefix}-${combination
+                  .map((entry) => slugifyProductNumberPart(entry.label))
+                  .join("-")}`
+              : undefined;
+
+          let variantProductId: string;
+          try {
+            variantProductId = await createMapiProduct(
+              {
+                name: variantName,
+                type: "SINGLE",
+                ...(variantNumber && { number: variantNumber }),
+              },
+              creds
+            );
+          } catch (err) {
+            const conflictMessage = variantNumber
+              ? productNumberConflictMessage(err, variantNumber)
+              : null;
+            if (conflictMessage) {
+              throw new Error(`${conflictMessage} Combination: ${variantName}.`);
+            }
+            throw err;
+          }
+
+          createdProductIds.push(variantProductId);
+          variantProductIds.push(variantProductId);
+
+          if (categoryId) {
+            await assignProductToCategoryInternal(variantProductId, categoryId, creds);
+          }
+
+          for (const entry of combination) {
+            await setProductAttributeInternal(
+              variantProductId,
+              entry.definitionId,
+              [entry.valueId],
+              creds
+            );
+          }
+
+          variantSummaries.push(variantName);
+        }
+
+        await appendVariantsToGroup(resolvedGroupId, variantProductIds, creds, forceVla);
+
+        const dimensionSummary = dimensions
+          .map((dimension) => {
+            const label = dimension.attributeName ?? dimension.definitionId;
+            return `${label} (${dimension.values.length})`;
+          })
+          .join(", ");
+        const sampleNames =
+          variantSummaries.length <= 5
+            ? variantSummaries.join("; ")
+            : `${variantSummaries.slice(0, 3).join("; ")}; and ${variantSummaries.length - 3} more`;
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                `Generated variant matrix for "${resolvedGroupName}": ${variantProductIds.length} variants created and assigned to group ID ${resolvedGroupId}. ` +
+                `Dimensions: ${dimensionSummary}. ` +
+                `Variants: ${sampleNames}.`,
+            },
+          ],
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const cleanupNote =
+          createdProductIds.length > 0
+            ? ` Partial progress: created product IDs ${createdProductIds.join(", ")}. Review or remove these in Bluestone PIM before retrying.`
+            : "";
+        throw new Error(`${message}${cleanupNote}`);
+      }
     }
   );
 
