@@ -1847,6 +1847,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Start from a category scope via list_catalogs or list_category_tree. Pass groupProductId when the target group is already known. " +
         "Results are suggestions only: confirm with the user before converting products to variants.\n\n" +
         "Variant matrix workflow: when the user wants a full variant matrix from dimensions and allowed values, prefer generate_variant_matrix after confirming the group, dimensions, values, and naming pattern. " +
+        "The variant group keeps VLA slots empty at the group level; only child variants get attribute values. " +
         "Pass attribute names and value labels; the tool resolves IDs internally. " +
         "When resolution fails without the create flags: errors include up to three nearest attribute or value name suggestions. Do not auto-pick a near match. " +
         "When the user confirms missing model pieces: set createMissingAttributes true (pass dataType on each new dimension) to create single_select, multi_select, or dictionary attributes, and set createMissingValues true to append enum values or create dictionary values on existing attributes. " +
@@ -4309,7 +4310,7 @@ export function createMcpServer(creds: Credentials): McpServer {
       description:
         "Configure a Variant Level Attribute (VLA) on a variant group product. " +
         "Use this to mark attributes as variant-defining before generating a variant matrix. " +
-        "The groupProductId must be a GROUP product. The attribute definition must already be present on the group product: call set_product_attribute on the group first if list_variant_level_attributes does not list it. " +
+        "The groupProductId must be a GROUP product. This PUT configures VLA flags on the group; variant-defining attributes do not need a value on the group itself. Leave group-level values empty and set values on each variant instead. " +
         "Variant-defining attributes require copy true. Attributes marked locked or mandatory also require copy true. " +
         "Call get_variant_level_attribute or list_variant_level_attributes to inspect current settings. " +
         "Always confirm the variant group, attribute, and exact flag changes with the user before calling this tool.",
@@ -5383,7 +5384,7 @@ export function createMcpServer(creds: Credentials): McpServer {
     {
       description:
         "Generate a full variant matrix for a variant group from variant-defining dimensions and attach all variants in one workflow. " +
-        "Creates or uses an existing GROUP product, configures each dimension as a variant-defining VLA, creates one SINGLE per cartesian combination, sets defining attribute values, and assigns all variants to the group. " +
+        "Creates or uses an existing GROUP product, configures each dimension as a variant-defining VLA (group-level values stay empty), creates one SINGLE per cartesian combination, sets defining attribute values on each variant, and assigns all variants to the group. " +
         "Pass human-readable attribute names and value labels: the tool resolves definitionId and enum or dictionary valueId internally. " +
         "Resolution rules: exact name match only. When an attribute or value is not found and the matching create flag is false, the error includes up to three nearest existing names. Never auto-select a near match. " +
         "createMissingAttributes: when true and an attribute is missing, creates it using dataType on the dimension (single_select, multi_select, or dictionary). Select attributes get initial enum values from the dimension value labels. Dictionary attributes also get dictionary values for every dimension label. Requires dataType on each dimension that may not exist yet. " +
@@ -5585,12 +5586,6 @@ export function createMcpServer(creds: Credentials): McpServer {
         }
 
         for (const dimension of resolvedDimensions) {
-          await setProductAttributeInternal(
-            resolvedGroupId,
-            dimension.definitionId,
-            [dimension.values[0]!.valueId],
-            creds
-          );
           await configureVariantLevelAttributeInternal(
             resolvedGroupId,
             dimension.definitionId,

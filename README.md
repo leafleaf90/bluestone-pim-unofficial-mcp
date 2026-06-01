@@ -24,6 +24,8 @@ For full setup instructions, see the [connect page](https://bluestone-mcp-unoffi
 - "Show me only published products in the Clothes catalog"
 - "Create a new product called Summer Jacket"
 
+**ChatGPT users:** Plus and Pro can run read tools only. Write prompts like the last example require **Cursor**, **Claude Desktop**, or a **Business+** ChatGPT workspace. See [docs/compatibility.md](docs/compatibility.md#chatgpt-read-vs-write-by-plan).
+
 ## Docs
 
 | Document | Audience | Description |
@@ -32,7 +34,7 @@ For full setup instructions, see the [connect page](https://bluestone-mcp-unoffi
 | [docs/how-it-works.md](docs/how-it-works.md) | Developers | MCP, transports, auth, and security model |
 | [docs/setup-developer.md](docs/setup-developer.md) | Developers | Local (STDIO), Vercel deployment, connecting clients |
 | [docs/tools.md](docs/tools.md) | Developers | Available tools and how the model uses them |
-| [docs/compatibility.md](docs/compatibility.md) | Developers | Confirmed and expected client compatibility |
+| [docs/compatibility.md](docs/compatibility.md) | All users | Client compatibility, including ChatGPT read vs write by plan |
 | [docs/extending.md](docs/extending.md) | Developers | Adding new tools |
 | [docs/mcp-patterns.md](docs/mcp-patterns.md) | Developers | Required patterns and checklist for tool authors |
 | [docs/api-quick-reference.md](docs/api-quick-reference.md) | Developers | Bluestone API endpoints and shapes |

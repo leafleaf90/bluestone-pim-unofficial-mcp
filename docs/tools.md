@@ -24,6 +24,12 @@ If it goes wrong mid-conversation, redirect with: "Don't write code. Use the Blu
 
 See `docs/mcp-patterns.md` for the server-side mitigations (IMPORTANT instruction in McpServer and per-tool description guards), and `docs/mcp-design.md` for the full explanation of why this is a partial fix.
 
+### ChatGPT: writes may not run on your plan
+
+On **ChatGPT Plus and Pro**, custom MCP connectors are **read-only**: tools with `readOnlyHint: true` work, but write tools such as `create_product` and `generate_variant_matrix` cannot be invoked even though they appear in the tool list. **Business, Enterprise, and Edu** workspaces support MCP writes with admin setup and approval cards.
+
+If reads work but writes never execute, check your plan before debugging the connector. Full details: [docs/compatibility.md](compatibility.md#chatgpt-read-vs-write-by-plan).
+
 ---
 
 ## Product onboarding prompts
