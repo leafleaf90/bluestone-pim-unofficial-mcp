@@ -434,6 +434,35 @@ async function setProductAttributeInternal(
   );
 }
 
+async function ensureProductAttributesAssignedInternal(
+  productId: string,
+  definitionIds: string[],
+  creds: Credentials
+): Promise<void> {
+  if (definitionIds.length === 0) {
+    return;
+  }
+
+  const product = await mapiGetFull<MapiProductDetail>(
+    `${MAPI_PIM_BASE}/products/${productId}`,
+    creds
+  );
+  const assigned = new Set(
+    (product.attributes ?? []).map((attribute) => attribute.definitionId)
+  );
+
+  for (const definitionId of definitionIds) {
+    if (assigned.has(definitionId)) {
+      continue;
+    }
+    await mapiPost<Record<string, unknown>>(
+      `/pim/products/${productId}/attributes`,
+      { definitionId, values: [] },
+      creds
+    );
+  }
+}
+
 async function configureVariantLevelAttributeInternal(
   groupProductId: string,
   definitionId: string,
@@ -1306,11 +1335,19 @@ async function resolveAttributeDefinitionForDimension(
   creds: Credentials
 ): Promise<{ definition: MapiAttributeDefinition; definitions: MapiAttributeDefinition[] }> {
   if (dimension.definitionId) {
-    const found = definitions.find((entry) => entry.id === dimension.definitionId);
+    let found = definitions.find((entry) => entry.id === dimension.definitionId);
     if (!found) {
-      throw new Error(
-        `Attribute definition ${dimension.definitionId} was not found. Call list_attribute_definitions first.`
-      );
+      try {
+        found = await mapiGet<MapiAttributeDefinition>(
+          `${MAPI_PIM_BASE}/definitions/${dimension.definitionId}`,
+          creds
+        );
+        definitions = [...definitions, found];
+      } catch {
+        throw new Error(
+          `Attribute definition ${dimension.definitionId} was not found. Call list_attribute_definitions first.`
+        );
+      }
     }
     assertVariantMatrixDataType(found);
     return { definition: found, definitions };
@@ -4310,7 +4347,7 @@ export function createMcpServer(creds: Credentials): McpServer {
       description:
         "Configure a Variant Level Attribute (VLA) on a variant group product. " +
         "Use this to mark attributes as variant-defining before generating a variant matrix. " +
-        "The groupProductId must be a GROUP product. This PUT configures VLA flags on the group; variant-defining attributes do not need a value on the group itself. Leave group-level values empty and set values on each variant instead. " +
+        "The groupProductId must be a GROUP product. Assigns the attribute to the group with no value if needed, then configures VLA flags. Variant-defining attributes should stay empty on the group: set values on variants instead. " +
         "Variant-defining attributes require copy true. Attributes marked locked or mandatory also require copy true. " +
         "Call get_variant_level_attribute or list_variant_level_attributes to inspect current settings. " +
         "Always confirm the variant group, attribute, and exact flag changes with the user before calling this tool.",
@@ -4379,6 +4416,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         ...(mandatory !== undefined && { mandatory }),
       };
       const query = forceVla ? "?forceVla=true" : "";
+      await ensureProductAttributesAssignedInternal(groupProductId, [definitionId], creds);
       await mapiPut<Record<string, unknown>>(
         `/pim/products/${groupProductId}/variants/attributes/${definitionId}${query}`,
         body,
@@ -5384,7 +5422,7 @@ export function createMcpServer(creds: Credentials): McpServer {
     {
       description:
         "Generate a full variant matrix for a variant group from variant-defining dimensions and attach all variants in one workflow. " +
-        "Creates or uses an existing GROUP product, configures each dimension as a variant-defining VLA (group-level values stay empty), creates one SINGLE per cartesian combination, sets defining attribute values on each variant, and assigns all variants to the group. " +
+        "Creates or uses an existing GROUP product, assigns each dimension to the group with empty values, configures variant-defining VLAs, creates one SINGLE per cartesian combination, sets defining attribute values on each variant, and assigns all variants to the group. " +
         "Pass human-readable attribute names and value labels: the tool resolves definitionId and enum or dictionary valueId internally. " +
         "Resolution rules: exact name match only. When an attribute or value is not found and the matching create flag is false, the error includes up to three nearest existing names. Never auto-select a near match. " +
         "createMissingAttributes: when true and an attribute is missing, creates it using dataType on the dimension (single_select, multi_select, or dictionary). Select attributes get initial enum values from the dimension value labels. Dictionary attributes also get dictionary values for every dimension label. Requires dataType on each dimension that may not exist yet. " +
@@ -5584,6 +5622,12 @@ export function createMcpServer(creds: Credentials): McpServer {
             await assignProductToCategoryInternal(resolvedGroupId, categoryId, creds);
           }
         }
+
+        await ensureProductAttributesAssignedInternal(
+          resolvedGroupId,
+          resolvedDimensions.map((entry) => entry.definitionId),
+          creds
+        );
 
         for (const dimension of resolvedDimensions) {
           await configureVariantLevelAttributeInternal(
