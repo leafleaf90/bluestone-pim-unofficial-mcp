@@ -21,6 +21,7 @@ import {
   rankVariantGroupCandidates,
   resolveMatchingProfile,
   snapshotFromProduct,
+  titleSimilarity,
   type MatchConfidence,
   type VariantGroupCandidate,
 } from "./variant-candidates/match.js";
@@ -359,6 +360,10 @@ const PAPI_BASE = `${API_BASE}/v1`;
 const MAPI_PIM_BASE = `${API_BASE}/pim`;
 const MAX_VARIANT_APPEND_BATCH = 100;
 const MAX_VARIANT_MATRIX_SIZE = 500;
+const VARIANT_MATRIX_DATA_TYPES = ["single_select", "multi_select", "dictionary"] as const;
+type VariantMatrixAttributeDataType = (typeof VARIANT_MATRIX_DATA_TYPES)[number];
+const NEAREST_SUGGESTION_LIMIT = 3;
+const NEAREST_SUGGESTION_MIN_SCORE = 0.35;
 
 interface VariantMatrixCombinationValue {
   definitionId: string;
@@ -440,6 +445,128 @@ async function configureVariantLevelAttributeInternal(
     `${MAPI_PIM_BASE}/products/${groupProductId}/variants/attributes/${definitionId}${query}`,
     { copy: true, definingAttributes: true },
     creds
+  );
+}
+
+async function createAttributeDefinitionInternal(
+  name: string,
+  dataType: VariantMatrixAttributeDataType,
+  enumValueLabels: string[],
+  creds: Credentials
+): Promise<string> {
+  const isSelect = dataType === "single_select" || dataType === "multi_select";
+  const { resourceId } = await mapiPost<Record<string, unknown>>(
+    "/pim/definitions",
+    {
+      dataType,
+      name,
+      ...(isSelect && {
+        restrictions: {
+          enum: {
+            values: enumValueLabels.map((value) => ({ value })),
+          },
+        },
+      }),
+    },
+    creds
+  );
+  if (!resourceId) {
+    throw new Error(
+      `Attribute definition "${name}" was created but no resource-id was returned in the response headers.`
+    );
+  }
+  return resourceId;
+}
+
+async function createDictionaryValueInternal(
+  dictionaryId: string,
+  value: string,
+  creds: Credentials
+): Promise<string> {
+  const { resourceId } = await mapiPost<Record<string, unknown>>(
+    `/pim/definitions/dictionary/${dictionaryId}/values`,
+    { value },
+    creds
+  );
+  if (!resourceId) {
+    throw new Error(
+      `Dictionary value "${value}" was created but no resource-id was returned in the response headers.`
+    );
+  }
+  return resourceId;
+}
+
+async function appendSelectAttributeValuesInternal(
+  definitionId: string,
+  values: Array<{ value: string }>,
+  creds: Credentials,
+  context?: string
+): Promise<MapiAttributeDefinition> {
+  const definition = await mapiGet<MapiAttributeDefinition>(
+    `${MAPI_PIM_BASE}/definitions/${definitionId}`,
+    creds,
+    { context }
+  );
+
+  if (definition.dataType !== "single_select" && definition.dataType !== "multi_select") {
+    throw new Error(
+      `Attribute definition ${definitionId} is ${definition.dataType ?? "missing a data type"}, not single_select or multi_select.`
+    );
+  }
+
+  const existingValues = definition.restrictions?.enum?.values ?? [];
+  const existingValueNames = new Set(
+    existingValues.map((entry) => entry.value.trim().toLowerCase())
+  );
+  const toAppend = values.filter(
+    (entry) => !existingValueNames.has(entry.value.trim().toLowerCase())
+  );
+  if (toAppend.length === 0) {
+    return definition;
+  }
+
+  const restrictions: MapiAttributeDefinitionRestrictions = JSON.parse(
+    JSON.stringify(definition.restrictions ?? {})
+  );
+  restrictions.enum = {
+    ...(restrictions.enum?.type && { type: restrictions.enum.type }),
+    values: [
+      ...existingValues.map((entry) => ({
+        ...(entry.valueId && { valueId: entry.valueId }),
+        value: entry.value,
+        ...(entry.number && { number: entry.number }),
+        ...(entry.metadata && { metadata: entry.metadata }),
+      })),
+      ...toAppend.map((entry) => ({ value: entry.value })),
+    ],
+  };
+
+  const body = {
+    ...(definition.charset !== undefined && { charset: definition.charset }),
+    ...(definition.contentType !== undefined && { contentType: definition.contentType }),
+    ...(definition.contextAware !== undefined && { contextAware: definition.contextAware }),
+    dataType: definition.dataType,
+    ...(definition.description !== undefined && { description: definition.description }),
+    ...(definition.externalSource !== undefined && { externalSource: definition.externalSource }),
+    ...(definition.groupId !== undefined && { groupId: definition.groupId }),
+    ...(definition.internal !== undefined && { internal: definition.internal }),
+    name: definition.name,
+    ...(definition.number !== undefined && { number: definition.number }),
+    restrictions,
+    ...(definition.unit !== undefined && { unit: definition.unit }),
+  };
+
+  await mapiPut<Record<string, unknown>>(
+    `/pim/definitions/${definitionId}?validation=NAME`,
+    body,
+    creds,
+    { context }
+  );
+
+  return mapiGet<MapiAttributeDefinition>(
+    `${MAPI_PIM_BASE}/definitions/${definitionId}`,
+    creds,
+    { context }
   );
 }
 const MAPI_SEARCH_BASE = `${API_BASE}/search`;
@@ -1071,6 +1198,7 @@ async function fetchAllAttributeDefinitions(
 interface VariantMatrixDimensionInput {
   definitionId?: string;
   attributeName?: string;
+  dataType?: VariantMatrixAttributeDataType;
   values: Array<{ valueId?: string; label: string }>;
 }
 
@@ -1080,14 +1208,52 @@ interface ResolvedVariantMatrixDimension {
   values: Array<{ valueId: string; label: string }>;
 }
 
+interface ResolveVariantMatrixOptions {
+  context?: string;
+  createMissingAttributes?: boolean;
+  createMissingValues?: boolean;
+}
+
 function normalizeMatchLabel(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function findAttributeDefinitionByName(
+function formatNearestSuggestions(items: string[], kind: string): string {
+  if (items.length === 0) {
+    return "";
+  }
+  return ` Nearest ${kind}: ${items.join(", ")}.`;
+}
+
+function rankNearestLabels(query: string, labels: string[], limit = NEAREST_SUGGESTION_LIMIT): string[] {
+  return [...new Set(labels)]
+    .map((label) => ({ label, score: titleSimilarity(query, label) }))
+    .filter((entry) => entry.score >= NEAREST_SUGGESTION_MIN_SCORE)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, limit)
+    .map((entry) => entry.label);
+}
+
+function rankNearestAttributeNames(
+  definitions: MapiAttributeDefinition[],
+  query: string,
+  limit = NEAREST_SUGGESTION_LIMIT
+): string[] {
+  return definitions
+    .map((definition) => ({
+      name: definition.name,
+      score: titleSimilarity(query, definition.name),
+    }))
+    .filter((entry) => entry.score >= NEAREST_SUGGESTION_MIN_SCORE)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, limit)
+    .map((entry) => entry.name);
+}
+
+function lookupAttributeDefinitionByName(
   definitions: MapiAttributeDefinition[],
   attributeName: string
-): MapiAttributeDefinition {
+): MapiAttributeDefinition | null {
   const normalized = normalizeMatchLabel(attributeName);
   const exactMatches = definitions.filter(
     (definition) => normalizeMatchLabel(definition.name) === normalized
@@ -1107,17 +1273,100 @@ function findAttributeDefinitionByName(
   if (numberMatches.length === 1) {
     return numberMatches[0];
   }
+  if (numberMatches.length > 1) {
+    throw new Error(
+      `Multiple attribute definitions have number "${attributeName}". Pass definitionId instead.`
+    );
+  }
 
-  throw new Error(
-    `No attribute definition named "${attributeName}" was found. Call list_attribute_definitions or create_attribute_definition first.`
-  );
+  return null;
 }
 
-function resolveEnumValueIdForLabel(
+function assertVariantMatrixDataType(
+  definition: MapiAttributeDefinition
+): asserts definition is MapiAttributeDefinition & {
+  dataType: VariantMatrixAttributeDataType;
+} {
+  const dataType = definition.dataType;
+  if (
+    dataType !== "single_select" &&
+    dataType !== "multi_select" &&
+    dataType !== "dictionary"
+  ) {
+    throw new Error(
+      `Attribute "${definition.name}" has dataType ${dataType ?? "unknown"}. Variant matrix dimensions must be single_select, multi_select, or dictionary.`
+    );
+  }
+}
+
+async function resolveAttributeDefinitionForDimension(
+  dimension: VariantMatrixDimensionInput,
+  definitions: MapiAttributeDefinition[],
+  options: ResolveVariantMatrixOptions,
+  creds: Credentials
+): Promise<{ definition: MapiAttributeDefinition; definitions: MapiAttributeDefinition[] }> {
+  if (dimension.definitionId) {
+    const found = definitions.find((entry) => entry.id === dimension.definitionId);
+    if (!found) {
+      throw new Error(
+        `Attribute definition ${dimension.definitionId} was not found. Call list_attribute_definitions first.`
+      );
+    }
+    assertVariantMatrixDataType(found);
+    return { definition: found, definitions };
+  }
+
+  const attributeName = dimension.attributeName!;
+  const existing = lookupAttributeDefinitionByName(definitions, attributeName);
+  if (existing) {
+    assertVariantMatrixDataType(existing);
+    return { definition: existing, definitions };
+  }
+
+  if (!options.createMissingAttributes) {
+    const suggestions = rankNearestAttributeNames(definitions, attributeName);
+    throw new Error(
+      `No attribute definition named "${attributeName}" was found.${formatNearestSuggestions(suggestions, "attributes")} ` +
+        "Pass definitionId, set createMissingAttributes true with dataType on the dimension, or create the attribute with create_attribute_definition first."
+    );
+  }
+
+  if (!dimension.dataType) {
+    throw new Error(
+      `Attribute "${attributeName}" was not found. Pass dataType (single_select, multi_select, or dictionary) on this dimension when createMissingAttributes is true.`
+    );
+  }
+
+  const valueLabels = dimension.values.map((value) => value.label);
+  const newDefinitionId = await createAttributeDefinitionInternal(
+    attributeName,
+    dimension.dataType,
+    valueLabels,
+    creds
+  );
+
+  if (dimension.dataType === "dictionary") {
+    for (const label of valueLabels) {
+      await createDictionaryValueInternal(newDefinitionId, label, creds);
+    }
+  }
+
+  const refreshedDefinitions = await fetchAllAttributeDefinitions(creds);
+  const created = refreshedDefinitions.find((entry) => entry.id === newDefinitionId);
+  if (!created) {
+    throw new Error(
+      `Attribute definition "${attributeName}" was created with ID ${newDefinitionId} but could not be reloaded.`
+    );
+  }
+
+  return { definition: created, definitions: refreshedDefinitions };
+}
+
+function lookupEnumValueId(
   definition: MapiAttributeDefinition,
   label: string,
   valueId?: string
-): string {
+): string | null {
   if (valueId) {
     return valueId;
   }
@@ -1130,13 +1379,7 @@ function resolveEnumValueIdForLabel(
       (entry.number && normalizeMatchLabel(entry.number) === normalized)
   );
   if (exactMatches.length === 1) {
-    const resolvedId = exactMatches[0].valueId;
-    if (!resolvedId) {
-      throw new Error(
-        `Enum value "${label}" on attribute "${definition.name}" has no valueId in the attribute definition. Call get_attribute_definition for the full enum list.`
-      );
-    }
-    return resolvedId;
+    return exactMatches[0].valueId ?? null;
   }
   if (exactMatches.length > 1) {
     throw new Error(
@@ -1144,9 +1387,38 @@ function resolveEnumValueIdForLabel(
     );
   }
 
-  throw new Error(
-    `No enum value "${label}" found on attribute "${definition.name}". Call get_attribute_definition or append_select_attribute_values first.`
-  );
+  return null;
+}
+
+function lookupDictionaryValueId(
+  dictionaryValues: MapiDictionaryValue[],
+  label: string,
+  attributeName: string,
+  context: string,
+  valueId?: string
+): string | null {
+  if (valueId) {
+    return valueId;
+  }
+
+  const normalized = normalizeMatchLabel(label);
+  const exactMatches = dictionaryValues.filter((entry) => {
+    const entryLabel = resolveMultiLanguageValue(entry.value, context);
+    return (
+      normalizeMatchLabel(entryLabel) === normalized ||
+      (entry.number && normalizeMatchLabel(entry.number) === normalized)
+    );
+  });
+  if (exactMatches.length === 1) {
+    return exactMatches[0].id;
+  }
+  if (exactMatches.length > 1) {
+    throw new Error(
+      `Multiple dictionary values match "${label}" on attribute "${attributeName}". Pass valueId instead.`
+    );
+  }
+
+  return null;
 }
 
 async function fetchAllDictionaryValuesForDefinition(
@@ -1176,46 +1448,13 @@ async function fetchAllDictionaryValuesForDefinition(
   return allValues;
 }
 
-function resolveDictionaryValueIdForLabel(
-  dictionaryValues: MapiDictionaryValue[],
-  label: string,
-  attributeName: string,
-  context: string,
-  valueId?: string
-): string {
-  if (valueId) {
-    return valueId;
-  }
-
-  const normalized = normalizeMatchLabel(label);
-  const exactMatches = dictionaryValues.filter((entry) => {
-    const entryLabel = resolveMultiLanguageValue(entry.value, context);
-    return (
-      normalizeMatchLabel(entryLabel) === normalized ||
-      (entry.number && normalizeMatchLabel(entry.number) === normalized)
-    );
-  });
-  if (exactMatches.length === 1) {
-    return exactMatches[0].id;
-  }
-  if (exactMatches.length > 1) {
-    throw new Error(
-      `Multiple dictionary values match "${label}" on attribute "${attributeName}". Pass valueId instead.`
-    );
-  }
-
-  throw new Error(
-    `No dictionary value "${label}" found on attribute "${attributeName}". Call list_dictionary_values or create_dictionary_value first.`
-  );
-}
-
 async function resolveVariantMatrixDimensions(
   dimensions: VariantMatrixDimensionInput[],
   creds: Credentials,
-  context?: string
+  options: ResolveVariantMatrixOptions = {}
 ): Promise<ResolvedVariantMatrixDimension[]> {
-  const effectiveContext = context ?? "en";
-  const definitions = await fetchAllAttributeDefinitions(creds);
+  const effectiveContext = options.context ?? "en";
+  let definitions = await fetchAllAttributeDefinitions(creds);
   const resolvedDimensions: ResolvedVariantMatrixDimension[] = [];
 
   for (const dimension of dimensions) {
@@ -1225,31 +1464,18 @@ async function resolveVariantMatrixDimensions(
       );
     }
 
-    const definition = dimension.definitionId
-      ? (() => {
-          const found = definitions.find((entry) => entry.id === dimension.definitionId);
-          if (!found) {
-            throw new Error(
-              `Attribute definition ${dimension.definitionId} was not found. Call list_attribute_definitions first.`
-            );
-          }
-          return found;
-        })()
-      : findAttributeDefinitionByName(definitions, dimension.attributeName!);
-
-    const dataType = definition.dataType;
-    if (
-      dataType !== "single_select" &&
-      dataType !== "multi_select" &&
-      dataType !== "dictionary"
-    ) {
-      throw new Error(
-        `Attribute "${definition.name}" has dataType ${dataType ?? "unknown"}. Variant matrix dimensions must be single_select, multi_select, or dictionary.`
-      );
-    }
+    const resolvedAttribute = await resolveAttributeDefinitionForDimension(
+      dimension,
+      definitions,
+      options,
+      creds
+    );
+    let definition = resolvedAttribute.definition;
+    definitions = resolvedAttribute.definitions;
+    assertVariantMatrixDataType(definition);
 
     let dictionaryValues: MapiDictionaryValue[] | undefined;
-    if (dataType === "dictionary") {
+    if (definition.dataType === "dictionary") {
       dictionaryValues = await fetchAllDictionaryValuesForDefinition(
         definition.id,
         creds,
@@ -1257,20 +1483,98 @@ async function resolveVariantMatrixDimensions(
       );
     }
 
+    const missingSelectLabels: string[] = [];
+    const missingDictionaryLabels: string[] = [];
+
+    for (const value of dimension.values) {
+      if (value.valueId) {
+        continue;
+      }
+      if (definition.dataType === "dictionary") {
+        if (
+          !lookupDictionaryValueId(
+            dictionaryValues!,
+            value.label,
+            definition.name,
+            effectiveContext
+          )
+        ) {
+          missingDictionaryLabels.push(value.label);
+        }
+      } else if (!lookupEnumValueId(definition, value.label)) {
+        missingSelectLabels.push(value.label);
+      }
+    }
+
+    if (missingSelectLabels.length > 0) {
+      if (options.createMissingValues) {
+        definition = await appendSelectAttributeValuesInternal(
+          definition.id,
+          missingSelectLabels.map((label) => ({ value: label })),
+          creds,
+          effectiveContext
+        );
+      } else {
+        const existingLabels = (definition.restrictions?.enum?.values ?? []).map(
+          (entry) => entry.value
+        );
+        const suggestions = rankNearestLabels(missingSelectLabels[0]!, existingLabels);
+        throw new Error(
+          `No enum value "${missingSelectLabels[0]}" found on attribute "${definition.name}".${formatNearestSuggestions(suggestions, "values")} ` +
+            "Set createMissingValues true to append missing enum values, or call append_select_attribute_values first."
+        );
+      }
+    }
+
+    if (missingDictionaryLabels.length > 0) {
+      if (options.createMissingValues) {
+        for (const label of missingDictionaryLabels) {
+          await createDictionaryValueInternal(definition.id, label, creds);
+        }
+        dictionaryValues = await fetchAllDictionaryValuesForDefinition(
+          definition.id,
+          creds,
+          effectiveContext
+        );
+      } else {
+        const existingLabels = (dictionaryValues ?? []).map((entry) =>
+          resolveMultiLanguageValue(entry.value, effectiveContext)
+        );
+        const suggestions = rankNearestLabels(missingDictionaryLabels[0]!, existingLabels);
+        throw new Error(
+          `No dictionary value "${missingDictionaryLabels[0]}" found on attribute "${definition.name}".${formatNearestSuggestions(suggestions, "values")} ` +
+            "Set createMissingValues true to create missing dictionary values, or call create_dictionary_value first."
+        );
+      }
+    }
+
     const resolvedValues: Array<{ valueId: string; label: string }> = [];
     for (const value of dimension.values) {
-      const valueId =
-        dataType === "dictionary"
-          ? resolveDictionaryValueIdForLabel(
+      const resolvedValueId =
+        definition.dataType === "dictionary"
+          ? lookupDictionaryValueId(
               dictionaryValues!,
               value.label,
               definition.name,
               effectiveContext,
               value.valueId
             )
-          : resolveEnumValueIdForLabel(definition, value.label, value.valueId);
+          : lookupEnumValueId(definition, value.label, value.valueId);
 
-      resolvedValues.push({ valueId, label: value.label });
+      if (!resolvedValueId) {
+        const existingLabels =
+          definition.dataType === "dictionary"
+            ? (dictionaryValues ?? []).map((entry) =>
+                resolveMultiLanguageValue(entry.value, effectiveContext)
+              )
+            : (definition.restrictions?.enum?.values ?? []).map((entry) => entry.value);
+        const suggestions = rankNearestLabels(value.label, existingLabels);
+        throw new Error(
+          `Could not resolve value "${value.label}" on attribute "${definition.name}".${formatNearestSuggestions(suggestions, "values")}`
+        );
+      }
+
+      resolvedValues.push({ valueId: resolvedValueId, label: value.label });
     }
 
     resolvedDimensions.push({
@@ -1543,8 +1847,11 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Start from a category scope via list_catalogs or list_category_tree. Pass groupProductId when the target group is already known. " +
         "Results are suggestions only: confirm with the user before converting products to variants.\n\n" +
         "Variant matrix workflow: when the user wants a full variant matrix from dimensions and allowed values, prefer generate_variant_matrix after confirming the group, dimensions, values, and naming pattern. " +
-        "Do not tell the user that ID discovery blocks the workflow: generate_variant_matrix accepts attribute names and value labels and resolves definitionId and valueId internally. " +
-        "Call list_attribute_definitions only when an attribute or value is missing from the tenant or the tool returns a not-found error. " +
+        "Pass attribute names and value labels; the tool resolves IDs internally. " +
+        "When resolution fails without the create flags: errors include up to three nearest attribute or value name suggestions. Do not auto-pick a near match. " +
+        "When the user confirms missing model pieces: set createMissingAttributes true (pass dataType on each new dimension) to create single_select, multi_select, or dictionary attributes, and set createMissingValues true to append enum values or create dictionary values on existing attributes. " +
+        "New dictionary attributes always get their dimension value labels created as dictionary values when createMissingAttributes is true. " +
+        "Do not tell the user that ID discovery blocks the workflow. " +
         "For manual control, create the variant group with create_product and type GROUP, configure each dimension with set_variant_level_attribute, create SINGLE products with create_product, set values with set_product_attribute, then append_variants_to_group. " +
         "Variant names default to \"{group name} - {value1} / {value2}\" unless the user specifies otherwise.\n\n" +
         "Working state vs published: the default read tools return working state data, " +
@@ -1555,7 +1862,7 @@ export function createMcpServer(creds: Credentials): McpServer {
         "then pass it to subsequent tool calls. The default context is 'en' (English).\n\n" +
         "Always confirm the product name, product number, and product type with the user before calling create_product. " +
         "Always confirm variant group, attribute, and VLA flags before calling set_variant_level_attribute. " +
-        "Always confirm the variant group, dimensions, allowed values, and expected combination count before calling generate_variant_matrix. " +
+        "Always confirm the variant group, dimensions, allowed values, expected combination count, and whether to create missing attributes or values before calling generate_variant_matrix. " +
         "Always confirm the variant group and the exact variant products before calling append_variants_to_group. " +
         "Always confirm the exact missing category name and parent before calling create_category_node. " +
         "Always confirm the exact missing attribute name, data type, unit, and initial enum values for select attributes before calling create_attribute_definition. " +
@@ -5077,15 +5384,17 @@ export function createMcpServer(creds: Credentials): McpServer {
         "Generate a full variant matrix for a variant group from variant-defining dimensions and attach all variants in one workflow. " +
         "Creates or uses an existing GROUP product, configures each dimension as a variant-defining VLA, creates one SINGLE per cartesian combination, sets defining attribute values, and assigns all variants to the group. " +
         "Pass human-readable attribute names and value labels: the tool resolves definitionId and enum or dictionary valueId internally. " +
-        "IDs are optional when names and labels are unambiguous. Call list_attribute_definitions or get_attribute_definition only if resolution fails because an attribute or value is missing. " +
+        "Resolution rules: exact name match only. When an attribute or value is not found and the matching create flag is false, the error includes up to three nearest existing names. Never auto-select a near match. " +
+        "createMissingAttributes: when true and an attribute is missing, creates it using dataType on the dimension (single_select, multi_select, or dictionary). Select attributes get initial enum values from the dimension value labels. Dictionary attributes also get dictionary values for every dimension label. Requires dataType on each dimension that may not exist yet. " +
+        "createMissingValues: when true and an existing attribute is missing enum or dictionary values, appends enum values or creates dictionary values. Use append_select_attribute_values or create_dictionary_value manually when this flag is false. " +
         "Do not refuse to call this tool because IDs are unknown: pass attributeName and value labels instead. " +
         "Pass groupProductId for an existing GROUP, or groupName (and optional groupNumber) to create a new group. " +
-        "Each dimension needs attributeName or definitionId, plus values with label. valueId is optional when the label matches an enum or dictionary value. " +
+        "Each dimension needs attributeName or definitionId, plus values with label. valueId is optional when the label matches exactly. " +
         "Dimensions must be single_select, multi_select, or dictionary attributes. " +
         "Default variant name pattern: \"{group name} - {value1} / {value2}\". " +
         "Optional numberPrefix generates variant numbers like \"{prefix}-red-m-standard\". " +
         `Maximum ${MAX_VARIANT_MATRIX_SIZE} combinations per call. ` +
-        "Always confirm the group, every dimension, every allowed value, the expected combination count, and naming pattern with the user before calling this tool. " +
+        "Always confirm the group, every dimension, every allowed value, the expected combination count, naming pattern, and create flags with the user before calling this tool. " +
         "On failure after partial progress, the error message lists created product IDs for cleanup.",
       annotations: {
         readOnlyHint: false,
@@ -5133,6 +5442,18 @@ export function createMcpServer(creds: Credentials): McpServer {
           .describe(
             "Language/market context for resolving dictionary value labels (default \"en\"). Call list_contexts to see available values."
           ),
+        createMissingAttributes: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, create missing variant dimensions as new attribute definitions. Pass dataType on each dimension that may not exist. Select attributes get enum values from the dimension labels; dictionary attributes also get dictionary values for each label."
+          ),
+        createMissingValues: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, append missing enum values or create missing dictionary values on existing attributes. Has no effect when createMissingAttributes already created the attribute with all labels."
+          ),
         dimensions: z
           .array(
             z.object({
@@ -5147,6 +5468,12 @@ export function createMcpServer(creds: Credentials): McpServer {
                 .optional()
                 .describe(
                   "Human-readable attribute name (for example Color or Size). Used to resolve definitionId when omitted."
+                ),
+              dataType: z
+                .enum(VARIANT_MATRIX_DATA_TYPES)
+                .optional()
+                .describe(
+                  "Required when createMissingAttributes is true and this dimension may not exist yet. Use single_select, multi_select, or dictionary."
                 ),
               values: z
                 .array(
@@ -5184,6 +5511,8 @@ export function createMcpServer(creds: Credentials): McpServer {
       numberPrefix,
       forceVla,
       context,
+      createMissingAttributes,
+      createMissingValues,
       dimensions,
     }) => {
       if (!groupProductId && !groupName) {
@@ -5192,10 +5521,24 @@ export function createMcpServer(creds: Credentials): McpServer {
         );
       }
 
+      if (createMissingAttributes) {
+        for (const dimension of dimensions) {
+          if (!dimension.definitionId && !dimension.dataType) {
+            throw new Error(
+              `Dimension "${dimension.attributeName ?? "unknown"}" needs dataType (single_select, multi_select, or dictionary) when createMissingAttributes is true.`
+            );
+          }
+        }
+      }
+
       const resolvedDimensions = await resolveVariantMatrixDimensions(
         dimensions,
         creds,
-        context
+        {
+          context,
+          createMissingAttributes,
+          createMissingValues,
+        }
       );
 
       const combinationCount = resolvedDimensions.reduce(
