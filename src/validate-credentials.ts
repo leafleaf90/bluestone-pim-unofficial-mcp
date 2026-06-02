@@ -36,10 +36,23 @@ function papiValidationMessage(status: number): string {
       return "PAPI Key is incorrect.";
     case 403:
       return "PAPI key is valid but lacks permission for this environment.";
+    case 404:
+      return "PAPI check failed (404). Verify your key and environment.";
     case 429:
       return "Bluestone rate limit reached. Wait a moment and try again.";
     default:
       return `PAPI check failed (${status}). Verify your key and environment.`;
+  }
+}
+
+// PAPI returns 404 (not 401) when the key is accepted but nothing is published yet.
+function isPapiKeyAcceptedWithoutPublish(status: number, body: string): boolean {
+  if (status !== 404) return false;
+  try {
+    const parsed = JSON.parse(body) as { message?: string };
+    return parsed.message?.includes("No publishes available") ?? false;
+  } catch {
+    return body.includes("No publishes available");
   }
 }
 
@@ -70,6 +83,8 @@ async function probePapi(creds: Credentials): Promise<string | null> {
       },
     });
     if (res.ok) return null;
+    const body = await res.text();
+    if (isPapiKeyAcceptedWithoutPublish(res.status, body)) return null;
     return papiValidationMessage(res.status);
   } catch {
     return "Could not reach Bluestone PAPI. Check your connection and try again.";
