@@ -225,6 +225,7 @@ Almost nothing, if I am being honest. A handful of tools, but the point is the f
 - **Set product attributes**: add mapped attribute values to products after the mapping is approved
 - **Switch language**: ask to see data in a specific language and the AI finds the right context
 - **Create a product**: create a new product by name and optional number (the server instructs the AI to confirm both before calling the tool, though this depends on the client)
+- **Generate variant matrices**: create a variant group, configure variant-defining attributes, and attach all cartesian combinations as variants in one workflow
 - **Place and rename products**: assign an existing product to a catalog category or update its name after confirmation
 
 **What to expect for now:** Browsing, product detail reads, onboarding planning, attribute creation, dictionary value creation, select enum append, category-node creation, product attribute value writes, creating products, category assignment, and product renaming work. Media, validation-rule creation, and advanced data-model configuration are not yet supported. This is a foundation to build on, not a replacement for the Bluestone PIM interface.
@@ -907,6 +908,33 @@ The paper also notes that context window economics constrain how much a descript
         notes: [
           '<strong>Why did Claude ask for confirmation before creating?</strong> The <code>create_product</code> tool carries a <code>destructiveHint: true</code> annotation, which tells the client to be cautious and ask before calling it. Claude Desktop responds by inserting a confirmation turn. You could argue that creating a product is not truly destructive (nothing is overwritten, and the product can be deleted), but the confirmation is kept as a conservative default for now. It is good UX when a user is new to the flow or working in a shared catalog. If it becomes friction, flipping the annotation to <code>false</code> removes the extra turn.',
           '<strong>Why no offer to add attributes after creation?</strong> There are no attribute or image tools in the server yet. The tool description explicitly tells the model not to offer these as next steps, so it redirects to the PIM UI instead. Once those tools exist, the follow-up will happen naturally.',
+        ]
+      },
+      {
+        chatTitle: 'Wireless Mouse variants',
+        label: 'Generate a three-dimensional variant matrix',
+        turns: [
+          { type: 'user', text: 'Using Bluestone PIM, generate a variant matrix for a new variant group:\n\nGroup: Wireless Mouse\n\nDimensions:\n- Finish: Matte Black, Gloss White, Silver\n- Connectivity: Bluetooth, USB Receiver, Dual Mode\n- Handedness: Left, Right, Ambidextrous' },
+          { type: 'reply', text: 'I\'ll load the variant matrix tool schema, then create the group, configure Finish, Connectivity, and Handedness as variant-defining attributes, and generate all 27 combinations (3×3×3).' },
+          { type: 'tool', name: 'search_tools', display: 'Searched available tools' },
+          { type: 'tool', name: 'generate_variant_matrix', display: 'Generate variant matrix' },
+          { type: 'reply', text: 'Done. Variant matrix created for <strong>Wireless Mouse</strong> (group ID <code style="font-size:11px;">6a1eb73e3fec103d071d56b0</code>).<br><br>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;">' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.15);"><th style="padding:5px 10px 5px 0;text-align:left;color:#aaa;font-weight:600;">Dimension</th><th style="padding:5px 0;text-align:left;color:#aaa;font-weight:600;">Values</th></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">Finish</td><td style="padding:6px 0;">Matte Black, Gloss White, Silver</td></tr>' +
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 10px 6px 0;">Connectivity</td><td style="padding:6px 0;">Bluetooth, USB Receiver, Dual Mode</td></tr>' +
+            '<tr><td style="padding:6px 10px 6px 0;">Handedness</td><td style="padding:6px 0;">Left, Right, Ambidextrous</td></tr>' +
+            '</table>' +
+            '<strong>27 variants</strong> created and attached. Examples:<br>' +
+            'Wireless Mouse - Matte Black / Bluetooth / Left<br>' +
+            'Wireless Mouse - Gloss White / USB Receiver / Right<br>' +
+            'Wireless Mouse - Silver / Dual Mode / Ambidextrous<br><br>' +
+            'Finish, Connectivity, and Handedness were created as <code>single_select</code> attributes when missing. VLA slots on the group stay empty; each variant carries its combination.' },
+        ],
+        notes: [
+          '<strong>One tool, full workflow.</strong> <code>generate_variant_matrix</code> creates the GROUP, assigns empty VLA slots, configures variant-defining flags, creates one SINGLE per cartesian combination, sets attribute values on each variant, and attaches them in bulk. You do not need to call <code>create_product</code>, <code>set_variant_level_attribute</code>, and <code>append_variants_to_group</code> separately.',
+          '<strong>Names, not IDs.</strong> Pass <code>attributeName</code> and value labels. The tool resolves definition and enum IDs internally. Set <code>createMissingAttributes: true</code> with <code>dataType</code> on each dimension when the attributes may not exist yet, and <code>createMissingValues: true</code> to append missing enum values.',
+          '<strong>Write tools only in supported clients.</strong> This example needs a client that can execute MCP writes (Claude Desktop, Cursor, or ChatGPT Business+). ChatGPT Plus and Pro can list the tool but cannot invoke it.',
         ]
       },
       {
