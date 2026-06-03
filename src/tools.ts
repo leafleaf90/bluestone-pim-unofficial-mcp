@@ -321,6 +321,33 @@ interface MapiCategoryAttributesMetadataResponse {
   data: MapiCategoryAttributeMetadata[];
 }
 
+interface UiColumnSet {
+  id: string;
+  columnType: string;
+  width?: number;
+}
+
+interface UiColumnsSetup {
+  id: string;
+  name: string;
+  columns: UiColumnSet[];
+  isDefault: boolean;
+  isPublic: boolean;
+  service: string;
+  entity: string;
+  organizationId?: string;
+  owner: string;
+  updatedAt?: number;
+  sortConfig?: { columnId: string; direction: "ASC" | "DESC" };
+}
+
+type ProductListStandardColumnKey =
+  | "number"
+  | "producttype"
+  | "description"
+  | "labels"
+  | "updated";
+
 interface MapiCategoryBasic {
   id: string;
   name?: string;
@@ -602,6 +629,9 @@ const MAPI_SEARCH_BASE = `${API_BASE}/search`;
 const MAPI_GLOBAL_SETTINGS_BASE = `${API_BASE}/global-settings`;
 const MAPI_COMPLETENESS_SCORE_BASE = `${API_BASE}/completeness-score`;
 const MAPI_QUERY_BUILDER_BASE = `${API_BASE}/query-builder`;
+const MAPI_UI_SETTINGS_BASE = `${API_BASE}/ui-settings`;
+const COLUMN_SETUP_SERVICE = "bluestone-pim";
+const COLUMN_SETUP_ENTITY = "PRODUCT";
 const MAPI_TOKEN_URL = IS_PRODUCTION
   ? "https://idp.bluestonepim.com/op/token"
   : "https://idp.test.bluestonepim.com/op/token";
@@ -955,6 +985,163 @@ function shapeCategoryLevelAttribute(attribute: MapiCategoryAttributeMetadata) {
     ...(attribute.matrix &&
       Object.keys(attribute.matrix).length > 0 && { matrix: attribute.matrix }),
   };
+}
+
+const LEADING_PRODUCT_LIST_COLUMNS: UiColumnSet[] = [
+  { id: "status", columnType: "status", width: 183 },
+  { id: "name", columnType: "name", width: 403 },
+  { id: "score", columnType: "score" },
+];
+
+const PRODUCT_LIST_STANDARD_COLUMNS: Record<ProductListStandardColumnKey, UiColumnSet> = {
+  number: { id: "number", columnType: "number" },
+  producttype: { id: "type", columnType: "producttype" },
+  description: { id: "description", columnType: "description" },
+  labels: { id: "labels", columnType: "labels" },
+  updated: { id: "updated", columnType: "updated" },
+};
+
+const BUILTIN_COLUMN_LABELS: Record<string, string> = {
+  status: "Status",
+  name: "Name",
+  score: "Completeness score",
+  number: "Number",
+  producttype: "Product type",
+  description: "Description",
+  labels: "Labels",
+  updated: "Updated",
+};
+
+const productListStandardColumnSchema = z.enum([
+  "number",
+  "producttype",
+  "description",
+  "labels",
+  "updated",
+]);
+
+function buildProductListColumnSetup(
+  attributeDefinitionIds: string[],
+  additionalStandardColumns: ProductListStandardColumnKey[] = []
+): UiColumnSet[] {
+  const columns: UiColumnSet[] = [...LEADING_PRODUCT_LIST_COLUMNS];
+  const seenIds = new Set(columns.map((column) => column.id));
+
+  for (const key of additionalStandardColumns) {
+    const standard = PRODUCT_LIST_STANDARD_COLUMNS[key];
+    if (!seenIds.has(standard.id)) {
+      columns.push(standard);
+      seenIds.add(standard.id);
+    }
+  }
+
+  for (const definitionId of attributeDefinitionIds) {
+    if (!seenIds.has(definitionId)) {
+      columns.push({ id: definitionId, columnType: "attribute" });
+      seenIds.add(definitionId);
+    }
+  }
+
+  return columns;
+}
+
+function builtinColumnLabel(columnType: string): string {
+  return BUILTIN_COLUMN_LABELS[columnType] ?? columnType;
+}
+
+async function labelColumnSetupColumns(
+  columns: UiColumnSet[],
+  creds: Credentials
+): Promise<Array<UiColumnSet & { label: string }>> {
+  const attributeIds = columns
+    .filter((column) => column.columnType === "attribute")
+    .map((column) => column.id);
+  const nameByDefinitionId =
+    attributeIds.length > 0
+      ? await fetchAttributeDefinitionNames(
+          attributeIds,
+          creds,
+          mapiGet,
+          MAPI_PIM_BASE
+        )
+      : new Map<string, string>();
+
+  return columns.map((column) => ({
+    ...column,
+    label:
+      column.columnType === "attribute"
+        ? nameByDefinitionId.get(column.id) ?? column.id
+        : builtinColumnLabel(column.columnType),
+  }));
+}
+
+async function resolveAttributeDefinitionIdsByName(
+  attributeNames: string[],
+  creds: Credentials,
+  context?: string
+): Promise<{ definitionIds: string[]; unresolved: string[] }> {
+  const definitions = await fetchAllAttributeDefinitions(creds, { context });
+  const definitionIds: string[] = [];
+  const unresolved: string[] = [];
+
+  for (const name of attributeNames) {
+    const normalized = normalizeMatchLabel(name);
+    const matches = definitions.filter(
+      (definition) => normalizeMatchLabel(definition.name) === normalized
+    );
+    if (matches.length === 1) {
+      definitionIds.push(matches[0].id);
+      continue;
+    }
+    if (matches.length > 1) {
+      throw new Error(
+        `Multiple attribute definitions match "${name}". Ask the user which one to use or pass definitionIds instead.`
+      );
+    }
+    const nearest = rankNearestAttributeNames(definitions, name);
+    unresolved.push(
+      nearest.length > 0
+        ? `${name} (nearest: ${nearest.join(", ")})`
+        : name
+    );
+  }
+
+  return { definitionIds, unresolved };
+}
+
+async function fetchCategoryClaDefinitionIds(
+  categoryId: string,
+  creds: Credentials,
+  options?: { context?: string; mandatoryOnly?: boolean }
+): Promise<
+  Array<{
+    definitionId: string;
+    name: string;
+    mandatory: boolean;
+    locked: boolean;
+  }>
+> {
+  const response = await mapiGet<MapiCategoryAttributesMetadataResponse>(
+    `${MAPI_PIM_BASE}/catalogs/nodes/${categoryId}/attributes`,
+    creds,
+    { context: options?.context, query: { archiveState: "ACTIVE" } }
+  );
+  let attributes = (response.data ?? []).map(shapeCategoryLevelAttribute);
+  if (options?.mandatoryOnly) {
+    attributes = attributes.filter((attribute) => attribute.mandatory);
+  }
+  attributes.sort((left, right) => {
+    if (left.mandatory !== right.mandatory) {
+      return left.mandatory ? -1 : 1;
+    }
+    return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
+  });
+  return attributes.map((attribute) => ({
+    definitionId: attribute.definitionId,
+    name: attribute.name,
+    mandatory: attribute.mandatory,
+    locked: attribute.locked,
+  }));
 }
 
 async function shapeProductValidationIssues(
@@ -1835,6 +2022,9 @@ export function createMcpServer(creds: Credentials): McpServer {
         "- Read product completeness scores by context (list_product_completeness_scores)\n" +
         "- Fetch completeness requirement breakdown for one product and context (get_product_completeness_detail)\n" +
         "- List category level attributes on a catalog node (list_category_level_attributes)\n" +
+        "- List product list column setups from UI settings (list_column_setups)\n" +
+        "- Propose a new product list column setup from category CLAs or chosen attributes, read-only preview (propose_column_setup)\n" +
+        "- Create a product list column setup in UI settings (create_column_setup)\n" +
         "- Find categories using an attribute as a CLA (list_categories_with_cla)\n" +
         "- List variant level attributes on a variant group (list_variant_level_attributes)\n" +
         "- Fetch variant level attribute settings for one attribute on a group (get_variant_level_attribute)\n" +
@@ -1876,6 +2066,10 @@ export function createMcpServer(creds: Credentials): McpServer {
         "When the user asks why a product is invalid, fails sync, or violates category or variant rules, call get_product_validation_issues or list_product_validation_issues. " +
         "When they ask how complete a product is or which completeness requirements failed, call get_product_completeness_detail or search_products. " +
         "Both may be relevant for broad data quality questions.\n\n" +
+        "Column setups: when the user wants a product list view tailored to a category or attribute set, call propose_column_setup first. " +
+        "Always lead with Status, Name, and Completeness score columns, then optional standard columns (number, product type, and others), then attribute columns. " +
+        "Show the proposed column names to the user and call create_column_setup only after they confirm the setup name, owner email, and public flag. " +
+        "Use list_column_setups to browse existing setups. service is bluestone-pim and entity is PRODUCT for all product list setups.\n\n" +
         "Validation presentation: when get_product_validation_issues or list_product_validation_issues returns more than five issues, " +
         "or list_product_validation_issues finds issues on more than three products, do NOT use a plain markdown table in chat. " +
         "In Cursor, open a Canvas with summary stat cards (total issues, CLA count, VLA count, other count), kind filter pills, and issue cards grouped by CLA, VLA, and other. " +
@@ -5783,6 +5977,400 @@ export function createMcpServer(creds: Credentials): McpServer {
           {
             type: "text" as const,
             text: `Assigned product ${productLabel} to catalog category ${categoryLabel}.`,
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: list_column_setups
+  server.registerTool(
+    "list_column_setups",
+    {
+      description:
+        "List saved product list column setups from Bluestone PIM UI settings (working state). " +
+        "Each setup defines which columns appear in the product grid: built-in fields (status, name, completeness score) and custom attributes. " +
+        "Use before propose_column_setup or create_column_setup so the user can see existing names and avoid duplicates. " +
+        "When the user names a setup, match by name in the response. " +
+        "Suppress raw attribute definition IDs in user-facing replies unless the user asks for implementation detail; use column labels from the response.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        ownerEmail: z
+          .string()
+          .optional()
+          .describe(
+            "Filter to setups owned by this user email. Omit to return all setups visible to the organisation."
+          ),
+        nameSearch: z
+          .string()
+          .optional()
+          .describe("Case-insensitive substring filter on setup name."),
+      },
+    },
+    async ({ ownerEmail, nameSearch }) => {
+      const setups = await mapiGet<UiColumnsSetup[]>(
+        `${MAPI_UI_SETTINGS_BASE}/columnsSetups/all`,
+        creds
+      );
+      const productSetups = (Array.isArray(setups) ? setups : []).filter(
+        (setup) =>
+          setup.service === COLUMN_SETUP_SERVICE && setup.entity === COLUMN_SETUP_ENTITY
+      );
+      const ownerFilter = ownerEmail?.trim().toLowerCase();
+      const nameFilter = nameSearch?.trim().toLowerCase();
+      const filtered = productSetups.filter((setup) => {
+        if (ownerFilter && setup.owner.toLowerCase() !== ownerFilter) {
+          return false;
+        }
+        if (nameFilter && !setup.name.toLowerCase().includes(nameFilter)) {
+          return false;
+        }
+        return true;
+      });
+
+      const shaped = await Promise.all(
+        filtered.map(async (setup) => {
+          const labeledColumns = await labelColumnSetupColumns(setup.columns, creds);
+          const attributeCount = labeledColumns.filter(
+            (column) => column.columnType === "attribute"
+          ).length;
+          return {
+            id: setup.id,
+            name: setup.name,
+            owner: setup.owner,
+            isDefault: setup.isDefault,
+            isPublic: setup.isPublic,
+            columnCount: labeledColumns.length,
+            attributeColumnCount: attributeCount,
+            columns: labeledColumns.map((column) => ({
+              label: column.label,
+              columnType: column.columnType,
+              ...(column.width !== undefined && { width: column.width }),
+            })),
+            updatedAt: setup.updatedAt,
+          };
+        })
+      );
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Found ${shaped.length} product list column setup${shaped.length === 1 ? "" : "s"} (UI settings).` +
+              (ownerEmail ? ` Filtered to owner ${ownerEmail}.` : "") +
+              (nameSearch ? ` Name search: "${nameSearch}".` : "") +
+              "\n\n" +
+              JSON.stringify(
+                {
+                  service: COLUMN_SETUP_SERVICE,
+                  entity: COLUMN_SETUP_ENTITY,
+                  total: shaped.length,
+                  setups: shaped,
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: propose_column_setup
+  server.registerTool(
+    "propose_column_setup",
+    {
+      description:
+        "Propose a new product list column setup without saving it. Read-only preview for UI settings. " +
+        "Builds columns for service bluestone-pim and entity PRODUCT. " +
+        "Always starts with Status, Name, and Completeness score (same order and default widths as typical setups). " +
+        "Then adds optional standard columns, then attribute columns. " +
+        "Source category_clas: call list_category_tree when the user names a category, then pass categoryId. " +
+        "Uses list_category_level_attributes logic: one attribute column per CLA definition ID. " +
+        "Source attributes: pass attributeNames and/or definitionIds; resolves names via list_attribute_definitions. " +
+        "After proposing, show the user the column labels in order and ask them to confirm setup name, owner email, and isPublic before create_column_setup. " +
+        "Do not call create_column_setup in the same turn unless the user has explicitly confirmed.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        source: z
+          .enum(["category_clas", "attributes"])
+          .describe(
+            "category_clas: build attribute columns from CLAs on a category. attributes: build from named or listed definition IDs."
+          ),
+        categoryId: z
+          .string()
+          .optional()
+          .describe(
+            "Required when source is category_clas. Catalog node ID from list_category_tree."
+          ),
+        categoryName: z
+          .string()
+          .optional()
+          .describe("Human-readable category label for the summary when source is category_clas."),
+        attributeNames: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Attribute names to include when source is attributes. Exact name match; ambiguous names error."
+          ),
+        definitionIds: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Attribute definition IDs when source is attributes. Combined with attributeNames."
+          ),
+        mandatoryClasOnly: z
+          .boolean()
+          .optional()
+          .describe(
+            "When source is category_clas, include only mandatory CLAs as attribute columns (default false: all CLAs)."
+          ),
+        additionalStandardColumns: z
+          .array(productListStandardColumnSchema)
+          .optional()
+          .describe(
+            "Built-in columns after the leading three. Values: number, producttype, description, labels, updated."
+          ),
+        proposedSetupName: z
+          .string()
+          .optional()
+          .describe("Suggested setup name for the preview summary only; not saved."),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            "Language/market context for CLA names when source is category_clas. Defaults to English."
+          ),
+      },
+    },
+    async ({
+      source,
+      categoryId,
+      categoryName,
+      attributeNames,
+      definitionIds,
+      mandatoryClasOnly,
+      additionalStandardColumns,
+      proposedSetupName,
+      context,
+    }) => {
+      const effectiveContext = context ?? "en";
+      const standardKeys = additionalStandardColumns ?? [];
+      let attributeDefinitionIds: string[] = [];
+      let attributeSources: Array<{
+        definitionId: string;
+        name: string;
+        mandatory?: boolean;
+        locked?: boolean;
+        source: string;
+      }> = [];
+
+      if (source === "category_clas") {
+        if (!categoryId) {
+          throw new Error(
+            "categoryId is required when source is category_clas. Call list_category_tree first."
+          );
+        }
+        const clas = await fetchCategoryClaDefinitionIds(categoryId, creds, {
+          context,
+          mandatoryOnly: mandatoryClasOnly,
+        });
+        attributeDefinitionIds = clas.map((cla) => cla.definitionId);
+        attributeSources = clas.map((cla) => ({
+          definitionId: cla.definitionId,
+          name: cla.name,
+          mandatory: cla.mandatory,
+          locked: cla.locked,
+          source: "category_cla",
+        }));
+      } else {
+        const idsFromInput = definitionIds ?? [];
+        const names = attributeNames ?? [];
+        if (idsFromInput.length === 0 && names.length === 0) {
+          throw new Error(
+            "When source is attributes, pass at least one of attributeNames or definitionIds."
+          );
+        }
+        if (names.length > 0) {
+          const resolved = await resolveAttributeDefinitionIdsByName(
+            names,
+            creds,
+            context
+          );
+          if (resolved.unresolved.length > 0) {
+            throw new Error(
+              `Could not resolve attribute name(s): ${resolved.unresolved.join("; ")}. ` +
+                "Use list_attribute_definitions to find exact names or pass definitionIds."
+            );
+          }
+          attributeDefinitionIds.push(...resolved.definitionIds);
+        }
+        attributeDefinitionIds.push(...idsFromInput);
+        const uniqueIds = [...new Set(attributeDefinitionIds)];
+        const nameByDefinitionId = await fetchAttributeDefinitionNames(
+          uniqueIds,
+          creds,
+          mapiGet,
+          MAPI_PIM_BASE
+        );
+        attributeDefinitionIds = uniqueIds;
+        attributeSources = uniqueIds.map((id) => ({
+          definitionId: id,
+          name: nameByDefinitionId.get(id) ?? id,
+          source: "attribute",
+        }));
+      }
+
+      const columns = buildProductListColumnSetup(
+        attributeDefinitionIds,
+        standardKeys
+      );
+      const labeledColumns = await labelColumnSetupColumns(columns, creds);
+      const createBody = {
+        columns,
+        isPublic: false,
+        name: proposedSetupName ?? "New column setup",
+        service: COLUMN_SETUP_SERVICE,
+        entity: COLUMN_SETUP_ENTITY,
+        owner: "(set on create_column_setup)",
+      };
+
+      const categoryLabel = categoryName ?? categoryId;
+      const sourceSummary =
+        source === "category_clas"
+          ? `category CLAs on "${categoryLabel}" (${attributeSources.length} attribute column${attributeSources.length === 1 ? "" : "s"}${mandatoryClasOnly ? ", mandatory only" : ""})`
+          : `${attributeSources.length} chosen attribute${attributeSources.length === 1 ? "" : "s"}`;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Proposed product list column setup with ${labeledColumns.length} columns from ${sourceSummary} (preview only, not saved). ` +
+              "Leading columns: Status, Name, Completeness score. " +
+              "Confirm setup name, owner email, and isPublic with the user, then call create_column_setup with the columns array from this response.\n\n" +
+              JSON.stringify(
+                {
+                  proposedSetupName: proposedSetupName ?? null,
+                  context: effectiveContext,
+                  source,
+                  ...(categoryId && { categoryId, category: categoryLabel }),
+                  columnCount: labeledColumns.length,
+                  columnPreview: labeledColumns.map((column) => ({
+                    label: column.label,
+                    columnType: column.columnType,
+                  })),
+                  columnsForApi: columns,
+                  attributeSources,
+                  createRequest: {
+                    ...createBody,
+                    note: "Pass owner (user email) and confirmed name and isPublic on create_column_setup. Use columnsForApi as columns.",
+                  },
+                },
+                null,
+                2
+              ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Tool: create_column_setup
+  server.registerTool(
+    "create_column_setup",
+    {
+      description:
+        "Create a product list column setup in Bluestone PIM UI settings. " +
+        "Appears in the product grid column picker for the owner (and organisation if isPublic is true). " +
+        "Call propose_column_setup first unless the user supplied a full columns array. " +
+        "Always confirm setup name, owner email, isPublic, and the column list with the user before calling. " +
+        "service must be bluestone-pim and entity PRODUCT. " +
+        "Include Status, Name, and Completeness score as the first three columns unless the user explicitly opts out.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
+      inputSchema: {
+        name: z.string().min(1).describe("Display name for the column setup. Must be confirmed by the user."),
+        owner: z
+          .string()
+          .min(1)
+          .describe(
+            "Owner user email (e.g. viktor@example.com). The setup is created for this user. Must be confirmed."
+          ),
+        isPublic: z
+          .boolean()
+          .describe(
+            "Whether the setup is shared in the organisation. Confirm with the user; false keeps it private to the owner."
+          ),
+        columns: z
+          .array(
+            z.object({
+              id: z.string().describe("Column id: built-in slug (status, name, score) or attribute definition ID."),
+              columnType: z
+                .string()
+                .describe(
+                  "Built-in: status, name, score, number, producttype, description, labels, updated. Custom attributes: attribute."
+                ),
+              width: z.number().optional().describe("Optional column width in pixels."),
+            })
+          )
+          .min(1)
+          .describe(
+            "Ordered columns. Copy from propose_column_setup createRequest.columns or build manually."
+          ),
+        sortConfig: z
+          .object({
+            columnId: z.string(),
+            direction: z.enum(["ASC", "DESC"]),
+          })
+          .optional()
+          .describe("Optional default sort for the product list."),
+      },
+    },
+    async ({ name, owner, isPublic, columns, sortConfig }) => {
+      const body: Record<string, unknown> = {
+        columns,
+        isPublic,
+        name,
+        service: COLUMN_SETUP_SERVICE,
+        entity: COLUMN_SETUP_ENTITY,
+        owner,
+      };
+      if (sortConfig) {
+        body.sortConfig = sortConfig;
+      }
+
+      const created = await mapiPost<UiColumnsSetup>(
+        "/ui-settings/columnsSetups/all",
+        body,
+        creds
+      );
+      const setup = created.data;
+      const labeledColumns = await labelColumnSetupColumns(setup.columns ?? columns, creds);
+
+      const columnLabels = labeledColumns.map((column) => column.label).join(", ");
+      const shared = setup.isPublic ?? isPublic;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Created column setup "${setup.name ?? name}" for ${setup.owner ?? owner} with ${labeledColumns.length} columns ` +
+              `(${columnLabels}). ID: ${setup.id ?? created.resourceId ?? "unknown"}. ` +
+              (shared ? "Shared with the organisation." : "Private to the owner."),
           },
         ],
       };

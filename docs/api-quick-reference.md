@@ -20,7 +20,7 @@ A scannable reference for adding new tools. For detailed request/response shapes
 | **Sync / Public API sync** | https://docs.api.test.bluestonepim.com/openapi/public-api-sync.json | Low: publish pipeline internals |
 | **External notifications** | https://docs.api.test.bluestonepim.com/openapi/external-notifications.json | Low: webhook/event config |
 | **IDP** | https://docs.api.test.bluestonepim.com/openapi/idp.json | Not applicable: identity provider, already handled by OAuth flow |
-| **UI settings** | https://docs.api.test.bluestonepim.com/openapi/ui-settings.json | Not applicable: frontend configuration |
+| **UI settings** | https://docs.api.test.bluestonepim.com/openapi/ui-settings.json | In use: product list column setups (`list_column_setups`, `propose_column_setup`, `create_column_setup`) |
 
 ---
 
