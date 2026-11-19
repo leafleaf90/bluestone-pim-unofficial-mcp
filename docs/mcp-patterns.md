@@ -61,6 +61,8 @@ Any tool that creates, updates, or deletes data must include:
 "Always confirm [the action] with the user before calling this tool."
 ```
 
+Bulk and schema-changing tools (variant matrix, attribute and value creation, category creation, variant assignment) also go through the server-side gate in `src/write-guard.ts`. Add an optional `confirmationToken` input, call `gate({ tool, args, confirmationToken, preview })` at the start of the handler, and return `gated.result` when `gated.proceed` is false. Start the description with `TWO_STEP_WRITE_NOTE`. The preview must state the exact scope (counts, names, parents). Validate cheap limits, such as the maximum matrix size, before calling the gate so errors surface on the first call. Elicitation is used on stateful transports, and the preview plus token flow elsewhere.
+
 ---
 
 ## Response format
@@ -282,6 +284,8 @@ This pattern is client-specific (Cursor Canvas). Other MCP clients may ignore it
 - [ ] Hierarchical data has **display instructions** in the description
 - [ ] No **session_init reminder** in the description
 - [ ] Write tools include **"confirm with user before calling"**
+- [ ] Bulk or schema-changing writes use the **write gate** and `confirmationToken`
+- [ ] Error text from upstream APIs goes through `upstreamDetail()`
 - [ ] Write tools specify **what NOT to offer as follow-up** if next steps aren't supported
 - [ ] Response starts with a **plain-text summary line** with **(working state)** or **(published)** label
 - [ ] Mutations return **plain text only** (no JSON)

@@ -1,5 +1,58 @@
 # Changelog
 
+## Pre-commit audit fixes: 2026-11-19
+
+### Fixed
+
+- Non-string `/token`, `/authorize`, `/validate-credentials` and `/register` fields (JSON objects, arrays, numbers, booleans, repeated form keys) now give a clean 400. Before, `unseal()` threw on `.split()`, which hung the request and raised an unhandled rejection (Express 4 does not catch async handler errors). `unseal` and `verifySignature` return null/false for non-strings, bodies and query strings are reduced to string fields, and every async route goes through `asyncRoute`, which forwards errors to the JSON error handler.
+- Redirect policy matches the parsed URL, not the raw string. It rejects dot segments, encoded dots/slashes/backslashes/NUL in the path, backslashes, spaces and control characters, and prefix entries must stay on the same origin. `https://chatgpt.com/connector/oauth/../../x` used to pass the prefix entry.
+- With `REQUIRE_SHARED_STORE=true`, a shared store error returns 503 with `Retry-After` instead of falling back to per-instance memory.
+- `vercel-build` removes `.DS_Store` from the deployed output; `/connect` gets `nosniff`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy` headers.
+
+### Changed
+
+- The write-gate preview tells the model that names in it are unverified and that IDs are what change.
+- `npm run test:security` now has 45 tests, including malformed-type, redirect-normalisation, store fail-closed and a pinned list of ungated write tools.
+
+## Remaining hardening: 2026-11-05
+
+### Added
+
+- Optional shared store (`src/store.ts`, Upstash Redis REST) with an in-memory fallback. It backs rate limits, per-client failure throttling, single-use auth codes, rotating refresh tokens, and `/revoke`. `REQUIRE_SHARED_STORE=true` fails closed.
+- Rotating refresh tokens with reuse detection (whole family revoked), only when a shared store is configured. The credentials form says an encrypted copy is kept for up to 30 days.
+- Per-connection read-only session: a checkbox on the credentials form hides every write tool for that token.
+- Origin validation on `/mcp` (`MCP_ALLOWED_ORIGINS`), RFC 8707 audience on access tokens, and path-specific protected resource metadata (RFC 9728).
+- Structured security event logging with allowlisted fields (`src/security-log.ts`).
+- Two-step writes for `generate_variant_matrix`, `append_variants_to_group`, `create_attribute_definition`, `append_select_attribute_values`, and `create_category_node`: elicitation on stateful transports, otherwise a preview plus signed `confirmationToken`.
+- `npm run test:security` (35 tests), a GitHub Actions workflow (build, tests, `npm audit`, gitleaks), and Dependabot.
+
+### Changed
+
+- Token and auth code format is `v2`: HKDF subkeys per purpose, key ids, purpose-bound AAD. `SIGNING_SECRET` must be at least 32 characters. `SIGNING_SECRET_PREVIOUS` allows rotation without disruption and `TOKEN_NOT_BEFORE` is a kill switch.
+- Auth codes are bound to client and redirect URI, carry an id, and are single use. `/token` requires `redirect_uri` and `client_id` (escape hatch: `LENIENT_TOKEN_REDIRECT_CHECK`).
+- Redirect URIs default to the exact callbacks of Claude, ChatGPT, VS Code, and Cursor plus loopback. `REDIRECT_URI_ALLOWLIST` adds exact URIs. `REDIRECT_URI_HOST_ALLOWLIST` now only adds extra https hosts and `EXTRA_REDIRECT_SCHEMES` only applies when the allowlist is open.
+- CSRF is bound to a cookie, client, redirect URI, state, challenge, and expiry. The credentials form has a nonce-based CSP with `form-action` limited to self and the redirect target.
+- Request body limits are per route (16 kb for auth endpoints, 100 kb for `/mcp`).
+- Upstream error text in tool results is shortened, stripped of links, and labelled as untrusted.
+- `ALLOW_LEGACY_CLIENT_ID_FLOW=false` disables the Claude Desktop flow that puts credentials in `client_id`. It stays on by default.
+
+### Upgrade notes
+
+Users reconnect once because tokens changed format. See "Upgrading from an earlier version" in `docs/setup-developer.md`. Not verified against live Claude Desktop and Cursor in this change set: the required `redirect_uri` at `/token` and the new resource metadata path.
+
+## Security hardening: 2026-11-05
+
+- MAPI token cache is keyed by a hash of client ID and secret instead of the client ID alone, and capped at 200 entries. Previously a wrong secret with a known client ID could reuse a cached token.
+- Legacy (Claude Desktop) flow now validates credentials against Bluestone at `/token` before issuing a token.
+- `/register` returns an HMAC-signed `client_id` that embeds the redirect URIs. `/authorize` rejects unknown clients and non-matching `redirect_uri`s. The credentials form shows where the session token will be sent. CSRF token is bound to client, redirect URI, state, and challenge.
+- Redirect URIs are restricted to https, loopback http, and known desktop client schemes.
+- Header credentials on `/mcp` are off unless `ALLOW_HEADER_AUTH=true`. A present but invalid Bearer token returns 401 with `WWW-Authenticate` instead of falling back.
+- `get_product_image` only fetches https URLs on `bluestonepim.com` hosts (extend with `IMAGE_HOST_ALLOWLIST`), with no redirects, a timeout, a 5 MB cap, and an image content type check.
+- All IDs placed in API paths go through `seg()`: validated and URL-encoded.
+- New `MCP_READ_ONLY=true` mode registers read tools only.
+- Dependencies updated (`npm audit` reports 0 vulnerabilities), including zod 4. `express-rate-limit` is now a declared dependency.
+- PKCE verifier format is enforced and compared in constant time. `/token` responses send `Cache-Control: no-store`. The MAPI secret is no longer echoed back into the form on validation errors.
+
 ## Cursor OAuth support: 2026-04-10
 
 ### Background

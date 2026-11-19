@@ -40,7 +40,7 @@ You (typing in Claude Desktop)
                                                           ▼
                                                    Response → Claude → you
 ```
-No local process. The server runs as a serverless function on Vercel. Credentials travel as a Bearer token on every request. Nothing is stored server-side.
+No local process. The server runs as a serverless function on Vercel. Credentials travel as a Bearer token on every request. By default nothing is stored server-side. An optional shared store (Upstash Redis) adds refresh tokens and revocation, and keeps an encrypted refresh record for up to 30 days.
 
 ---
 
@@ -152,21 +152,22 @@ The server does not need to be started manually. It has no persistent state betw
 
   **Legacy flow (Claude Desktop):** `client_id` encodes credentials directly as `{mapiClientId}:{papiKey}`:
   1. Claude Desktop opens a browser to `/authorize` with the composite `client_id`, `redirect_uri`, and a PKCE S256 challenge
-  2. The server validates `redirect_uri` (must be localhost or HTTPS), extracts credentials from `client_id`, encrypts them into a short-lived AES-256-GCM auth code, and redirects back immediately; no login screen appears, the payload is opaque in the redirect URL, and `mapiClientSecret` is intentionally absent here so it never travels in the redirect
-  3. Claude Desktop POSTs to `/token` with the PKCE verifier and `mapiClientSecret`; the server decrypts the auth code, checks expiry, verifies the PKCE challenge, then encrypts all three credentials into a Bearer token using AES-256-GCM
+  2. The server checks `redirect_uri` against the allowlist, extracts credentials from `client_id`, encrypts them into a short-lived single-use AES-256-GCM auth code, and redirects back immediately; no login screen appears, and `mapiClientSecret` is intentionally absent here so it never travels in the redirect
+  3. Claude Desktop POSTs to `/token` with the PKCE verifier, the same `redirect_uri` and `client_id`, and `mapiClientSecret`; the server decrypts the auth code, checks expiry and binding, verifies the PKCE challenge, validates the secret against Bluestone, then seals all three credentials into a Bearer token using AES-256-GCM
 
   **Dynamic registration flow (Cursor and RFC 7591 clients)**:
   1. The client POSTs to `/register` and receives an opaque `client_id` (no credentials yet)
   2. The client opens a browser to `/authorize`; the server detects the opaque `client_id` and renders an HTML form asking for all three Bluestone credentials: `mapiClientId`, `mapiClientSecret`, and PAPI key
-  3. A CSRF token (HMAC-SHA256 of `SIGNING_SECRET` + `state` + `code_challenge`) is embedded as a hidden field and verified on POST submission; this prevents a malicious page from tricking a user into submitting the form
-  4. On form submit the server validates `redirect_uri`, verifies the CSRF token, encrypts all three credentials into the auth code (AES-256-GCM), and redirects back to the client
-  5. The client POSTs to `/token` with the PKCE verifier; the server decrypts the auth code and retrieves the MAPI secret from within it; no `client_secret` body param is required from the client
+  3. A CSRF token (HMAC over a random cookie nonce, client, redirect URI, `state`, `code_challenge`, and an expiry) is embedded as a hidden field and must arrive together with the cookie; this prevents a malicious page from tricking a user into submitting the form
+  4. On form submit the server validates `redirect_uri`, verifies the CSRF token, checks the credentials against Bluestone, encrypts them into the auth code (AES-256-GCM), and redirects back to the client. A per-client-ID failure counter blocks guessing of a secret from many IPs
+  5. The client POSTs to `/token` with the PKCE verifier, `redirect_uri`, and `client_id`; the server decrypts the auth code and retrieves the MAPI secret from within it; no `client_secret` body param is required from the client
 
 - That encrypted Bearer token is sent on every subsequent `/mcp` request; the server decrypts it using `SIGNING_SECRET` to recover the credentials and forwards them to the Bluestone APIs
-- Bearer tokens contain an expiration timestamp inside the encrypted payload. The server verifies it on every request, so a stolen token cannot be used indefinitely; it expires after 59 minutes
-- Tokens are bound to their owner via AES-GCM Additional Authenticated Data (AAD): the user's `mapiClientId` is cryptographically tied to the token, so knowing `SIGNING_SECRET` alone is not enough to bulk-decrypt all tokens
-- `SIGNING_SECRET` should be rotated periodically (every 90 days) and immediately if compromised; rotation invalidates all existing tokens and requires users to reconnect once
-- Nothing is stored server-side at any point; Vercel function logs show request metadata only, never credential values
+- Bearer tokens contain an expiration timestamp, an audience (`/mcp` of this server), and an optional read-only claim inside the encrypted payload. The server verifies them on every request; access tokens expire after 59 minutes
+- Sealed values use per-purpose HKDF subkeys with a key id and purpose-bound AAD, so a value for one purpose cannot be reused as another
+- `SIGNING_SECRET` should be rotated every 90 days with `SIGNING_SECRET_PREVIOUS` for a smooth hand-over, and immediately if compromised (`TOKEN_NOT_BEFORE` cuts off everything issued earlier)
+- Without the optional shared store nothing is stored server-side. With it, rotating refresh tokens are kept as encrypted records for up to 30 days, reuse of a refresh token revokes its whole family, and `/revoke` ends a connection on demand
+- Security events are logged as JSON lines with allowlisted fields only; credential values, tokens, and codes are never logged
 
 **Both modes**
 - The server only makes outbound HTTP requests; it does not open ports or listen for connections
@@ -180,9 +181,14 @@ The current implementation is suitable for a beta/internal deployment. The follo
 
 | Area | Current state | What to do |
 |---|---|---|
-| **redirect_uri validation** | Blocks `javascript:` and `data:` only; custom schemes and plain HTTP are accepted | Enforce an allowlist of registered redirect URIs per client. Store URIs at `/register` time and verify them at `/authorize`. |
-| **Client registration persistence** | Stateless: any opaque `client_id` is accepted at `/authorize` | Persist registered clients (e.g. Vercel KV) and reject unregistered `client_id`s at `/authorize`. |
-| **Rate limiting** | All endpoints rate-limited in-memory: `/mcp` at 60 req/min per IP, auth endpoints (`/authorize`, `/token`, `/register`) at 20 req/min per IP. | In-memory store is per Vercel instance, not globally consistent across concurrent instances. For strict global limits, replace with a Redis-backed store (e.g. `rate-limit-redis` + Vercel KV or Upstash). |
-| **CSP** | `'unsafe-inline'` for styles; no `form-action` restriction (CSRF is handled by HMAC token instead) | Add a per-request nonce to remove `'unsafe-inline'`; re-evaluate `form-action` once routing behaviour is confirmed. |
-| **MAPI token cache** | In-memory per Vercel instance (accidental statefulness) | Move to an external cache (e.g. Vercel KV) so tokens survive across cold starts and concurrent instances. |
-| **Direct header fallback** | `x-papi-key` / `x-mapi-client-id` / `x-mapi-client-secret` headers bypass OAuth | Remove this fallback, or restrict it to requests from trusted IPs only. |
+| **redirect_uri validation** | Exact callback URIs of Claude, ChatGPT, VS Code, and Cursor plus loopback are accepted. Auth codes are bound to the redirect URI and client, and are single use. | Add other clients with `REDIRECT_URI_ALLOWLIST` (exact URIs). Avoid `REDIRECT_URI_HOST_ALLOWLIST` unless you trust every path on the host. |
+| **Client registration** | Stateless but signed: `/register` returns an HMAC-signed `client_id` that embeds the redirect URIs. `/authorize` verifies the signature and requires an exact `redirect_uri` match. The form shows where the token will be sent. Registration itself is open. | Persist registrations (e.g. Vercel KV) if you need revocation or per-client policy. Rotating `SIGNING_SECRET` invalidates registered `client_id`s, so clients must register again. |
+| **Rate limiting** | `/mcp` at 60 req/min per IP, auth endpoints at 20 req/min per IP, credential validation at 10 req/min, plus 10 failed credential checks per MAPI client ID per 15 minutes. Counters use the shared store when configured and memory otherwise. | Configure the Upstash store (and `REQUIRE_SHARED_STORE=true`) on shared deployments so limits hold across instances. |
+| **CSP** | The credentials form has a per-request nonce CSP with `default-src 'none'` and `form-action` limited to self and the redirect target. | Check new browsers when changing the form. |
+| **Origin validation** | `/mcp` rejects browser requests whose Origin is not on the allowlist. Native clients send no Origin. | Extend with `MCP_ALLOWED_ORIGINS` for web-based MCP clients. |
+| **Write confirmation** | Five bulk or schema tools return a preview and a signed `confirmationToken` first, or ask the client through elicitation when the transport is stateful. | Keep `MCP_READ_ONLY=true` where writes are not needed. The token flow forces a visible preview step but cannot prove a human read it. |
+| **MAPI token cache** | In-memory per Vercel instance, keyed by a hash of client ID and secret, capped at 200 entries | Move to an external cache (e.g. Vercel KV) so tokens survive across cold starts and concurrent instances. |
+| **Direct header fallback** | Off by default. `ALLOW_HEADER_AUTH=true` enables `x-papi-key` / `x-mapi-client-id` / `x-mapi-client-secret` headers, which bypass OAuth. | Leave it off in any shared deployment. Use it only for local development. |
+| **Read-only mode** | `MCP_READ_ONLY=true` skips every tool with `readOnlyHint: false`. | Enable it for deployments where write access is not needed. It limits the damage a prompt-injected instruction in PIM content can do. |
+| **Image fetching** | `get_product_image` fetches only https URLs on `bluestonepim.com` hosts, with no redirects, a 15 s timeout, a 5 MB cap, and an image content type. | Add other media hosts with `IMAGE_HOST_ALLOWLIST` (comma-separated domain suffixes). |
+| **Path parameters** | Every ID placed in an API path is validated (`[A-Za-z0-9_-]`, max 128) and encoded by `seg()` in `src/safe-path.ts`. | Use `seg()` for any new tool that builds a path from user or model input. |

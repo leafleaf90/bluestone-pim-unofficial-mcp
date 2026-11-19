@@ -7,20 +7,26 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "vercel-build": "tsc && mkdir -p build/connect/images && cp public/connect/index.html build/connect/index.html && cp public/404.html build/404.html && cp public/robots.txt build/robots.txt && cp public/bluestone_pim_logo.png build/bluestone_pim_logo.png && cp public/og-image.jpg build/og-image.jpg && cp -r public/brand_assets build/brand_assets && cp -r public/connect/images/. build/connect/images/",
-    "optimize-images": "node scripts/optimize-images.js"
+    "vercel-build": "tsc && mkdir -p build/connect/images && cp public/connect/index.html build/connect/index.html && cp public/404.html build/404.html && cp public/robots.txt build/robots.txt && cp public/bluestone_pim_logo.png build/bluestone_pim_logo.png && cp public/og-image.jpg build/og-image.jpg && cp -r public/brand_assets build/brand_assets && cp -r public/connect/images/. build/connect/images/ && find build -name .DS_Store -delete",
+    "optimize-images": "node scripts/optimize-images.js",
+    "test:security": "tsc && node --test scripts/security-smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "@upstash/redis": "^1.41.0",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.3",
     "helmet": "^8.1.0",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.0.0",
     "sharp": "^0.34.5",
     "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

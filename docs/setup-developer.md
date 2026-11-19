@@ -112,7 +112,31 @@ Add it in Vercel: **Project → Settings → Environment Variables → Add**. Ke
 vercel --prod
 ```
 
-> **Rotation:** Rotate `SIGNING_SECRET` periodically (every 90 days is a reasonable baseline) and immediately if you suspect it has been compromised. When rotated, all existing Bearer tokens are invalidated; users will need to reconnect once to get a new token.
+> **Minimum length:** `SIGNING_SECRET` must be at least 32 characters. Shorter values make the server refuse to issue or accept tokens.
+>
+> **Rotation without disruption:** set `SIGNING_SECRET` to the new value and put the old one in `SIGNING_SECRET_PREVIOUS`. New tokens use the new secret, existing tokens keep working until they expire (access tokens last under an hour). Remove `SIGNING_SECRET_PREVIOUS` after a day. Rotate every 90 days, and immediately if you suspect compromise: in that case skip `SIGNING_SECRET_PREVIOUS` (all tokens are invalidated and users reconnect once) or set `TOKEN_NOT_BEFORE` to the current Unix time in seconds to cut off everything issued earlier.
+
+### Optional hardening variables
+
+| Variable | Effect |
+|---|---|
+| `MCP_READ_ONLY=true` | Registers only read tools. Write tools are not exposed. |
+| `REDIRECT_URI_ALLOWLIST` | Comma-separated exact redirect URIs to accept in addition to the built-in defaults (Claude, ChatGPT, VS Code, Cursor, loopback). A trailing `*` makes a prefix match. |
+| `REDIRECT_URI_HOST_ALLOWLIST` | Comma-separated extra https hosts to trust for any path. Weaker than exact URIs, because an open redirect on an allowed host can leak codes. `*` opens the allowlist completely. |
+| `EXTRA_REDIRECT_SCHEMES` | Custom URI schemes to accept. Only used when the allowlist is open (`REDIRECT_URI_HOST_ALLOWLIST=*`). |
+| `MCP_ALLOWED_ORIGINS` | Comma-separated browser Origins allowed on `/mcp`, in addition to claude.ai, claude.com, chatgpt.com, vscode.dev, and cursor.com. Native clients send no Origin and are unaffected. `*` disables the check. |
+| `ALLOW_LEGACY_CLIENT_ID_FLOW=false` | Disables the Claude Desktop flow that carries credentials in `client_id` (and therefore in URLs and platform logs). On by default for compatibility. |
+| `LENIENT_TOKEN_REDIRECT_CHECK=true` | Temporary escape hatch: only compare `redirect_uri` and `client_id` at `/token` when the client sends them. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Optional shared store (`KV_REST_API_URL` and `KV_REST_API_TOKEN` also work). Enables cross-instance rate limits and failure throttling, single-use auth codes, rotating refresh tokens, and `/revoke`. Without it the server stays stateless. |
+| `REQUIRE_SHARED_STORE=true` | Refuse requests when no shared store is configured, and answer 503 (with `Retry-After`) when the store errors at runtime instead of falling back to per-instance memory. Without it, a store outage degrades single-use codes, refresh reuse detection and revocation to per-instance only. Recommended for shared deployments. |
+| `SIGNING_SECRET_PREVIOUS` | Old signing secret(s) accepted during rotation. |
+| `TOKEN_NOT_BEFORE` | Unix timestamp in seconds. Tokens and refresh tokens issued earlier are rejected. |
+| `ENABLE_ELICITATION=true` | Ask the client to confirm bulk and schema writes through MCP elicitation on stateless HTTP too. Only for clients known to keep the response stream open. The default on HTTP is a preview plus confirmation token. |
+| `IMAGE_HOST_ALLOWLIST` | Comma-separated domain suffixes `get_product_image` may fetch, in addition to `bluestonepim.com`. |
+| `PUBLIC_BASE_URL` | Public URL of the deployment (for example `https://my-mcp.example.com`). Used in OAuth metadata instead of the request Host header. Recommended outside Vercel. |
+| `ALLOW_HEADER_AUTH=true` | Accepts raw credentials in `x-papi-key`, `x-mapi-client-id`, and `x-mapi-client-secret` headers. Local development only. Off by default. |
+
+> Registered client IDs are signed with the same secret, so they follow the same rotation rules. Without `SIGNING_SECRET_PREVIOUS`, clients such as Cursor register again automatically on the next connection.
 
 ### 3. Share the URL with users
 
@@ -197,18 +221,28 @@ The server supports two OAuth 2.1 + PKCE flows depending on the client.
 Claude Desktop encodes credentials directly in `client_id` as `{mapiClientId}:{papiKey}`:
 
 1. Claude Desktop opens `/authorize` with the composite `client_id` and a PKCE S256 challenge
-2. The server validates `redirect_uri` (must be localhost or HTTPS), extracts credentials from `client_id`, encrypts them into a short-lived AES-256-GCM auth code, and redirects back; the payload is opaque in the redirect URL, and `mapiClientSecret` is intentionally absent so it never travels in the redirect
-3. Claude Desktop exchanges the code at `/token`, sending the PKCE verifier and `client_secret` (the MAPI secret)
-4. The server decrypts the auth code, checks expiry, verifies the PKCE challenge, then encrypts all three credentials into a Bearer token using AES-256-GCM
-5. All subsequent MCP requests carry that encrypted Bearer token; the server decrypts it, verifies the embedded expiration timestamp, and rejects it if expired. Nothing is stored on the server
+2. The server checks `redirect_uri` against the allowlist, extracts credentials from `client_id`, encrypts them into a short-lived single-use AES-256-GCM auth code, and redirects back; `mapiClientSecret` is intentionally absent so it never travels in the redirect
+3. Claude Desktop exchanges the code at `/token`, sending the PKCE verifier, the same `redirect_uri` and `client_id`, and `client_secret` (the MAPI secret). The server validates the secret against Bluestone before issuing a token
+4. The server decrypts the auth code, checks expiry, binding, and the PKCE challenge, then seals all three credentials into a Bearer token bound to this server's `/mcp` audience
+5. All subsequent MCP requests carry that Bearer token; the server decrypts it and rejects it if expired, revoked, or minted for another audience. Without a shared store nothing is stored on the server. With one, an encrypted refresh record is kept for up to 30 days
 
 **Cursor and other RFC 7591 clients (dynamic registration flow)**
 
 1. Cursor POSTs to `/register` and receives an opaque `client_id`
 2. Cursor opens a browser to `/authorize`; the server detects the opaque `client_id` and renders an HTML form
 3. The user enters all three Bluestone credentials in the form: `mapiClientId`, `mapiClientSecret`, and PAPI key
-4. The server verifies a CSRF token (to prevent cross-site form submission), encrypts all three credentials into an AES-256-GCM auth code, and redirects back to Cursor
-5. Cursor exchanges the code at `/token` with only the PKCE verifier; the MAPI secret is already inside the encrypted auth code, so no `client_secret` param is needed
+4. The server verifies a cookie-bound CSRF token, checks the credentials against Bluestone, encrypts them into a single-use AES-256-GCM auth code, and redirects back to Cursor. The form has a "Read-only session" checkbox that hides every write tool for that connection
+5. Cursor exchanges the code at `/token` with the PKCE verifier, `redirect_uri`, and `client_id`; the MAPI secret is already inside the encrypted auth code, so no `client_secret` param is needed
+
+### Upgrading from an earlier version
+
+- **Re-authentication:** the token format changed (`v2`). Existing tokens and auth codes stop working, and users connect once more. Set `SIGNING_SECRET` to at least 32 characters first.
+- **Redirect allowlist:** only the known client callbacks and loopback are accepted by default. If you connect a different client, add its exact callback to `REDIRECT_URI_ALLOWLIST`. Previously any https URL was accepted.
+- **`/token` strictness:** `redirect_uri` and `client_id` are now required and must match the authorization request. If a client breaks, set `LENIENT_TOKEN_REDIRECT_CHECK=true`, then report the client so it can be fixed.
+- **Header auth:** `x-papi-key` and `x-mapi-*` headers are rejected unless `ALLOW_HEADER_AUTH=true`.
+- **Write tools on HTTP:** five bulk or schema tools now return a preview and `confirmationToken` first. The assistant calls them again after you approve.
+- **Optional store:** adding the Upstash variables turns on refresh tokens and revocation. This changes the "nothing is stored" promise, so update any internal documentation you give to users.
+- **Legacy flow:** consider `ALLOW_LEGACY_CLIENT_ID_FLOW=false` once all users run a client that supports dynamic registration.
 
 ---
 

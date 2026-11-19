@@ -262,9 +262,9 @@ This is a community project, part of [Bluestone PIM Labs](https://labs.bluestone
 
 ### Is it safe to use with my PIM data?
 
-**On credentials:** Your credentials are never stored on the server. At the point of connection they are encrypted into a session token that only your client holds. The server decrypts them per-request to call the Bluestone PIM API, and nothing is written to a database. For team or client use, deploy your own instance so you control the infrastructure entirely.
+**On credentials:** In the default setup your credentials are never stored on the server. At the point of connection they are encrypted into a session token that only your client holds. The server decrypts them per-request to call the Bluestone PIM API, and nothing is written to a database. A deployment can optionally enable a shared store for refresh tokens and revocation. In that case an encrypted copy is kept for up to 30 days, and the connection form tells you so. For team or client use, deploy your own instance so you control the infrastructure entirely.
 
-**On using AI with live data:** This server connects an AI model to your Bluestone PIM environment. AI models can misread instructions, call the wrong tool, or act on an ambiguous prompt in ways you did not intend. The create product tool requires the AI to confirm the product name before calling the API, but that is a soft guardrail: it depends on the AI client following the instruction. It is not enforced at the infrastructure level.
+**On using AI with live data:** This server connects an AI model to your Bluestone PIM environment. AI models can misread instructions, call the wrong tool, or act on an ambiguous prompt in ways you did not intend. The create product tool requires the AI to confirm the product name before calling the API, but that is a soft guardrail: it depends on the AI client following the instruction. Bulk and schema tools such as the variant matrix add a server-side step: the first call only returns a preview and a confirmation token, and the change runs when the AI calls again with that token. When you connect you can also choose a read-only session that hides every write tool.
 
 This is a community project, not product-grade software. It does not have the guardrails or validation you would expect from a supported product. Treat it accordingly: use it for exploration and low-stakes tasks, be explicit in your prompts, and review any actions before confirming them. Do not rely on it as a primary workflow for production data you cannot afford to get wrong.
 
@@ -294,7 +294,7 @@ You need three credentials from your Bluestone PIM account:
 
 If you don't have these, contact your Bluestone PIM administrator.
 
-Your credentials are encrypted into a session token at the point of connection and are never stored on the server.
+Your credentials are encrypted into a session token at the point of connection and are not stored on the server by default.
 
 > **Note:** This server connects to the **Bluestone PIM test environment** by default (`api.test.bluestonepim.com`). To connect to production, set the `ENVIRONMENT=production` variable when deploying your own instance.
 
@@ -573,7 +573,7 @@ Still stuck? [Open an issue on GitHub](https://github.com/leafleaf90/bluestone-p
 
 This is not a Bluestone PIM product. It is a Bluestone PIM Labs community project, published openly. Bluestone has not reviewed, endorsed, or supported it in any way.
 
-Your credentials are encrypted into a session token at the point of connection and are not stored by this server. If your organisation has security or compliance requirements around API credentials, run your own instance rather than using the shared test deployment above. Option B in the [setup guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md) covers deploying to your own Vercel account, so credentials stay within your own infrastructure. For large organisations: loop in your IT or security team before deploying.
+Your credentials are encrypted into a session token at the point of connection and are not stored by this server in its default configuration. If your organisation has security or compliance requirements around API credentials, run your own instance rather than using the shared test deployment above. Option B in the [setup guide](https://github.com/leafleaf90/bluestone-pim-unofficial-mcp/blob/main/docs/extending.md) covers deploying to your own Vercel account, so credentials stay within your own infrastructure. For large organisations: loop in your IT or security team before deploying.
 
 This shared instance connects to the Bluestone test environment. For production use, deploy your own instance with `ENVIRONMENT=production`.
 
@@ -672,7 +672,7 @@ A few principles guided the design:
 
 A few concrete decisions that followed from those principles:
 
-- **No database.** Session state is AES-256-GCM encrypted into the bearer token itself. The server has no persistent storage and no credentials to steal.
+- **No database by default.** Session state is AES-256-GCM encrypted into the bearer token itself. An optional shared store adds refresh tokens, revocation, and cross-instance rate limits.
 - **The beta notice is delivered via server instructions**, sent during the MCP handshake before any tools are called. This is the correct channel for server-level context, not a tool the model must remember to call first.
 - **Working state by default, published on request.** Bluestone PIM has two data layers: working state (what your team is enriching right now, including unpublished drafts) and published (what has been synced and is live). The default read tools return working state from the management API, because that is what enrichment teams actually need to work with. Separate tools are available when you specifically ask for published data.
 - **Language switching without server state.** The server exposes a context parameter on read tools corresponding to Bluestone's language and market settings. When you ask for data in a specific language, the AI looks up the right context ID and passes it on subsequent calls. No session is needed on the server side. The model tracks the active language for the conversation naturally.
@@ -746,7 +746,7 @@ If you are building an agent workflow on top of this, the [GitHub repo](https://
 
 **Production environment.** The server defaults to the test environment (`api.test.bluestonepim.com`). Set `ENVIRONMENT=production` on your deployment to point at `api.bluestonepim.com` and `idp.bluestonepim.com` instead.
 
-**Token revocation.** Because there is no database, issued tokens cannot be invalidated before they expire. If you need to revoke access, the only option is to rotate your MAPI client secret in Bluestone PIM.
+**Token revocation.** By default there is no database, so issued tokens cannot be invalidated before they expire (under an hour). Deployments with the optional shared store support refresh tokens and a revoke endpoint. Otherwise the way to cut off access immediately is to rotate your MAPI client secret in Bluestone PIM.
 
 ## On designing for language models
 

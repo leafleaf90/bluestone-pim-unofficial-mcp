@@ -8,11 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run build           # compile TypeScript → build/
 npm run dev             # watch mode (tsc --watch)
 npm run vercel-build    # used by Vercel CI: compiles + copies HTML + logo into build/
+npm run test:security   # build + security regression tests
 npm run optimize-images # convert screenshots in public/connect/images/ to WebP (deletes originals)
 cd public && python3 -m http.server 8080  # preview connect page at localhost:8080/connect/
 ```
 
-There are no tests. No linter is configured.
+`npm run test:security` builds and runs `scripts/security-smoke.mjs` (OAuth layer, write gate, helpers; no network needed, Bluestone and the shared store are mocked). Run it after any change to `api/mcp.ts`, `src/auth-*.ts`, `src/store.ts`, `src/redirect-policy.ts`, `src/write-guard.ts`, or the write tools. CI runs it with `npm audit` and gitleaks. No linter is configured.
 
 To generate a `SIGNING_SECRET` for Vercel:
 ```bash
@@ -38,7 +39,7 @@ All MCP tools are registered inside a single `createMcpServer(creds: Credentials
 - `search_products`: compiles semantic filters to query-builder `MainQueryGroup` terms, then `POST /query-builder/products/search?archiveState=ACTIVE` and `/products/count` in parallel, then resolves IDs via `list/views/by-ids`. Supports category scope, completeness score range, and failing requirement IDs. Phase 1 only: no attribute, label, relation, or asset filters yet.
 - `list_published_catalogs`: calls PAPI `/categories` via `papiGet()` (published/live data only)
 - `list_published_products_in_category`: calls PAPI `/categories/{id}/products` via `papiGet()` (published/live data only). Includes `imageUrl` (the `previewUri` for the "Main" media asset) on each product when present.
-- `get_product_image`: fetches a product image from Bluestone's CDN using the `imageUrl` from `list_published_products_in_category` and returns it as a base64 `image` content block for inline rendering in chat. Call only when the user explicitly asks to see an image, not automatically for every product in a list.
+- `get_product_image`: fetches a product image from Bluestone's CDN using the `imageUrl` from `list_published_products_in_category` and returns it as a base64 `image` content block for inline rendering in chat. Call only when the user explicitly asks to see an image, not automatically for every product in a list. Fetching is guarded by `src/safe-image-fetch.ts` (https, `bluestonepim.com` host allowlist, no redirects, 5 MB cap, image content type only).
 - `create_attribute_definition`: calls MAPI `/pim/definitions` via `mapiPost()` to create an attribute definition with `name`, `dataType`, optional `unit`, and initial `enumValues` for `single_select`/`multi_select`. Select attributes require initial enum values because Bluestone rejects them without enum restrictions. Returns the `resource-id` header as the new definition ID. Does not create dictionary values, validation restrictions, groups, category nodes, or product attribute values.
 - `create_dictionary_value`: calls MAPI `/pim/definitions/dictionary/{dictionaryId}/values` via `mapiPost()` to create a value for a dictionary attribute. Returns the `resource-id` header as the value ID for later `set_product_attribute` calls.
 - `append_select_attribute_values`: calls MAPI `/pim/definitions/{definitionId}?validation=NAME` via `mapiPut()` after first reading the full definition. Preserves existing definition fields and enum values, then appends new `single_select` or `multi_select` values.
@@ -96,10 +97,23 @@ Reads `PAPI_KEY`, `MAPI_CLIENT_ID`, `MAPI_CLIENT_SECRET` from `.env`, calls `cre
 An Express app that implements a full **OAuth 2.1 authorization server** so MCP clients (Claude Desktop, Cursor) can authenticate end-users without credentials being stored on the server.
 
 Key design decisions:
-- **No database.** All state (auth codes, bearer tokens) is encoded as AES-256-GCM encrypted strings. The `SIGNING_SECRET` env var is the only server-side secret.
+- **Stateless by default, optional shared store.** Auth codes and access tokens are AES-256-GCM sealed strings (`src/auth-crypto.ts`: HKDF subkeys per purpose, `v2.{kid}...` format, `SIGNING_SECRET_PREVIOUS` rotation, `TOKEN_NOT_BEFORE` kill switch, minimum secret length 32). Setting `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_*`) turns on `src/store.ts` (shared rate limits, single-use auth codes, rotating refresh tokens, `/revoke`). Without it everything works per instance in memory. `REQUIRE_SHARED_STORE=true` fails closed when it is missing.
 - **Two auth flows share `/authorize`:** The *legacy* flow (Claude Desktop) encodes `mapiClientId:papiKey` directly in `client_id`. The *dynamic registration* flow (Cursor, RFC 7591 clients) shows an HTML form to collect credentials.
-- **Bearer tokens are encrypted credentials.** The `/token` response contains an AES-GCM blob that decrypts back to `{ papiKey, mapiClientId, mapiClientSecret }`. No session store needed.
-- **Each `/mcp` request creates a new `McpServer` instance.** Credentials come from the decrypted Bearer token (or fallback `x-papi-key` / `x-mapi-*` headers for dev use). There is no persistent storage, but Vercel reuses warm instances so in-memory state (notably the MAPI token cache in `getBearerToken()`) can survive across requests on the same instance.
+- **Registrations are signed, not stored.** `/register` returns `rc_{payload}.{hmac}` embedding the redirect URIs. `/authorize` verifies it and requires an exact `redirect_uri` match. The credentials form shows the redirect destination. The CSRF token is bound to client, redirect URI, state, and PKCE challenge.
+- **Legacy flow credentials are validated at `/token`.** The secret first arrives there, so the server checks it against Bluestone before issuing a token.
+- **MAPI token cache is keyed by a hash of client ID and secret** (never the ID alone), capped at 200 entries.
+- **Redirect policy** (`src/redirect-policy.ts`): exact vendor callback URIs plus loopback by default. Extend with `REDIRECT_URI_ALLOWLIST` (exact, trailing `*` is a prefix) or `REDIRECT_URI_HOST_ALLOWLIST`. `/token` requires `redirect_uri` and `client_id` to match the authorization request (`LENIENT_TOKEN_REDIRECT_CHECK` is a temporary escape hatch). Auth codes carry a `jti` and are single use.
+- **Form page:** route-scoped nonce CSP with `form-action` limited to self and the redirect target (`src/auth-form.ts`, `setFormHeaders`). CSRF is bound to a `__Host-` cookie, client, redirect URI, state, PKCE challenge, and an expiry.
+- **Failure throttling:** failed credential checks are counted per submitted MAPI client ID in the store, in addition to per-IP rate limits.
+- **Origin validation** on `/mcp` (`MCP_ALLOWED_ORIGINS`), RFC 8707 audience on access tokens, RFC 9728 metadata at `/.well-known/oauth-protected-resource/mcp`.
+- **Security logging:** `logSecurityEvent()` in `src/security-log.ts` writes JSON lines with allowlisted fields only. Never log credentials, tokens, codes, or raw request bodies.
+- **Write safety:** bulk and schema tools (`generate_variant_matrix`, `append_variants_to_group`, `create_attribute_definition`, `append_select_attribute_values`, `create_category_node`) go through `src/write-guard.ts`: elicitation when the transport is stateful (stdio) or `ENABLE_ELICITATION=true`, otherwise a preview plus signed `confirmationToken` bound to tool, arguments, and credentials. Upstream error text passes through `src/sanitize.ts`. New bulk or schema writes must use the gate.
+- **Security switches (env vars):** see `.env.example` and `docs/setup-developer.md` for the full list (`MCP_READ_ONLY`, `ALLOW_LEGACY_CLIENT_ID_FLOW`, `ALLOW_HEADER_AUTH`, `IMAGE_HOST_ALLOWLIST`, `PUBLIC_BASE_URL`, and others).
+- **Ungated writes are a pinned list.** `create_product`, `set_product_attribute`, `set_variant_level_attribute`, `create_dictionary_value`, `assign_product_to_category`, `create_column_setup` and `update_product_name` are single-item writes confirmed in conversation and hidden in read-only sessions. `scripts/security-smoke.mjs` pins that list. A new bulk or structural write must use the gate, and a new single-item write needs a deliberate edit to the list.
+- **Request parsing:** read bodies and query strings through `stringFields()` and register async routes with `asyncRoute()` in `api/mcp.ts`. Never call string methods on a raw `req.body` value.
+- **Path parameters:** wrap every model-supplied ID placed in an API path with `seg()` from `src/safe-path.ts`. Do not interpolate raw IDs into URLs.
+- **Bearer tokens are encrypted credentials.** The `/token` response contains an AES-GCM blob that decrypts back to `{ papiKey, mapiClientId, mapiClientSecret }` plus `iat`, `exp`, `aud`, and an optional read-only claim. With a shared store, a refresh token is also issued and its encrypted record is kept for up to 30 days, so the "nothing is stored" claim only holds without the store.
+- **Each `/mcp` request creates a new `McpServer` instance.** Credentials come from the decrypted Bearer token (or fallback `x-papi-key` / `x-mapi-*` headers when `ALLOW_HEADER_AUTH=true`, dev use only). There is no persistent storage, but Vercel reuses warm instances so in-memory state (notably the MAPI token cache in `getBearerToken()`) can survive across requests on the same instance.
 
 Vercel routing is in `vercel.json`: all OAuth and MCP paths rewrite to `/api/mcp`.
 

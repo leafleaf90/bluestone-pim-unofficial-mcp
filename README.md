@@ -52,7 +52,7 @@ Start with `src/tools.ts` (where tools are registered) and [docs/extending.md](d
 
 This is a [Bluestone PIM Labs](https://labs.bluestonepim.com/) community project, not an official Bluestone product.
 
-It works against the documented Bluestone APIs using your own credentials. If you run the server locally or deploy your own Vercel instance, your credentials stay entirely within your own infrastructure and are never stored by this project. See [docs/how-it-works.md](docs/how-it-works.md) for the full security model.
+It works against the documented Bluestone APIs using your own credentials. If you run the server locally or deploy your own Vercel instance, your credentials stay entirely within your own infrastructure and are never stored by this project. A deployment can opt in to a shared store for refresh tokens, which keeps an encrypted copy for up to 30 days. See [docs/how-it-works.md](docs/how-it-works.md) for the full security model.
 
 The shared test deployment at `bluestone-mcp-unofficial.vercel.app` is fine for a quick look. For anything beyond that, run your own instance (Option B in the [setup guide](docs/setup-developer.md)) so you control where credentials go. If your organisation has a security review process, loop them in before deploying.
 

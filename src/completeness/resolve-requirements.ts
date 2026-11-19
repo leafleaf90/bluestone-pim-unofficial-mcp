@@ -1,3 +1,5 @@
+import { seg } from "../safe-path.js";
+
 interface Credentials {
   papiKey: string;
   mapiClientId: string;
@@ -79,7 +81,7 @@ async function fetchAttributeDefinitionNames(
     uniqueIds.map(async (definitionId) => {
       try {
         const definition = await mapiGet<MapiAttributeDefinitionResponse>(
-          `${pimBase}/definitions/${definitionId}`,
+          `${pimBase}/definitions/${seg(definitionId)}`,
           creds
         );
         return {

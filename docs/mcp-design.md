@@ -129,13 +129,13 @@ Banning "there it is" by name and framing the problem as a visibility gap the mo
 
 ---
 
-## Stateless bearer tokens (no session store)
+## Stateless bearer tokens (optional session store)
 
-The Vercel HTTP deployment has no database. Bearer tokens issued at `/token` are AES-256-GCM encrypted blobs containing the user's Bluestone credentials directly, not references to stored sessions.
+The Vercel HTTP deployment works without a database. Bearer tokens issued at `/token` are AES-256-GCM encrypted blobs containing the user's Bluestone credentials directly, not references to stored sessions.
 
-**Why:** Vercel serverless functions have no persistent memory between invocations. The alternatives (a database or Redis) add infrastructure for a community/beta project. Encoding state in the token itself means the server only needs the `SIGNING_SECRET` env var to verify and decrypt. Nothing is stored.
+**Why:** Vercel serverless functions have no persistent memory between invocations. Encoding state in the token itself means the server only needs the `SIGNING_SECRET` env var to verify and decrypt. In the default mode nothing is stored.
 
-The trade-off: token revocation is not possible. A token is valid until it expires. Acceptable at this scale.
+**Optional shared store.** The trade-off of a pure stateless design is that tokens cannot be revoked and rate limits are per instance. Shared and client-facing deployments can add an Upstash Redis store (`src/store.ts`). It provides cross-instance rate limits, single-use auth codes, rotating refresh tokens with reuse detection, and `/revoke`. The store is optional with an in-memory fallback so forks and personal instances need no extra infrastructure. Enabling it changes the privacy statement: an encrypted refresh record is kept for up to 30 days, and the credentials form says so.
 
 ---
 

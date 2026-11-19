@@ -32,6 +32,14 @@ If reads work but writes never execute, check your plan before debugging the con
 
 ---
 
+## Two-step writes
+
+`generate_variant_matrix`, `append_variants_to_group`, `create_attribute_definition`, `append_select_attribute_values`, and `create_category_node` take an optional `confirmationToken`. The first call changes nothing: it returns a plain-language preview and a token that is valid for 10 minutes and bound to the exact arguments and your credentials. After you approve the preview, the assistant calls the tool again with the same arguments and the token.
+
+When the client supports MCP elicitation and the connection is long-lived (stdio, or `ENABLE_ELICITATION=true`), the client asks you directly instead and no token is needed. The token flow forces a visible preview step. It cannot prove that a person read it, so keep `MCP_READ_ONLY=true` for deployments that should never write.
+
+---
+
 ## Product onboarding prompts
 
 Requests about onboarding, supplier onboarding, importing, bulk import, one-time bulk import, Excel import, CSV import, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, preparing products before creation, or misspelled Bluestone references such as Blueston should use the read-only onboarding flow before giving advice:
@@ -887,6 +895,7 @@ PAPI pagination uses 0-indexed `pageNo`; the tool subtracts 1 from the 1-indexed
 - Calls this only when the user explicitly asks to see a product image, not automatically for every product in a list
 - Fetches the preview URL (already sized to 400px wide, JPEG format via the `?f=jpg&w=400` query params Bluestone appends)
 - Returns the image as base64 so it renders inline in the client
+- Only https URLs on `bluestonepim.com` hosts are fetched (extend with `IMAGE_HOST_ALLOWLIST`). Redirects are not followed, the download is capped at 5 MB, and the response must be an image
 - In Claude Desktop, the image appears inside the tool result panel under the "Get product image" step, not inline in the reply. The tool result text instructs Claude to tell the user where to find it and provides the direct CDN URL as a fallback so the user can open it in a browser.
 
 **Design note:** See `docs/mcp-design.md` (Response shaping) for why image URLs are included in list responses but images are not fetched there, and why this is a separate on-demand tool rather than part of the list call. See the Behavior quirks section for the tool result panel rendering detail.

@@ -18,11 +18,15 @@ if (!PAPI_KEY || !MAPI_CLIENT_ID || !MAPI_CLIENT_SECRET) {
 }
 
 async function main() {
-  const server = createMcpServer({
-    papiKey: PAPI_KEY as string,
-    mapiClientId: MAPI_CLIENT_ID as string,
-    mapiClientSecret: MAPI_CLIENT_SECRET as string,
-  });
+  // stdio keeps one long-lived server per client, so elicitation can complete.
+  const server = createMcpServer(
+    {
+      papiKey: PAPI_KEY as string,
+      mapiClientId: MAPI_CLIENT_ID as string,
+      mapiClientSecret: MAPI_CLIENT_SECRET as string,
+    },
+    { statefulTransport: true }
+  );
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
