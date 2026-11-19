@@ -59,6 +59,10 @@ globalThis.fetch = async (input, init = {}) => {
     const key = init.headers?.["x-api-key"];
     return key === GOOD.papi ? Response.json({}) : new Response("{}", { status: 401 });
   }
+  if (url.includes("api.test.bluestonepim.com/idp/") || url.includes("api.test.bluestonepim.com/tasks/")) {
+    bluestoneCalls.push({ method: init.method ?? "GET", url, body: init.body ? JSON.parse(String(init.body)) : undefined });
+    return taskMockResponse(url, init);
+  }
   if (url.includes("api.test.bluestonepim.com")) {
     bluestoneCalls.push({ method: init.method ?? "GET", url });
     return new Response("{}", {
@@ -68,6 +72,42 @@ globalThis.fetch = async (input, init = {}) => {
   }
   return realFetch(input, init);
 };
+
+// Behaviour switches for the tasks and IdP mock. Reset with resetTaskMock().
+const taskBehavior = { create: "ok", attach: "ok", manyUsers: false };
+const resetTaskMock = () => Object.assign(taskBehavior, { create: "ok", attach: "ok", manyUsers: false });
+
+function taskMockResponse(url, init) {
+  const method = init.method ?? "GET";
+  const path = new URL(url).pathname;
+  if (path === "/idp/users") {
+    if (taskBehavior.manyUsers) {
+      return Response.json(Array.from({ length: 120 }, (_, i) => ({ id: `bulk-${i}`, name: `Bulk User ${i}`, email: `bulk${i}@example.com` })));
+    }
+    return Response.json([
+      { id: "u-1", name: "Ada Lovelace", email: "ada@example.com", picture: "https://pic.example/a.png", status: "ACTIVE", lastLogin: 1 },
+      { id: "u-2", name: "Grace Hopper", email: "grace@example.com" },
+    ]);
+  }
+  if (path === "/idp/userGroups/list") return Response.json({ userGroups: [{ id: "g-1", name: "Content team" }] });
+  if (path === "/tasks/tasks" && method === "POST") {
+    if (taskBehavior.create === "throw") throw new TypeError("fetch failed");
+    if (taskBehavior.create === "500") return new Response("{}", { status: 500 });
+    if (taskBehavior.create === "400") return new Response('{"message":"Unable to parse the due date"}', { status: 400 });
+    if (taskBehavior.create === "noid") return new Response("", { status: 201 });
+    return new Response("", { status: 201, headers: { "resource-id": "task-1" } });
+  }
+  if (/^\/tasks\/tasks\/[^/]+\/products$/.test(path)) {
+    return taskBehavior.attach === "500" ? new Response("{}", { status: 500 }) : new Response("", { status: 202 });
+  }
+  if (method === "PUT" && path.startsWith("/tasks/tasks/")) return new Response("", { status: 202 });
+  if (path === "/tasks/tasks/task-1" && method === "GET") {
+    return Response.json({ data: { id: "task-1", title: "Review", status: "OPEN", dueDate: "2026-12-01T12:00:00Z", description: "d", productsList: [{ productId: "p-1", isDone: false }] } });
+  }
+  if (path === "/tasks/tasks" && method === "GET") return Response.json({ data: [{ id: "task-1", title: "Review", status: "OPEN", assignee: "Ada", numberOfProducts: 1 }] });
+  if (path.startsWith("/tasks/tasks/users/")) return Response.json({ data: [{ id: "task-2", title: "Mine" }] });
+  return Response.json({});
+}
 
 let bootCounter = 0;
 const servers = [];
@@ -849,11 +889,15 @@ test("every write tool is gated or read-only mode hides it", async () => {
   const all = (await full.client.listTools()).tools;
   const gated = all.filter((t) => t.inputSchema?.properties?.confirmationToken).map((t) => t.name).sort();
   assert.deepEqual(gated, [
+    "add_task_products",
     "append_select_attribute_values",
     "append_variants_to_group",
+    "assign_task",
     "create_attribute_definition",
     "create_category_node",
+    "create_task",
     "generate_variant_matrix",
+    "update_task",
   ]);
   for (const tool of all) {
     assert.ok(tool.annotations && "readOnlyHint" in tool.annotations, `${tool.name} has annotations`);
@@ -1156,6 +1200,242 @@ test("write gate preview tells the model its labels are unverified", async () =>
   assert.match(text, /not checked against the IDs/);
   assert.equal(bluestoneCalls.length, 0, "preview must not write");
   await close();
+});
+
+// ─── Task tools ──────────────────────────────────────────────────────────────
+
+async function callTool(client, name, args) {
+  try {
+    return await client.callTool({ name, arguments: args });
+  } catch (error) {
+    return { isError: true, content: [{ type: "text", text: String(error?.message ?? error) }] };
+  }
+}
+
+const tokenFrom = (text) => text.match(/confirmationToken "([^"]+)"/)?.[1];
+const taskCalls = (method) => bluestoneCalls.filter((c) => c.method === method && c.url.includes("/tasks/tasks"));
+
+// Preview, then apply with the token. Returns both results.
+async function twoStep(client, name, args) {
+  const preview = await callTool(client, name, args);
+  const token = tokenFrom(textOf(preview));
+  assert.ok(token, `${name}: preview should carry a token. Got: ${textOf(preview)}`);
+  const applied = await callTool(client, name, { ...args, confirmationToken: token });
+  return { preview, applied, token };
+}
+
+const TASK_ARGS = { title: "Review copy", assignee: "u-1", dueDate: "2026-12-01", productIds: ["p-1", "p-2"] };
+
+test("task reads are available in read-only mode, task writes are not", async () => {
+  const { client, close } = await connectTools({ readOnly: true });
+  const names = (await client.listTools()).tools.map((t) => t.name);
+  for (const read of ["list_users", "list_user_groups", "list_tasks", "get_task"]) assert.ok(names.includes(read), read);
+  for (const write of ["create_task", "assign_task", "update_task", "add_task_products"]) assert.ok(!names.includes(write), write);
+  await close();
+});
+
+test("create_task: preview writes nothing and names the real assignee, apply creates then attaches", async () => {
+  resetTaskMock();
+  bluestoneCalls.length = 0;
+  const { client, close } = await connectTools();
+  const { preview, applied } = await twoStep(client, "create_task", TASK_ARGS);
+  assert.match(textOf(preview), /Ada Lovelace/);
+  assert.match(textOf(preview), /assignee is notified/);
+  const posts = taskCalls("POST");
+  assert.equal(posts.length, 2, "exactly create then attach after approval");
+  assert.ok(posts[0].url.endsWith("/tasks/tasks"));
+  assert.deepEqual(posts[0].body, { title: "Review copy", assignee: "u-1", assigneeType: "user", dueDate: "2026-12-01T12:00:00Z" });
+  assert.ok(posts[1].url.endsWith("/tasks/tasks/task-1/products"));
+  assert.deepEqual(posts[1].body, { productIds: ["p-1", "p-2"] });
+  assert.match(textOf(applied), /task-1/);
+  assert.ok(!applied.isError);
+  await close();
+});
+
+test("create_task: the preview alone makes no task write", async () => {
+  resetTaskMock();
+  bluestoneCalls.length = 0;
+  const { client, close } = await connectTools();
+  await callTool(client, "create_task", TASK_ARGS);
+  assert.equal(taskCalls("POST").length, 0);
+  assert.equal(taskCalls("PUT").length, 0);
+  await close();
+});
+
+test("create_task: the token is bound to the arguments", async () => {
+  resetTaskMock();
+  bluestoneCalls.length = 0;
+  const { client, close } = await connectTools();
+  const token = tokenFrom(textOf(await callTool(client, "create_task", TASK_ARGS)));
+  for (const change of [{ title: "Other" }, { assignee: "u-2" }, { dueDate: "2026-12-02" }, { productIds: ["p-1"] }, { isPrivate: true }]) {
+    const res = await callTool(client, "create_task", { ...TASK_ARGS, ...change, confirmationToken: token });
+    assert.match(textOf(res), /invalid, expired, or does not match/, JSON.stringify(change));
+  }
+  assert.equal(taskCalls("POST").length, 0);
+  await close();
+});
+
+test("create_task: an unknown assignee id is flagged in the preview", async () => {
+  resetTaskMock();
+  const { client, close } = await connectTools();
+  const text = textOf(await callTool(client, "create_task", { ...TASK_ARGS, assignee: "nobody-1", productIds: undefined }));
+  assert.match(text, /WARNING: no user with this id was found/);
+  const group = textOf(await callTool(client, "create_task", { ...TASK_ARGS, assignee: "g-1", assigneeType: "userGroup", productIds: undefined }));
+  assert.match(group, /Content team/);
+  await close();
+});
+
+test("create_task: a failed attach reports the created task and never retries create", async () => {
+  resetTaskMock();
+  taskBehavior.attach = "500";
+  bluestoneCalls.length = 0;
+  const { client, close } = await connectTools();
+  const { applied } = await twoStep(client, "create_task", TASK_ARGS);
+  assert.equal(applied.isError, true);
+  assert.match(textOf(applied), /task-1/);
+  assert.match(textOf(applied), /NOT attached/);
+  assert.match(textOf(applied), /add_task_products/);
+  assert.equal(taskCalls("POST").filter((c) => c.url.endsWith("/tasks/tasks")).length, 1, "create is sent once");
+  await close();
+});
+
+test("create_task: an unconfirmed create is reported as uncertain and not retried", async () => {
+  for (const mode of ["500", "throw", "noid"]) {
+    resetTaskMock();
+    taskBehavior.create = mode;
+    bluestoneCalls.length = 0;
+    const { client, close } = await connectTools();
+    const { applied } = await twoStep(client, "create_task", { ...TASK_ARGS, productIds: undefined });
+    assert.equal(applied.isError, true, mode);
+    assert.match(textOf(applied), /may exist/, mode);
+    assert.match(textOf(applied), /Do NOT call create_task again/, mode);
+    assert.equal(taskCalls("POST").length, 1, `${mode}: one create attempt only`);
+    await close();
+  }
+});
+
+test("create_task: a definite 4xx is an ordinary error, not 'may exist'", async () => {
+  resetTaskMock();
+  taskBehavior.create = "400";
+  const { client, close } = await connectTools();
+  const { applied } = await twoStep(client, "create_task", { ...TASK_ARGS, productIds: undefined });
+  assert.equal(applied.isError, true);
+  assert.doesNotMatch(textOf(applied), /may exist/);
+  await close();
+});
+
+test("task write tools reject bad input before any preview or call", async () => {
+  resetTaskMock();
+  bluestoneCalls.length = 0;
+  const { client, close } = await connectTools();
+  const cases = [
+    ["create_task", { ...TASK_ARGS, dueDate: "tomorrow" }, /not a valid due date/],
+    ["create_task", { ...TASK_ARGS, dueDate: "2026-02-31" }, /not a valid due date/],
+    ["create_task", { ...TASK_ARGS, productIds: ["p-1", "p-1"] }, /more than once/],
+    ["create_task", { ...TASK_ARGS, productIds: Array.from({ length: 101 }, (_, i) => `p-${i}`) }, /limit is 100/],
+    ["create_task", { ...TASK_ARGS, productIds: ["a/b"] }, /Invalid identifier/],
+    ["create_task", { ...TASK_ARGS, assigneeType: "team" }, /assigneeType|invalid/i],
+    ["create_task", { ...TASK_ARGS, assigneeReminderTime: 0 }, /assigneeReminderTime|too_small|>=/i],
+    ["create_task", { ...TASK_ARGS, title: "" }, /title|too_small|>=/i],
+    ["assign_task", { taskId: "../x", assignee: "u-1" }, /Invalid identifier/],
+    ["update_task", { taskId: "task-1" }, /at least one of/],
+    ["update_task", { taskId: "task-1", dueDate: "soon" }, /not a valid due date/],
+    ["update_task", { taskId: "a?b", title: "x" }, /Invalid identifier/],
+    ["add_task_products", { taskId: "task-1", productIds: [] }, /at least one/],
+    ["add_task_products", { taskId: "task-1", productIds: ["p-1", "p-1"] }, /more than once/],
+    ["add_task_products", { taskId: "task-1", productIds: ["../p"] }, /Invalid identifier/],
+  ];
+  for (const [name, args, pattern] of cases) {
+    const res = await callTool(client, name, args);
+    assert.equal(res.isError, true, `${name} ${JSON.stringify(args).slice(0, 80)}`);
+    assert.match(textOf(res), pattern, `${name}: ${textOf(res)}`);
+    assert.doesNotMatch(textOf(res), /confirmationToken "/, `${name} must fail before previewing`);
+  }
+  assert.equal(taskCalls("POST").length + taskCalls("PUT").length, 0);
+  await close();
+});
+
+test("assign_task, update_task and add_task_products: preview, then one write", async () => {
+  resetTaskMock();
+  bluestoneCalls.length = 0;
+  const { client, close } = await connectTools();
+
+  const assign = await twoStep(client, "assign_task", { taskId: "task-1", assignee: "g-1", assigneeType: "userGroup" });
+  assert.match(textOf(assign.preview), /Content team/);
+  const put = taskCalls("PUT");
+  assert.equal(put.length, 1);
+  assert.ok(put[0].url.endsWith("/tasks/tasks/task-1/assign"));
+  assert.deepEqual(put[0].body, { assignee: "g-1", assigneeType: "userGroup" });
+
+  bluestoneCalls.length = 0;
+  const update = await twoStep(client, "update_task", { taskId: "task-1", title: "New title", dueDate: "2026-12-05" });
+  const updatePut = taskCalls("PUT");
+  assert.equal(updatePut.length, 1);
+  assert.deepEqual(updatePut[0].body, { title: "New title", dueDate: "2026-12-05T12:00:00Z" }, "only changed fields are sent");
+  assert.ok(taskCalls("GET").some((c) => c.url.endsWith("/tasks/tasks/task-1")), "task is read back after the update");
+  assert.match(textOf(update.applied), /task-1/);
+
+  bluestoneCalls.length = 0;
+  await twoStep(client, "add_task_products", { taskId: "task-1", productIds: ["p-3", "p-4"] });
+  const add = taskCalls("POST");
+  assert.equal(add.length, 1);
+  assert.ok(add[0].url.endsWith("/tasks/tasks/task-1/products"));
+  assert.deepEqual(add[0].body, { productIds: ["p-3", "p-4"] });
+  await close();
+});
+
+test("list_users shapes, filters and caps; list_user_groups and task reads work", async () => {
+  resetTaskMock();
+  const { client, close } = await connectTools();
+
+  const users = JSON.parse(textOf(await callTool(client, "list_users", { search: "ada" })));
+  assert.equal(users.totalMatching, 1);
+  assert.deepEqual(users.users, [{ id: "u-1", name: "Ada Lovelace", email: "ada@example.com" }], "no picture, status or login");
+
+  taskBehavior.manyUsers = true;
+  const many = JSON.parse(textOf(await callTool(client, "list_users", {})));
+  assert.equal(many.totalMatching, 120);
+  assert.equal(many.users.length, 50);
+  assert.match(many.note, /Narrow the search/);
+  resetTaskMock();
+
+  const groups = JSON.parse(textOf(await callTool(client, "list_user_groups", {})));
+  assert.deepEqual(groups.userGroups, [{ id: "g-1", name: "Content team" }]);
+
+  bluestoneCalls.length = 0;
+  const tasks = JSON.parse(textOf(await callTool(client, "list_tasks", { productId: "p-1", sortField: "DUE_DATE", sortDirection: "ASC", pageSize: 10 })));
+  assert.equal(tasks.tasks[0].id, "task-1");
+  const listUrl = new URL(taskCalls("GET")[0].url);
+  assert.equal(listUrl.searchParams.get("productId"), "p-1");
+  assert.equal(listUrl.searchParams.get("pageSize"), "10");
+
+  const mine = JSON.parse(textOf(await callTool(client, "list_tasks", { userId: "u-1", taskType: "assigned" })));
+  assert.equal(mine.tasks[0].id, "task-2");
+  assert.ok(taskCalls("GET").some((c) => c.url.includes("/tasks/tasks/users/u-1/assigned")));
+  assert.equal((await callTool(client, "list_tasks", { userId: "u-1" })).isError, true, "userId needs taskType");
+  assert.equal((await callTool(client, "list_tasks", { userId: "../x", taskType: "all" })).isError, true);
+  assert.equal((await callTool(client, "list_tasks", { pageSize: 500 })).isError, true);
+
+  const task = JSON.parse(textOf(await callTool(client, "get_task", { taskId: "task-1" })));
+  assert.deepEqual(task.products, [{ productId: "p-1", isDone: false }]);
+  assert.equal((await callTool(client, "get_task", { taskId: "a/b" })).isError, true);
+  await close();
+});
+
+test("task helpers: due date normalisation and shaping", async () => {
+  const { normalizeTaskDueDate, firstDuplicate, rowsOf } = await import("../build/src/task-input.js");
+  assert.equal(normalizeTaskDueDate("2026-12-01"), "2026-12-01T12:00:00Z");
+  assert.equal(normalizeTaskDueDate(" 2026-02-28 "), "2026-02-28T12:00:00Z");
+  assert.equal(normalizeTaskDueDate("2026-12-01T09:00:00+01:00"), "2026-12-01T09:00:00+01:00");
+  assert.equal(normalizeTaskDueDate("2026-12-01T09:00:00Z"), "2026-12-01T09:00:00Z");
+  for (const bad of ["", "tomorrow", "2026-02-30", "2026-13-01", "2026-12-01T09:00:00", "2026-12-01 09:00", 5, null, undefined, {}, ["2026-12-01"]]) {
+    assert.equal(normalizeTaskDueDate(bad), null, JSON.stringify(bad));
+  }
+  assert.equal(firstDuplicate(["a", "b", "a"]), "a");
+  assert.equal(firstDuplicate(["a", "b"]), undefined);
+  assert.deepEqual(rowsOf({ data: [1] }), [1]);
+  assert.deepEqual(rowsOf({ userGroups: [2] }, "userGroups"), [2]);
+  assert.deepEqual(rowsOf("x"), []);
 });
 
 test("security log never contains credentials, tokens, or codes", async () => {

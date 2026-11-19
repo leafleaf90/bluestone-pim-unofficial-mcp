@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.0, task tools: 2026-11-19
+
+### Added
+
+- Task tools. Read-only: `list_users`, `list_user_groups`, `list_tasks`, `get_task`. Two-step writes: `create_task` (optional products attached in the same call), `assign_task`, `update_task`, `add_task_products`. See [docs/tools.md](docs/tools.md#task-tools).
+- The task preview looks the assignee up in the identity service, shows the real name, and warns when the ID is unknown.
+- `create_task` is never retried. An unconfirmed create is reported as "may exist", and a failed product attach reports the created task ID.
+- Due dates accept `YYYY-MM-DD` (noon UTC) or a full ISO-8601 date-time and are validated before any preview.
+- `npm run test:security` now covers the task tools (57 tests).
+
 ## Pre-commit audit fixes: 2026-11-19
 
 ### Fixed

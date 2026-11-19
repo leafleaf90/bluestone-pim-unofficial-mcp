@@ -41,6 +41,8 @@ MAPI_CLIENT_SECRET=your-mapi-client-secret
 
 This file is excluded from git. Do not commit it.
 
+The task tools need extra permissions on the MAPI client: `TASKS` (ADD, READ, UPDATE, ASSIGN, plus the `*_PRIVATE` variants for private tasks), `USER / LIST` for `list_users`, and `USER_GROUP / READ` for `list_user_groups`. Without them those tools return a 403 that names the missing permission. The other tools are unaffected.
+
 ### 3. Build
 
 ```bash

@@ -29,6 +29,19 @@ import { VERSION } from "./version.js";
 import { createHash } from "crypto";
 import { seg } from "./safe-path.js";
 import { fetchProductImage } from "./safe-image-fetch.js";
+import {
+  MAX_LISTED_ROWS,
+  MAX_TASK_PRODUCTS,
+  filterGroups,
+  filterUsers,
+  firstDuplicate,
+  normalizeTaskDueDate,
+  rowsOf,
+  shapeTaskDetail,
+  shapeTaskRow,
+  shapeUserGroups,
+  shapeUsers,
+} from "./task-input.js";
 import { upstreamDetail } from "./sanitize.js";
 import { createWriteGate } from "./write-guard.js";
 
@@ -2029,6 +2042,158 @@ const TWO_STEP_WRITE_NOTE =
   "Two-step write: the first call only returns a preview and a confirmationToken and changes nothing. " +
   "Show the preview to the user, and after they explicitly approve it, call this tool again with identical arguments plus the confirmationToken. ";
 
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+//
+// The tasks service is its own host path: ${API_BASE}/tasks/tasks. Assignees are
+// IdP user or user group IDs, not names or emails. Creating or assigning a task
+// notifies the assignee and is not idempotent, so none of these calls is retried.
+
+const TASKS_PATH = "/tasks/tasks";
+const IDP_PATH = "/idp";
+const IDP_PAGE_SIZE = 1000;
+const TASKS_TIMEOUT_MS = 30_000;
+const TASKS_PERMISSION_HINT =
+  "TASKS permission (ADD to create, READ to read, UPDATE to edit or add products, ASSIGN to assign; private tasks need the matching *_PRIVATE variant)";
+
+class TasksHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "TasksHttpError";
+  }
+}
+
+async function tasksRequest<T>(
+  method: "GET" | "POST" | "PUT",
+  path: string,
+  creds: Credentials,
+  options: {
+    body?: unknown;
+    query?: Record<string, string | number | undefined>;
+    permission?: string;
+  } = {}
+): Promise<{ data: T; resourceId: string | null }> {
+  const token = await getBearerToken(creds);
+  let url = `${API_BASE}${path}`;
+  if (options.query) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(options.query)) {
+      if (value !== undefined) params.set(key, String(value));
+    }
+    const queryString = params.toString();
+    if (queryString) url += `?${queryString}`;
+  }
+  // No context-fallback header: the tasks service takes context as a body or query field.
+  const res = await fetch(url, {
+    method,
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${token}`,
+      ...(options.body !== undefined && { "content-type": "application/json" }),
+    },
+    ...(options.body !== undefined && { body: JSON.stringify(options.body) }),
+    signal: AbortSignal.timeout(TASKS_TIMEOUT_MS),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    const base = mapiErrorMessage(res.status, text);
+    throw new TasksHttpError(
+      res.status,
+      res.status === 403 && options.permission ? `${base} It needs ${options.permission}.` : base
+    );
+  }
+  let data: unknown = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = {};
+    }
+  }
+  return { data: data as T, resourceId: res.headers.get("resource-id") };
+}
+
+/** Plain-language description of an assignee for a preview, checked against the IdP. */
+async function describeAssignee(
+  creds: Credentials,
+  id: string,
+  type: "user" | "userGroup"
+): Promise<string> {
+  try {
+    if (type === "userGroup") {
+      const { data } = await tasksRequest<unknown>("GET", `${IDP_PATH}/userGroups/list`, creds, {
+        permission: "USER_GROUP / READ",
+      });
+      const group = shapeUserGroups(data).find((g) => g.id === id);
+      return group
+        ? `user group "${group.name ?? id}" (${id})`
+        : `user group ${id} (WARNING: no group with this id was found in this organisation)`;
+    }
+    const { data } = await tasksRequest<unknown>("GET", `${IDP_PATH}/users`, creds, {
+      query: { page: 0, pageSize: IDP_PAGE_SIZE },
+      permission: "USER / LIST",
+    });
+    const users = shapeUsers(data);
+    const user = users.find((u) => u.id === id);
+    if (user) return `user "${user.name ?? user.email ?? id}"${user.email ? ` <${user.email}>` : ""} (${id})`;
+    return users.length >= IDP_PAGE_SIZE
+      ? `user ${id} (not found in the first ${IDP_PAGE_SIZE} users, could not be verified)`
+      : `user ${id} (WARNING: no user with this id was found in this organisation)`;
+  } catch {
+    return `${type === "userGroup" ? "user group" : "user"} ${id} (could not be looked up)`;
+  }
+}
+
+function jsonResult(value: unknown) {
+  return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
+}
+
+function textResult(text: string, isError = false) {
+  return { content: [{ type: "text" as const, text }], ...(isError && { isError: true as const }) };
+}
+
+/** A failure that may or may not have created the task. Never retried. */
+function isDefinitelyNotCreated(error: unknown): boolean {
+  return error instanceof TasksHttpError && error.status >= 400 && error.status < 500;
+}
+
+function validateTaskIds(label: string, ids: string[]): string[] {
+  if (ids.length === 0) throw new Error(`${label} must contain at least one ID.`);
+  if (ids.length > MAX_TASK_PRODUCTS) {
+    throw new Error(`${label} has ${ids.length} IDs. The limit is ${MAX_TASK_PRODUCTS} per call.`);
+  }
+  const duplicate = firstDuplicate(ids);
+  if (duplicate !== undefined) {
+    throw new Error(`${label} contains the ID "${duplicate}" more than once. Pass each ID once.`);
+  }
+  ids.forEach((id) => seg(id));
+  return ids;
+}
+
+function requireDueDate(value: string): string {
+  const normalized = normalizeTaskDueDate(value);
+  if (!normalized) {
+    throw new Error(
+      `"${value}" is not a valid due date. Use YYYY-MM-DD (sent as noon UTC) or a full ISO-8601 date-time with Z or an offset, for example 2026-12-01T09:00:00+01:00.`
+    );
+  }
+  return normalized;
+}
+
+const assigneeTypeSchema = z
+  .enum(["user", "userGroup"])
+  .default("user")
+  .describe('Whether assignee is a user ID or a user group ID. Defaults to "user".');
+
+const TOKEN_FIELD = z
+  .string()
+  .optional()
+  .describe(
+    "Omit on the first call to get a preview. Pass the token from the preview only after the user approved it, with identical arguments."
+  );
+
 export interface McpServerOptions {
   /** Register read tools only. Also enabled globally by MCP_READ_ONLY=true. */
   readOnly?: boolean;
@@ -2087,7 +2252,11 @@ export function createMcpServer(creds: Credentials, options: McpServerOptions = 
         "- Assign multiple SINGLE products as variants of a variant group in bulk (append_variants_to_group)\n" +
         "- Add an attribute value to a product (set_product_attribute)\n" +
         "- Assign an existing product to a catalog category (assign_product_to_category)\n" +
-        "- Rename an existing product (update_product_name)\n\n" +
+        "- Rename an existing product (update_product_name)\n" +
+        "- Find who a task can be assigned to (list_users, list_user_groups)\n" +
+        "- List and read tasks (list_tasks, get_task)\n" +
+        "- Create a task with an assignee, due date, and optional products (create_task)\n" +
+        "- Assign or re-assign a task, change its title, description, or due date, and add products to it (assign_task, update_task, add_task_products)\n\n" +
         "What it cannot do yet:\n" +
         "- Search products by attribute values, labels, relations, assets, or other advanced query-builder filters\n" +
         "- Set product media\n" +
@@ -2145,8 +2314,10 @@ export function createMcpServer(creds: Credentials, options: McpServerOptions = 
         "Always confirm the exact missing attribute name, data type, unit, and initial enum values for select attributes before calling create_attribute_definition. " +
         "Always confirm the exact dictionary or select values before calling create_dictionary_value or append_select_attribute_values. " +
         "Always confirm the exact product, attribute definition, and values before calling set_product_attribute. " +
-        "Always confirm the exact product and target value before calling assign_product_to_category or update_product_name.\n\n" +
-        "Two-step writes: generate_variant_matrix, append_variants_to_group, create_attribute_definition, append_select_attribute_values, and create_category_node first return a PREVIEW and a confirmationToken without changing anything. " +
+        "Always confirm the exact product and target value before calling assign_product_to_category or update_product_name. " +
+        "Tasks: an assignee is always a user ID from list_users or a user group ID from list_user_groups, never a name or an email. " +
+        "Creating or assigning a task notifies the assignee and is not safe to repeat, so never call create_task a second time to retry: if a result says the task may exist, check list_tasks first.\n\n" +
+        "Two-step writes: generate_variant_matrix, append_variants_to_group, create_attribute_definition, append_select_attribute_values, create_category_node, create_task, assign_task, update_task, and add_task_products first return a PREVIEW and a confirmationToken without changing anything. " +
         "Show the preview to the user. Only after the user explicitly approves it, call the same tool again with identical arguments plus the confirmationToken. Never pass a token the user has not approved a preview for, and never describe a preview as a completed change.\n\n" +
         "For any request about product data onboarding, supplier onboarding, importing, bulk import, one-time bulk import, Excel import, CSV import, import planning, supplier data, spreadsheets, CSV files, Excel files, field mapping, attribute mapping, category mapping, preparing products before creation, or misspelled Bluestone references such as Blueston, do not answer from generic onboarding knowledge first. Immediately call list_attribute_definitions, list_catalogs, and list_contexts before responding. " +
         "If the user needs category placement beyond the catalog root, call list_category_tree for the relevant catalog. " +
@@ -6579,6 +6750,416 @@ export function createMcpServer(creds: Credentials, options: McpServerOptions = 
           },
         ],
       };
+    }
+  );
+
+  // ─── Task tools ─────────────────────────────────────────────────────────────
+
+  // Tool: list_users
+  server.registerTool(
+    "list_users",
+    {
+      description:
+        "List users in the Bluestone PIM organisation (id, name, email). " +
+        "Use this to find the user ID to assign a task to. create_task and assign_task take an ID, never a name or an email. " +
+        "Pass search to narrow by name or email. At most " + MAX_LISTED_ROWS + " users are returned. " +
+        "Needs the USER / LIST permission.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      inputSchema: {
+        search: z
+          .string()
+          .optional()
+          .describe("Case-insensitive text to match against the user's name or email."),
+      },
+    },
+    async ({ search }) => {
+      const { data } = await tasksRequest<unknown>("GET", `${IDP_PATH}/users`, creds, {
+        query: { page: 0, pageSize: IDP_PAGE_SIZE },
+        permission: "USER / LIST",
+      });
+      const matching = filterUsers(shapeUsers(data), search);
+      return jsonResult({
+        totalMatching: matching.length,
+        returned: Math.min(matching.length, MAX_LISTED_ROWS),
+        ...(matching.length > MAX_LISTED_ROWS && {
+          note: `Only the first ${MAX_LISTED_ROWS} are shown. Narrow the search to see others.`,
+        }),
+        users: matching.slice(0, MAX_LISTED_ROWS),
+      });
+    }
+  );
+
+  // Tool: list_user_groups
+  server.registerTool(
+    "list_user_groups",
+    {
+      description:
+        "List user groups in the Bluestone PIM organisation (id, name). " +
+        "Use this to find the group ID to assign a task to with assigneeType userGroup. Needs the USER_GROUP / READ permission.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      inputSchema: {
+        search: z.string().optional().describe("Case-insensitive text to match against the group name."),
+      },
+    },
+    async ({ search }) => {
+      const { data } = await tasksRequest<unknown>("GET", `${IDP_PATH}/userGroups/list`, creds, {
+        permission: "USER_GROUP / READ",
+      });
+      const matching = filterGroups(shapeUserGroups(data), search);
+      return jsonResult({
+        totalMatching: matching.length,
+        ...(matching.length > MAX_LISTED_ROWS && {
+          note: `Only the first ${MAX_LISTED_ROWS} are shown. Narrow the search to see others.`,
+        }),
+        userGroups: matching.slice(0, MAX_LISTED_ROWS),
+      });
+    }
+  );
+
+  // Tool: list_tasks
+  server.registerTool(
+    "list_tasks",
+    {
+      description:
+        "List Bluestone PIM tasks. By default lists tasks in the organisation. " +
+        "Pass productId to see tasks that include one product. Pass userId and taskType to list the tasks of one user (all, archived, assigned, or created). " +
+        "Returns task id, title, status, assignee, due date, and product progress. The assignee and creator come back as user or group IDs, not names: use list_users or list_user_groups to resolve them. Use get_task for one task in full. " +
+        "Call this before create_task to check that a similar task does not already exist.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      inputSchema: {
+        productId: z.string().optional().describe("Only tasks that include this product ID."),
+        userId: z.string().optional().describe("List the tasks of this user ID. Requires taskType."),
+        taskType: z
+          .enum(["all", "archived", "assigned", "created"])
+          .optional()
+          .describe("Which of the user's tasks to list. Requires userId."),
+        context: z.string().optional().describe("Only tasks associated with this context ID."),
+        sortField: z.enum(["TITLE", "DUE_DATE"]).optional(),
+        sortDirection: z.enum(["ASC", "DESC"]).optional(),
+        page: z.number().int().min(0).optional().describe("Zero-based page. Defaults to 0."),
+        pageSize: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_LISTED_ROWS)
+          .optional()
+          .describe(`Rows per page, up to ${MAX_LISTED_ROWS}. Defaults to 20.`),
+      },
+    },
+    async ({ productId, userId, taskType, context, sortField, sortDirection, page, pageSize }) => {
+      if ((userId && !taskType) || (!userId && taskType)) {
+        throw new Error("userId and taskType must be passed together.");
+      }
+      const paging = { page: page ?? 0, pageSize: pageSize ?? 20 };
+      const { data } = userId
+        ? await tasksRequest<unknown>("GET", `${TASKS_PATH}/users/${seg(userId)}/${taskType}`, creds, {
+            query: paging,
+            permission: TASKS_PERMISSION_HINT,
+          })
+        : await tasksRequest<unknown>("GET", TASKS_PATH, creds, {
+            query: {
+              ...paging,
+              productId: productId ? seg(productId) : undefined,
+              context,
+              sortField,
+              sortDirection,
+            },
+            permission: TASKS_PERMISSION_HINT,
+          });
+      const tasks = rowsOf(data)
+        .map(shapeTaskRow)
+        .filter((row): row is Record<string, unknown> => row !== null);
+      return jsonResult({ page: paging.page, pageSize: paging.pageSize, count: tasks.length, tasks });
+    }
+  );
+
+  // Tool: get_task
+  server.registerTool(
+    "get_task",
+    {
+      description:
+        "Fetch one Bluestone PIM task by ID: title, description, status, assignee, due date, and the products in its scope with their done flag.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      inputSchema: {
+        taskId: z.string().describe("The task ID, from list_tasks or create_task."),
+      },
+    },
+    async ({ taskId }) => {
+      const { data } = await tasksRequest<unknown>("GET", `${TASKS_PATH}/${seg(taskId)}`, creds, {
+        permission: TASKS_PERMISSION_HINT,
+      });
+      const task = shapeTaskDetail(data);
+      if (!task) throw new Error(`Task ${taskId} was returned in an unexpected shape.`);
+      return jsonResult(task);
+    }
+  );
+
+  // Tool: create_task
+  server.registerTool(
+    "create_task",
+    {
+      description:
+        TWO_STEP_WRITE_NOTE +
+        "Create a Bluestone PIM task with a title, an assignee, and a due date, and optionally attach products to it. " +
+        "Creating a task notifies the assignee and is NOT safe to repeat: never call it again to retry. If the result says the task may exist, check with list_tasks first. " +
+        "The assignee must be a user ID (from list_users) or a user group ID (from list_user_groups), not a name or an email. " +
+        "Always confirm the title, assignee, due date, and products with the user before calling this tool. " +
+        "Check list_tasks first when a similar task may already exist.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      inputSchema: {
+        confirmationToken: TOKEN_FIELD,
+        title: z.string().min(1).max(500).describe("The task title."),
+        assignee: z.string().min(1).max(128).describe("User ID or user group ID to assign the task to."),
+        assigneeType: assigneeTypeSchema,
+        dueDate: z
+          .string()
+          .describe(
+            "Due date. Use YYYY-MM-DD (sent as noon UTC) or a full ISO-8601 date-time with Z or an offset."
+          ),
+        description: z.string().max(5000).optional().describe("Optional task description."),
+        context: z
+          .string()
+          .optional()
+          .describe("Optional context (language) ID to associate the task with. Must exist in the organisation."),
+        isPrivate: z
+          .boolean()
+          .optional()
+          .describe("When true the task is visible only to its creator, its assignee, and users with the private-task permissions."),
+        assigneeReminderTime: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Hours before the due date to remind the assignee. Omit for no reminder."),
+        creatorReminderTime: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Hours before the due date to remind the creator. Omit for no reminder."),
+        productIds: z
+          .array(z.string())
+          .optional()
+          .describe(`Optional product IDs to attach to the task, up to ${MAX_TASK_PRODUCTS}. Each ID once.`),
+      },
+    },
+    async (args) => {
+      const { confirmationToken, ...defining } = args;
+      const due = requireDueDate(defining.dueDate);
+      const productIds = defining.productIds?.length ? validateTaskIds("productIds", defining.productIds) : [];
+
+      const gated = await gate({
+        tool: "create_task",
+        args: defining,
+        confirmationToken,
+        preview:
+          `Create task "${defining.title}" assigned to ${await describeAssignee(creds, defining.assignee, defining.assigneeType)}, due ${due}` +
+          `${defining.isPrivate ? ", private" : ""}` +
+          `${productIds.length ? `, with ${productIds.length} product${productIds.length === 1 ? "" : "s"} attached (${productIds.join(", ")})` : ""}. ` +
+          "The assignee is notified.",
+      });
+      if (!gated.proceed) return gated.result;
+
+      const body = {
+        title: defining.title,
+        assignee: defining.assignee,
+        assigneeType: defining.assigneeType,
+        dueDate: due,
+        ...(defining.description && { description: defining.description }),
+        ...(defining.context && { context: defining.context }),
+        ...(defining.isPrivate !== undefined && { isPrivate: defining.isPrivate }),
+        ...(defining.assigneeReminderTime !== undefined && { assigneeReminderTime: defining.assigneeReminderTime }),
+        ...(defining.creatorReminderTime !== undefined && { creatorReminderTime: defining.creatorReminderTime }),
+      };
+
+      let taskId: string | null;
+      try {
+        taskId = (await tasksRequest<unknown>("POST", TASKS_PATH, creds, { body, permission: TASKS_PERMISSION_HINT }))
+          .resourceId;
+      } catch (error) {
+        if (isDefinitelyNotCreated(error)) throw error;
+        return textResult(
+          `Bluestone did not confirm that task "${defining.title}" was created, so it may exist. Do NOT call create_task again. ` +
+            "Check with list_tasks (for example filtered by the assignee's user ID), and only create it again if it is missing.",
+          true
+        );
+      }
+      if (!taskId) {
+        return textResult(
+          `Bluestone accepted the request but returned no task ID, so task "${defining.title}" may exist. Do NOT call create_task again. ` +
+            "Check with list_tasks, and only create it again if it is missing.",
+          true
+        );
+      }
+
+      if (productIds.length) {
+        try {
+          await tasksRequest<unknown>("POST", `${TASKS_PATH}/${seg(taskId)}/products`, creds, {
+            body: { productIds },
+            permission: TASKS_PERMISSION_HINT,
+          });
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "Unknown error.";
+          return textResult(
+            `Task "${defining.title}" was created (ID: ${taskId}) but the products were NOT attached. ${detail} ` +
+              `Do NOT call create_task again. Attach them with add_task_products using taskId ${taskId}.`,
+            true
+          );
+        }
+      }
+
+      return textResult(
+        `Task "${defining.title}" created. ID: ${taskId}. Due ${due}.` +
+          (productIds.length ? ` ${productIds.length} product${productIds.length === 1 ? "" : "s"} attached.` : "")
+      );
+    }
+  );
+
+  // Tool: assign_task
+  server.registerTool(
+    "assign_task",
+    {
+      description:
+        TWO_STEP_WRITE_NOTE +
+        "Assign or re-assign an existing Bluestone PIM task to a user or a user group. A task has one assignee, so this replaces the current one and notifies the new assignee. " +
+        "The assignee must be a user ID (from list_users) or a user group ID (from list_user_groups), not a name or an email. " +
+        "Always confirm the task and the new assignee with the user before calling this tool.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      inputSchema: {
+        confirmationToken: TOKEN_FIELD,
+        taskId: z.string().describe("The task ID, from list_tasks or create_task."),
+        assignee: z.string().min(1).max(128).describe("User ID or user group ID to assign the task to."),
+        assigneeType: assigneeTypeSchema,
+        taskTitle: z.string().optional().describe("Task title for confirmation context. Not verified."),
+      },
+    },
+    async (args) => {
+      const { confirmationToken, ...defining } = args;
+      seg(defining.taskId);
+      const gated = await gate({
+        tool: "assign_task",
+        args: defining,
+        confirmationToken,
+        preview:
+          `Assign task ${defining.taskTitle ? `"${defining.taskTitle}" ` : ""}(${defining.taskId}) to ` +
+          `${await describeAssignee(creds, defining.assignee, defining.assigneeType)}. The new assignee is notified.`,
+      });
+      if (!gated.proceed) return gated.result;
+      await tasksRequest<unknown>("PUT", `${TASKS_PATH}/${seg(defining.taskId)}/assign`, creds, {
+        body: { assignee: defining.assignee, assigneeType: defining.assigneeType },
+        permission: TASKS_PERMISSION_HINT,
+      });
+      return textResult(`Task ${defining.taskId} assigned to ${defining.assigneeType} ${defining.assignee}.`);
+    }
+  );
+
+  // Tool: update_task
+  server.registerTool(
+    "update_task",
+    {
+      description:
+        TWO_STEP_WRITE_NOTE +
+        "Change the title, description, due date, or context of an existing Bluestone PIM task. Pass only the fields to change. " +
+        "To change the assignee use assign_task. To add products use add_task_products. " +
+        "The result reads the task back so you can tell the user what the task now looks like. " +
+        "Always confirm the task and the new values with the user before calling this tool.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      inputSchema: {
+        confirmationToken: TOKEN_FIELD,
+        taskId: z.string().describe("The task ID, from list_tasks."),
+        title: z.string().min(1).max(500).optional().describe("New title."),
+        description: z.string().max(5000).optional().describe("New description."),
+        dueDate: z
+          .string()
+          .optional()
+          .describe("New due date: YYYY-MM-DD (sent as noon UTC) or a full ISO-8601 date-time with Z or an offset."),
+        context: z.string().optional().describe("New context (language) ID."),
+      },
+    },
+    async (args) => {
+      const { confirmationToken, ...defining } = args;
+      seg(defining.taskId);
+      if (
+        defining.title === undefined &&
+        defining.description === undefined &&
+        defining.dueDate === undefined &&
+        defining.context === undefined
+      ) {
+        throw new Error("Pass at least one of title, description, dueDate, or context to change.");
+      }
+      // The API silently ignores a due date it cannot parse, so reject it here.
+      const due = defining.dueDate !== undefined ? requireDueDate(defining.dueDate) : undefined;
+      const changes = [
+        defining.title !== undefined && `title "${defining.title}"`,
+        defining.description !== undefined && "the description",
+        due !== undefined && `due date ${due}`,
+        defining.context !== undefined && `context ${defining.context}`,
+      ].filter(Boolean);
+
+      const gated = await gate({
+        tool: "update_task",
+        args: defining,
+        confirmationToken,
+        preview: `Update task ${defining.taskId}: set ${changes.join(", ")}.`,
+      });
+      if (!gated.proceed) return gated.result;
+
+      await tasksRequest<unknown>("PUT", `${TASKS_PATH}/${seg(defining.taskId)}`, creds, {
+        body: {
+          ...(defining.title !== undefined && { title: defining.title }),
+          ...(defining.description !== undefined && { description: defining.description }),
+          ...(due !== undefined && { dueDate: due }),
+          ...(defining.context !== undefined && { context: defining.context }),
+        },
+        permission: TASKS_PERMISSION_HINT,
+      });
+
+      const { data } = await tasksRequest<unknown>("GET", `${TASKS_PATH}/${seg(defining.taskId)}`, creds, {
+        permission: TASKS_PERMISSION_HINT,
+      });
+      return textResult(
+        `Task ${defining.taskId} updated. It now reads: ${JSON.stringify(shapeTaskDetail(data) ?? {}, null, 2)}`
+      );
+    }
+  );
+
+  // Tool: add_task_products
+  server.registerTool(
+    "add_task_products",
+    {
+      description:
+        TWO_STEP_WRITE_NOTE +
+        "Add products to the scope of an existing Bluestone PIM task. " +
+        `Up to ${MAX_TASK_PRODUCTS} product IDs per call, each ID once. ` +
+        "Always confirm the task and the exact products with the user before calling this tool.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      inputSchema: {
+        confirmationToken: TOKEN_FIELD,
+        taskId: z.string().describe("The task ID, from list_tasks or create_task."),
+        productIds: z.array(z.string()).describe(`Product IDs to add, up to ${MAX_TASK_PRODUCTS}. Each ID once.`),
+        taskTitle: z.string().optional().describe("Task title for confirmation context. Not verified."),
+      },
+    },
+    async (args) => {
+      const { confirmationToken, ...defining } = args;
+      seg(defining.taskId);
+      const productIds = validateTaskIds("productIds", defining.productIds);
+      const gated = await gate({
+        tool: "add_task_products",
+        args: defining,
+        confirmationToken,
+        preview:
+          `Add ${productIds.length} product${productIds.length === 1 ? "" : "s"} (${productIds.join(", ")}) to task ` +
+          `${defining.taskTitle ? `"${defining.taskTitle}" ` : ""}(${defining.taskId}).`,
+      });
+      if (!gated.proceed) return gated.result;
+      await tasksRequest<unknown>("POST", `${TASKS_PATH}/${seg(defining.taskId)}/products`, creds, {
+        body: { productIds },
+        permission: TASKS_PERMISSION_HINT,
+      });
+      return textResult(
+        `Added ${productIds.length} product${productIds.length === 1 ? "" : "s"} to task ${defining.taskId}.`
+      );
     }
   );
 

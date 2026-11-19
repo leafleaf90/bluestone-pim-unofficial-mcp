@@ -34,7 +34,7 @@ If reads work but writes never execute, check your plan before debugging the con
 
 ## Two-step writes
 
-`generate_variant_matrix`, `append_variants_to_group`, `create_attribute_definition`, `append_select_attribute_values`, and `create_category_node` take an optional `confirmationToken`. The first call changes nothing: it returns a plain-language preview and a token that is valid for 10 minutes and bound to the exact arguments and your credentials. After you approve the preview, the assistant calls the tool again with the same arguments and the token.
+`generate_variant_matrix`, `append_variants_to_group`, `create_attribute_definition`, `append_select_attribute_values`, `create_category_node`, `create_task`, `assign_task`, `update_task`, and `add_task_products` take an optional `confirmationToken`. The first call changes nothing: it returns a plain-language preview and a token that is valid for 10 minutes and bound to the exact arguments and your credentials. After you approve the preview, the assistant calls the tool again with the same arguments and the token.
 
 When the client supports MCP elicitation and the connection is long-lived (stdio, or `ENABLE_ELICITATION=true`), the client asks you directly instead and no token is needed. The token flow forces a visible preview step. It cannot prove that a person read it, so keep `MCP_READ_ONLY=true` for deployments that should never write.
 
@@ -1003,6 +1003,40 @@ Body: { "name": "..." }
 **What Claude does:**
 - Confirms the exact current product and new name with the user before calling
 - Uses this only for product rename, not attributes, category placement, media, or publication
+
+---
+
+## Task tools
+
+Tasks live on their own service, `{API}/tasks/tasks`. An assignee is always an **ID** (a user from `list_users`, or a user group from `list_user_groups`), never a name or an email. Creating or assigning a task notifies the assignee and is not safe to repeat, so no task call is retried.
+
+**MAPI permissions needed:** `TASKS` ADD (create), READ (list and get), UPDATE (update and add products), ASSIGN (assign). Private tasks need the matching `*_PRIVATE` variant. `list_users` needs `USER / LIST` and `list_user_groups` needs `USER_GROUP / READ`. A 403 names the missing permission.
+
+### Read tools (also available in read-only sessions)
+
+| Tool | What it does | API call |
+|---|---|---|
+| `list_users` | Users as `{ id, name, email }`. Optional `search` on name or email. At most 50 returned. | `GET /idp/users` |
+| `list_user_groups` | User groups as `{ id, name }`. Optional `search`. | `GET /idp/userGroups/list` |
+| `list_tasks` | Tasks in the organisation. Filters: `productId`, `context`, `sortField` (`TITLE`, `DUE_DATE`), `sortDirection`, `page`, `pageSize` (max 50). Pass `userId` with `taskType` (`all`, `archived`, `assigned`, `created`) for one user's tasks. | `GET /tasks/tasks`, `GET /tasks/tasks/users/{userId}/{taskType}` |
+| `get_task` | One task in full, with its products and done flags. | `GET /tasks/tasks/{taskId}` |
+
+### Write tools (two-step, hidden in read-only sessions)
+
+| Tool | What it does | API call |
+|---|---|---|
+| `create_task` | Create a task. Required: `title`, `assignee`, `dueDate`. Optional: `assigneeType` (`user` default, or `userGroup`), `description`, `context`, `isPrivate`, `assigneeReminderTime`, `creatorReminderTime` (hours, minimum 1), `productIds` (up to 100, attached in a second call). | `POST /tasks/tasks`, then `POST /tasks/tasks/{id}/products` |
+| `assign_task` | Replace the assignee of a task. A task has one assignee. | `PUT /tasks/tasks/{taskId}/assign` |
+| `update_task` | Change `title`, `description`, `dueDate` or `context`. Only the passed fields are sent, and the task is read back afterwards. | `PUT /tasks/tasks/{taskId}`, then `GET` |
+| `add_task_products` | Add up to 100 products to a task. | `POST /tasks/tasks/{taskId}/products` |
+
+**Due dates:** pass `YYYY-MM-DD` (sent as that day at noon UTC) or a full ISO-8601 date-time with `Z` or an offset. Anything else is rejected before a preview, because the update endpoint silently ignores a due date it cannot parse.
+
+**Previews check the assignee.** The preview looks the assignee ID up in the identity service and shows the real name, with a warning when no such user or group exists. Task titles passed for context (`taskTitle`) are not verified.
+
+**IDs in results.** `assignee` and `creator` come back as IDs, not names. Resolve them with `list_users` or `list_user_groups`.
+
+**Uncertain results.** If a create is not confirmed (a 5xx, a network failure, or no task ID in the response), the result says the task **may exist** and tells the model not to create it again. If the task is created but attaching products fails, the result gives the task ID and points to `add_task_products`. Both come back as errors so the model does not report success.
 
 ---
 

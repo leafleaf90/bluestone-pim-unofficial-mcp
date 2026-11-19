@@ -131,7 +131,7 @@ export function createWriteGate(opts: {
       const token = issueConfirmationToken(tool, args, opts.credentialId);
       return text(
         `PREVIEW ONLY. Nothing has been changed in Bluestone PIM yet.\n\n${preview}\n\n` +
-          `Names in the preview were supplied by the assistant and are not checked against the IDs. The IDs are what will be changed. ` +
+          `Any names the assistant supplied for this preview are not checked against the IDs. The IDs are what will be changed. ` +
           `Show this plan to the user. If the user explicitly approves it, call ${tool} again with exactly the same arguments plus confirmationToken "${token}". ` +
           `The token is valid for 10 minutes and only works for these exact arguments. If the user wants any change, call ${tool} again without a token to get a new preview.`
       );
